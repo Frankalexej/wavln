@@ -26,6 +26,7 @@ phone_seg_anno_log_path = bsc_path + "phone_seg_anno_log/"
 model_save_dir = root_path + "model_save/"
 model_eng_save_dir = model_save_dir + "eng/"
 model_man_save_dir = model_save_dir + "man/"
+# NOTE: don't put file paths here, only directory. 
 
 
 def run(): 
@@ -44,7 +45,10 @@ def run():
         phone_seg_random_path,
         seq_seg_anno_path,
         phone_seg_random_log_path,
-        phone_seg_anno_log_path
+        phone_seg_anno_log_path, 
+        model_save_dir, 
+        model_eng_save_dir, 
+        model_man_save_dir
     ]
     for a_path in paths_list: 
         os.makedirs(a_path, exist_ok = True)

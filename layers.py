@@ -21,6 +21,7 @@ class HM_LSTMCell(Module):
         W_01 means the state transition parameters from layer l-1 (bottom layer) to layer l
         '''
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # self.device = torch.device('cpu')
         self.U_11 = Parameter(torch.rand((4 * self.hidden_size + 1, self.hidden_size), dtype=torch.float, device=self.device))
         if not self.last_layer:
             self.U_21 = Parameter(torch.rand((4 * self.hidden_size + 1, self.top_size), dtype=torch.float, device=self.device))
@@ -85,6 +86,7 @@ class HM_LSTM(Module):
         self.cell_1 = HM_LSTMCell(self.input_size, self.size_list[0], self.size_list[1], self.a, False)
         self.cell_2 = HM_LSTMCell(self.size_list[0], self.size_list[1], None, self.a, True)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # self.device = torch.device('cpu')
 
     def forward(self, inputs, hidden):
         # inputs.size = (batch_size, time steps, embed_size/input_size)
