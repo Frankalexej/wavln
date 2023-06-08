@@ -3,7 +3,7 @@ import torchaudio
 import torchaudio.transforms as transforms
 import os
 import math
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 
 from paths import *
 from mio import *
@@ -142,12 +142,13 @@ def csv_bind(log_dir):
 # Random Sampling
 def run(): 
     print("Starting...")
+    n_worker = cpu_count()
     # random sampling
     mpm = MultiprocessManager(open_and_cut_phones_random_sampling, 
                               wav_path, phones_extract_path, 
                               phone_seg_random_path, 
                               phone_seg_random_log_path, 
-                              params, num_workers=12)
+                              params, num_workers=n_worker)
     
     mpm.collaboration_work()
 
@@ -161,7 +162,7 @@ def run():
                               phones_extract_path, 
                               phone_seg_anno_path, 
                               phone_seg_anno_log_path, 
-                              params, num_workers=12)
+                              params, num_workers=n_worker)
     
     mpm.collaboration_work()
 
