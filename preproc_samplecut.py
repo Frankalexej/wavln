@@ -4,6 +4,7 @@ import torchaudio.transforms as transforms
 import os
 import math
 from multiprocessing import Pool, cpu_count
+import sys
 
 from paths import *
 from mio import *
@@ -21,21 +22,28 @@ params = load_gamma_params("phones_length_gamma.param")
 
 ## Define Open and Cut Functions
 # ground truth cut
-def open_and_cut_phones(wave_path, annos_path, params):
+def open_and_cut(wave_path, annos_path, params):
     sp = Sound_Proc()
     filtered_df = filter_tokens_and_get_df(annos_path, keepSIL=False)
     flat_starts, flat_ends, c_duration = filtered_df["start_time"].to_numpy(), filtered_df["end_time"].to_numpy(), filtered_df["duration"].to_numpy()
     
     rec, sample_rate = torchaudio.load(wave_path)
+
     cut_recs = sp.cut_rec(rec, flat_starts, flat_ends)
+
+    # NOTE: This is added because a very small proportion of the data are strangely having zero n_frames (which I don't know yet why)
+    # to filter them out, I added this n_frames
+    cut_n_frames = [cut_rec.shape[1] for cut_rec in cut_recs]
+    cut_n_frames = np.array(cut_n_frames)
     
     tokens = filtered_df["token"].to_numpy()
     
     cst, cet = flat_starts, flat_ends
     
+    
     # Framify
     # Create a dictionary with the three lists as values and the column names as keys
-    data = {'rec': os.path.splitext(os.path.basename(wave_path))[0], "idx": list(map("{:08d}".format, range(len(c_duration)))), 'start_time': cst, 'end_time': cet, 'token': tokens, 'duration': c_duration}
+    data = {'rec': os.path.splitext(os.path.basename(wave_path))[0], "idx": list(map("{:08d}".format, range(len(c_duration)))), 'start_time': cst, 'end_time': cet, 'token': tokens, 'duration': c_duration, 'n_frames':cut_n_frames}
     # Create a Pandas DataFrame from the dictionary
     df = pd.DataFrame(data)
     
@@ -52,13 +60,16 @@ def open_and_cut_phones_random_sampling(wave_path, anno_path, params):
     
     rec, sample_rate = torchaudio.load(wave_path)
     cut_recs = sp.cut_rec(rec, flat_starts, flat_ends)
+
+    cut_n_frames = [cut_rec.shape[1] for cut_rec in cut_recs]
+    cut_n_frames = np.array(cut_n_frames)
     
     cst, cet = flat_starts, flat_ends
     c_duration = [cet[i] - cst[i] for i in range(len(cst))]
     
     # Framify
     # Create a dictionary with the three lists as values and the column names as keys
-    data = {'rec': os.path.splitext(os.path.basename(wave_path))[0], "idx": list(map("{:08d}".format, range(len(c_duration)))), 'start_time': cst, 'end_time': cet, 'token': "", 'duration': c_duration}
+    data = {'rec': os.path.splitext(os.path.basename(wave_path))[0], "idx": list(map("{:08d}".format, range(len(c_duration)))), 'start_time': cst, 'end_time': cet, 'token': "", 'duration': c_duration, 'n_frames':cut_n_frames}
     # Create a Pandas DataFrame from the dictionary
     df = pd.DataFrame(data)
     
@@ -140,35 +151,56 @@ def csv_bind(log_dir):
 
 ## Run 
 # Random Sampling
-def run(): 
+def run(domain=None): 
     print("Starting...")
     n_worker = cpu_count()
-    # random sampling
-    mpm = MultiprocessManager(open_and_cut_phones_random_sampling, 
-                              wav_path, phones_extract_path, 
-                              phone_seg_random_path, 
-                              phone_seg_random_log_path, 
-                              params, num_workers=n_worker)
+    if domain == "phone-random": 
+        # random sampling
+        mpm = MultiprocessManager(open_and_cut_phones_random_sampling, 
+                                wav_path, phones_extract_path, 
+                                phone_seg_random_path, 
+                                phone_seg_random_log_path, 
+                                params, num_workers=n_worker)
+        
+        mpm.collaboration_work()
+
+        #### Bind csvs into one
+        csv_bind(phone_seg_random_log_path)
+    elif domain == "phone-anno": 
+        # aligned cutting
+        mpm = MultiprocessManager(open_and_cut, 
+                                wav_path, 
+                                phones_extract_path, 
+                                phone_seg_anno_path, 
+                                phone_seg_anno_log_path, 
+                                params, num_workers=n_worker)
+        
+        mpm.collaboration_work()
+
+        #### Bind csvs into one
+        csv_bind(phone_seg_anno_log_path)
     
-    mpm.collaboration_work()
+    elif domain == "word-anno": 
+        # this is for cutting wavs into words that according to the annotation
+        # aligned cutting words
+        mpm = MultiprocessManager(open_and_cut, 
+                                wav_path, 
+                                words_extract_path, 
+                                word_seg_anno_path, 
+                                word_seg_anno_log_path, 
+                                params, num_workers=n_worker)
+        
+        mpm.collaboration_work()
 
-    #### Bind csvs into one
-    csv_bind(phone_seg_random_log_path)
-
-
-    # aligned cutting
-    mpm = MultiprocessManager(open_and_cut_phones, 
-                              wav_path, 
-                              phones_extract_path, 
-                              phone_seg_anno_path, 
-                              phone_seg_anno_log_path, 
-                              params, num_workers=n_worker)
-    
-    mpm.collaboration_work()
-
-    #### Bind csvs into one
-    csv_bind(phone_seg_anno_log_path)
+        #### Bind csvs into one
+        csv_bind(word_seg_anno_log_path)
 
 
 if __name__ == "__main__": 
-    run()
+    domain = None
+    # Check if there are command line arguments
+    if len(sys.argv) > 1:
+        domain = sys.argv[1]
+    else:
+        print("No command line arguments provided.")
+    run(domain=domain)

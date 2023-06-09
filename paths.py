@@ -18,10 +18,14 @@ segments_path = bsc_path + "segments/"
 
 phone_seg_anno_path = bsc_path + "phone_seg_anno/"
 phone_seg_random_path = bsc_path + "phone_seg_random/"
+word_seg_anno_path = bsc_path + "word_seg_anno/"
+
 seq_seg_anno_path = bsc_path + "seq_seg_anno/"
 
 phone_seg_random_log_path = bsc_path + "phone_seg_random_log/"
 phone_seg_anno_log_path = bsc_path + "phone_seg_anno_log/"
+word_seg_anno_log_path = bsc_path + "word_seg_anno_log/"
+
 
 model_save_dir = root_path + "model_save/"
 model_eng_save_dir = model_save_dir + "eng/"
@@ -48,7 +52,9 @@ def run():
         phone_seg_anno_log_path, 
         model_save_dir, 
         model_eng_save_dir, 
-        model_man_save_dir
+        model_man_save_dir, 
+        word_seg_anno_path, 
+        word_seg_anno_log_path
     ]
     for a_path in paths_list: 
         os.makedirs(a_path, exist_ok = True)
