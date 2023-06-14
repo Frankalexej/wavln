@@ -245,3 +245,42 @@ class DirectPassModel(Module):
     
     def encode(self, inputs, in_mask): 
         return inputs
+
+
+class TwoRNNModel(Module): 
+    # NOTE: this model is to test what will happen if I put one RNN in the encoder. This will give something like this: 
+    # insize -> hid_size -> outsize
+    # NOTE: this model is to test whether the loss calculation is correct
+    def __init__(self, a, size_list, in_size, in2_size, hid_size, out_size):
+        # input = (batch_size, time_steps, in_size); 
+        super(TwoRNNModel, self).__init__()
+        self.num_layers = 2
+        self.in_size = in_size
+        self.hid_size = hid_size
+        self.out_size = out_size
+        self.enc = nn.LSTM(in_size, hid_size, num_layers=self.num_layers, batch_first=True)  # only using h_2, therefore only size_list[1]
+        self.dec = nn.LSTM(hid_size, in_size, num_layers=self.num_layers, batch_first=True)  # only using h_2, therefore only size_list[1]
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def init_enc(self, batch_size, device):
+        h0 = torch.zeros((self.num_layers, batch_size, self.hid_size), dtype=torch.float, device=device, requires_grad=False)
+        c0 = torch.zeros((self.num_layers, batch_size, self.hid_size), dtype=torch.float, device=device, requires_grad=False)
+        hidden = (h0, c0)
+        return hidden
+    
+    def init_dec(self, batch_size, device):
+        h0 = torch.zeros((self.num_layers, batch_size, self.out_size), dtype=torch.float, device=device, requires_grad=False)
+        c0 = torch.zeros((self.num_layers, batch_size, self.out_size), dtype=torch.float, device=device, requires_grad=False)
+        hidden = (h0, c0)
+        return hidden
+
+    def forward(self, inputs, in_mask):
+        batch_size = inputs.size(0)
+        enc_hid = self.init_enc(batch_size=batch_size, device=self.device)
+        dec_hid = self.init_dec(batch_size=batch_size, device=self.device)
+        hid, enc_hid = self.enc(inputs, enc_hid)
+        out, dec_hid = self.dec(hid, dec_hid)
+        return out, in_mask
+    
+    def encode(self, inputs, in_mask): 
+        return inputs
