@@ -254,7 +254,7 @@ class TwoRNNModel(Module):
     def __init__(self, a, size_list, in_size, in2_size, hid_size, out_size):
         # input = (batch_size, time_steps, in_size); 
         super(TwoRNNModel, self).__init__()
-        self.num_layers = 2
+        self.num_layers = 1
         self.in_size = in_size
         self.hid_size = hid_size
         self.out_size = out_size
