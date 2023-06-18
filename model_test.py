@@ -66,8 +66,8 @@ class EncoderSimple(Module):
         self.lin_2 = LinearPack(in_dim=size_list[1], out_dim=hid_size)
 
     def inits(self, batch_size, device):
-        h0 = torch.zeros((self.num_layers, batch_size, self.size_list[1]), dtype=torch.float, device=device, requires_grad=False)
-        c0 = torch.zeros((self.num_layers, batch_size, self.size_list[1]), dtype=torch.float, device=device, requires_grad=False)
+        h0 = torch.zeros((self.num_layers, batch_size, self.size_list[1]), dtype=torch.float, device=device)
+        c0 = torch.zeros((self.num_layers, batch_size, self.size_list[1]), dtype=torch.float, device=device)
         hidden = (h0, c0)
         return hidden
 
@@ -158,10 +158,10 @@ class DecoderSimple(Module):
         self.lin_2 = LinearPack(in_dim=in2_size, out_dim=out_size)
 
     def inits(self, batch_size, device): 
-        h0 = torch.zeros((self.num_layers, batch_size, self.in2_size), dtype=torch.float, device=device, requires_grad=False)
-        c0 = torch.zeros((self.num_layers, batch_size, self.in2_size), dtype=torch.float, device=device, requires_grad=False)
+        h0 = torch.zeros((self.num_layers, batch_size, self.in2_size), dtype=torch.float, device=device)
+        c0 = torch.zeros((self.num_layers, batch_size, self.in2_size), dtype=torch.float, device=device)
         hidden = (h0, c0)
-        dec_in_token = torch.zeros((batch_size, 1, self.out_size), dtype=torch.float, device=device, requires_grad=False)
+        dec_in_token = torch.zeros((batch_size, 1, self.out_size), dtype=torch.float, device=device)
         return hidden, dec_in_token
 
     def forward(self, hid_r, in_mask, init_in, hidden):
@@ -227,6 +227,34 @@ class PhonLearn_Net(Module):
         return self.encoder.encode(inputs, in_mask, hidden)
 
 
+class TwoRNNAttn(Module):
+    # NOTE: the "summaries" of subsegments is the bottleneck of the model (I think)
+    # NOTE: size_list[2] is not for HM_LSTM, but for the middle dim of DoubleLin
+    def __init__(self, a, size_list, in_size, in2_size, hid_size, out_size):
+        # input = (batch_size, time_steps, in_size); 
+        super(TwoRNNAttn, self).__init__()
+        # temp not use embed_in, directly go to RNN
+        self.encoder = EncoderSimple(a=a, size_list=size_list, in_size=in_size, in2_size=in2_size, hid_size=hid_size)
+        self.decoder = Decoder(size_list=size_list, in2_size=in2_size, hid_size=hid_size, out_size=out_size)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # self.device = torch.device('cpu')
+
+
+    def forward(self, inputs, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        enc_hid = self.encoder.inits(batch_size=batch_size, device=self.device)
+        dec_hid, init_in = self.decoder.inits(batch_size=batch_size, device=self.device)
+        enc_out = self.encoder(inputs, in_mask, enc_hid)
+        dec_out, attn_w = self.decoder(enc_out, in_mask, init_in, dec_hid)
+        
+        return dec_out, attn_w
+    
+    def encode(self, inputs, in_mask): 
+        batch_size = inputs.size(0)
+        hidden = self.encoder.inits(batch_size=batch_size, device=self.device)
+        return self.encoder.encode(inputs, in_mask, hidden)
+
 
 class DirectPassModel(Module): 
     # NOTE: this model is to test whether the loss calculation is correct
@@ -275,11 +303,12 @@ class TwoRNNModel(Module):
         return hidden
 
     def forward(self, inputs, in_mask):
-        batch_size = inputs.size(0)
-        enc_hid = self.init_enc(batch_size=batch_size, device=self.device)
-        dec_hid = self.init_dec(batch_size=batch_size, device=self.device)
-        hid, enc_hid = self.enc(inputs, enc_hid)
-        out, dec_hid = self.dec(hid, dec_hid)
+        # batch_size = inputs.size(0)
+        # enc_hid = self.init_enc(batch_size=batch_size, device=self.device)
+        # dec_hid = self.init_dec(batch_size=batch_size, device=self.device)
+        # enc_hid, dec_hid
+        hid, enc_hid = self.enc(inputs)
+        out, dec_hid = self.dec(hid)
         return out, in_mask
     
     def encode(self, inputs, in_mask): 
