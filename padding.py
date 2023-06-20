@@ -63,6 +63,7 @@ def masked_loss(loss_fn, y_hat, y, mask):
 
     # Calculate the loss using the masked values
     loss = torch.sum(loss_fn(y_hat_masked, y_masked)) / torch.sum(mask)
+    # loss = loss_fn(y_hat_masked, y_masked)
 
     return loss
 

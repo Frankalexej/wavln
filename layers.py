@@ -137,7 +137,9 @@ class LinearPack(nn.Module):
         super(LinearPack, self).__init__()
 
         self.linear = nn.Linear(in_dim, out_dim)
-        self.relu = nn.ReLU()
+        # self.relu = nn.ReLU()
+        # self.relu = nn.LeakyReLU()
+        self.relu = nn.Tanh()
         self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, x):
