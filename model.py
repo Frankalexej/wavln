@@ -49,7 +49,7 @@ class Encoder(Module):
         h_2 = mask_it(h_2, in_mask)
         hid_r = self.lin_2(h_2) # (B, L, S1) -> (B, L, H)
         hid_r = mask_it(hid_r, in_mask)
-        return (hid_r, z_1, z_2)
+        return (hid_r, z_1, z_2, h_2)
 
 
 class Decoder(Module): 
