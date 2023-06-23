@@ -16,7 +16,7 @@ class Encoder(Module):
         # temp not use embed_in, directly go to RNN
         self.lin_1 = LinearPack(in_dim=in_size, out_dim=in2_size)
         self.rnn = HM_LSTM(a, in2_size, size_list)  # changed in_size to in2_size, since the actual data size is in2_size, instead of in_size
-        self.lin_2 = LinearPack(in_dim=size_list[1], out_dim=hid_size)
+        # self.lin_2 = LinearPack(in_dim=size_list[1], out_dim=hid_size)
 
     def inits(self, batch_size, device):
         h_t1 = torch.zeros((self.size_list[0], batch_size), dtype=torch.float, device=device, requires_grad=False)
@@ -39,17 +39,19 @@ class Encoder(Module):
         enc_x = self.lin_1(inputs) # (B, L, I) -> (B, L, I2)
         h_1, h_2, z_1, z_2, hidden = self.rnn(enc_x, hidden) # (B, L, I2) -> (B, L, S0) -> (B, L, S1)
         h_2 = mask_it(h_2, in_mask)  # it seems that it might affect the outcome, so apply mask here as well
-        hid_r = self.lin_2(h_2) # (B, L, S1) -> (B, L, H)
-        hid_r = mask_it(hid_r, in_mask)
+        # hid_r = self.lin_2(h_2) # (B, L, S1) -> (B, L, H)
+        # hid_r = mask_it(hid_r, in_mask)
+        hid_r = h_2
         return hid_r
     
     def encode(self, inputs, in_mask, hidden): 
         enc_x = self.lin_1(inputs) # (B, L, I) -> (B, L, I2)
         h_1, h_2, z_1, z_2, hidden = self.rnn(enc_x, hidden) # (B, L, I2) -> (B, L, S0) -> (B, L, S1)
         h_2 = mask_it(h_2, in_mask)
-        hid_r = self.lin_2(h_2) # (B, L, S1) -> (B, L, H)
-        hid_r = mask_it(hid_r, in_mask)
-        return (hid_r, z_1, z_2, h_2)
+        # hid_r = self.lin_2(h_2) # (B, L, S1) -> (B, L, H)
+        # hid_r = mask_it(hid_r, in_mask)
+        hid_r = h_2
+        return (hid_r, z_1, z_2)
 
 
 class Decoder(Module): 
