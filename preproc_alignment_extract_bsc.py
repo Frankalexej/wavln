@@ -15,6 +15,7 @@ This Jupyter Notebook is designed to extract annotations from alignment files (i
 import pandas as pd
 import os
 from paths import *  # all paths
+import sys
 
 
 
@@ -46,12 +47,21 @@ def line_starts_with_semicolon(line):
     """
     return line.strip().startswith(';')
 
-def extract(path):
+def errorless_get(arr, index, default=""): 
+    """Applies indexing that avoids error
+    """
+    if len(arr) <= index: 
+        return default
+    else: 
+        return arr[index]
+
+def extract(path, from_words=False):
     """
     Extracts end times and tokens from a file.
 
     Args:
         path: The path to the input file.
+        from_words: if extracting from .words files. 
 
     Returns:
         A tuple containing a list of end times and a list of corresponding tokens.
@@ -60,6 +70,9 @@ def extract(path):
     lines = f.readlines()
     end_times = []
     tokens = []
+    theory_segs = []
+    produce_segs = []
+
     putin = False
     for line in lines:
         if putin:
@@ -71,9 +84,18 @@ def extract(path):
             elif len(splitted) < 3: 
                 end_times.append(float(splitted[0]))
                 tokens.append("")
+                if from_words: 
+                    # if extracting from .words files, 
+                    # notify that there is no assigned words and therefore no such segments. 
+                    theory_segs.append("")
+                    produce_segs.append("")
             else: 
                 end_times.append(float(splitted[0]))
                 tokens.append(remove_semicolon(splitted[2]))
+                if from_words: 
+                    semicolon_splitted = line.split(";")
+                    theory_segs.append(errorless_get(semicolon_splitted, 1))
+                    produce_segs.append(errorless_get(semicolon_splitted, 2))
                 if splitted[2] == "{E_TRANS}": 
                     break   # time to stop
                     
@@ -81,9 +103,11 @@ def extract(path):
             putin = True
 
     f.close()
-    return end_times, tokens
+    if from_words: 
+        return end_times, tokens, theory_segs, produce_segs
+    return end_times, tokens, None, None
 
-def create_dataframe(end_times, tokens):
+def create_dataframe(end_times, tokens, theory_segs=None, produce_segs=None):
     """
     Creates a pandas dataframe from lists of token end times and tokens.
     Calculates start times and durations for each token and adds these to the dataframe.
@@ -108,10 +132,15 @@ def create_dataframe(end_times, tokens):
         'token': tokens,
         'duration': durations
     })
+
+    if theory_segs: 
+        df["theory_segments"] = theory_segs
+    if produce_segs: 
+        df["produced_segments"] = produce_segs
     
     return df
 
-def extract_and_create_dataframe(input_path, output_path):
+def extract_and_create_dataframe(input_path, output_path, from_words=False):
     """
     Extracts token information from all .phones or .words files in a given input path,
     creates a pandas dataframe for each file, and outputs each dataframe to the corresponding
@@ -125,20 +154,51 @@ def extract_and_create_dataframe(input_path, output_path):
     for file_name in os.listdir(input_path):
         if file_name.endswith('.phones') or file_name.endswith('.words'):
             # Extract token information
-            end_times, tokens = extract(os.path.join(input_path, file_name))
+            end_times, tokens, theory_segs, produce_segs = extract(os.path.join(input_path, file_name), from_words=from_words)
 
             # Create dataframe
-            df = create_dataframe(end_times, tokens)
+            df = create_dataframe(end_times, tokens, theory_segs=theory_segs, produce_segs=produce_segs)
 
             # Output dataframe to file in output path
             output_file_name = os.path.splitext(file_name)[0] + '.csv'
             df.to_csv(os.path.join(output_path, output_file_name), index=False)
 
-def run(): 
-    extract_and_create_dataframe(phones_path, phones_extract_path)
-    extract_and_create_dataframe(words_path, words_extract_path)
+def csv_bind(log_dir): 
+    # List all the CSV files in the directory that start with 's'
+    directory = log_dir
+    csv_files = sorted([f for f in os.listdir(directory) if f.startswith('s') and f.endswith('.csv')])
+
+    # Read and concatenate the CSV files using pandas
+    dfs = []
+    for file in csv_files:
+        df = pd.read_csv(os.path.join(directory, file))
+        dfs.append(df)
+
+    concatenated_df = pd.concat(dfs, ignore_index=True)
+
+    # Save the concatenated dataframe as "log.csv"
+    concatenated_df.to_csv(os.path.join(directory, 'log.csv'), index=False)
+
+def run(run_type="", sub_type=""): 
+    if run_type == "phone": 
+        extract_and_create_dataframe(phones_path, phones_extract_path)
+    elif run_type == "word": 
+        extract_and_create_dataframe(words_path, words_extract_path, from_words=True)
+    elif run_type == "bind": 
+        try: 
+            if sub_type == "phone": 
+                csv_bind(phones_extract_path)
+            elif sub_type == "word": 
+                csv_bind(words_extract_path)
+        except Exception: 
+            print("Unsucessful! ")
+
+
 
 
 
 if __name__ == "__main__": 
-    run()
+    if len(sys.argv) == 2: 
+        run(sys.argv[1])
+    elif len(sys.argv) == 3: 
+        run(sys.argv[1], sys.argv[2])
