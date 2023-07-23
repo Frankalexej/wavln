@@ -7,15 +7,17 @@ from attention import ScaledDotProductAttention
 
 
 class Encoder(Module): 
-    def __init__(self, a, size_list, in_size, in2_size, hid_size):
+    def __init__(self, a, size_list, in_size, in2_size, in3_size, hid_size):
         super(Encoder, self).__init__()
         self.in_size = in_size
         self.in2_size = in2_size
+        self.in3_size = in3_size    # this is newly added for lin2
         self.hid_size = hid_size
         self.size_list = size_list
         # temp not use embed_in, directly go to RNN
         self.lin_1 = LinearPack(in_dim=in_size, out_dim=in2_size)
-        self.rnn = HM_LSTM(a, in2_size, size_list)  # changed in_size to in2_size, since the actual data size is in2_size, instead of in_size
+        self.lin_2 = LinearPack(in_dim=in2_size, out_dim=in3_size)
+        self.rnn = HM_LSTM(a, in3_size, size_list)  # changed in_size to in2_size, since the actual data size is in2_size, instead of in_size
         # self.lin_2 = LinearPack(in_dim=size_list[1], out_dim=hid_size)
 
     def inits(self, batch_size, device):
@@ -37,7 +39,8 @@ class Encoder(Module):
             hidden: HM_LSTM
         """
         enc_x = self.lin_1(inputs) # (B, L, I) -> (B, L, I2)
-        h_1, h_2, z_1, z_2, hidden = self.rnn(enc_x, hidden) # (B, L, I2) -> (B, L, S0) -> (B, L, S1)
+        enc_x = self.lin_2(enc_x) # (B, L, I2) -> (B, L, I3)
+        h_1, h_2, z_1, z_2, hidden = self.rnn(enc_x, hidden) # (B, L, I3) -> (B, L, S0) -> (B, L, S1)
         h_2 = mask_it(h_2, in_mask)  # it seems that it might affect the outcome, so apply mask here as well
         # hid_r = self.lin_2(h_2) # (B, L, S1) -> (B, L, H)
         # hid_r = mask_it(hid_r, in_mask)
@@ -46,7 +49,8 @@ class Encoder(Module):
     
     def encode(self, inputs, in_mask, hidden): 
         enc_x = self.lin_1(inputs) # (B, L, I) -> (B, L, I2)
-        h_1, h_2, z_1, z_2, hidden = self.rnn(enc_x, hidden) # (B, L, I2) -> (B, L, S0) -> (B, L, S1)
+        enc_x = self.lin_2(enc_x) # (B, L, I2) -> (B, L, I3)
+        h_1, h_2, z_1, z_2, hidden = self.rnn(enc_x, hidden) # (B, L, I3) -> (B, L, S0) -> (B, L, S1)
         h_2 = mask_it(h_2, in_mask)
         # hid_r = self.lin_2(h_2) # (B, L, S1) -> (B, L, H)
         # hid_r = mask_it(hid_r, in_mask)
@@ -105,12 +109,12 @@ class Decoder(Module):
 class PhonLearn_Net(Module):
     # NOTE: the "summaries" of subsegments is the bottleneck of the model (I think)
     # NOTE: size_list[2] is not for HM_LSTM, but for the middle dim of DoubleLin
-    def __init__(self, a, size_list, in_size, in2_size, hid_size, out_size):
+    def __init__(self, a, size_list, in_size, in2_size, in3_size, hid_size, out_size):
         # input = (batch_size, time_steps, in_size); 
         super(PhonLearn_Net, self).__init__()
         # temp not use embed_in, directly go to RNN
-        self.encoder = Encoder(a=a, size_list=size_list, in_size=in_size, in2_size=in2_size, hid_size=hid_size)
-        self.decoder = Decoder(size_list=size_list, in2_size=in2_size, hid_size=hid_size, out_size=out_size)
+        self.encoder = Encoder(a=a, size_list=size_list, in_size=in_size, in2_size=in2_size, in3_size=in3_size, hid_size=hid_size)
+        self.decoder = Decoder(size_list=size_list, in2_size=in3_size, hid_size=hid_size, out_size=out_size)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         # self.device = torch.device('cpu')
 
