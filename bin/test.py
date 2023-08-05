@@ -1,5 +1,5 @@
 import argparse
-from data import Corpus
+from bin.data import Corpus
 from train import evaluatePTB
 import torch
 from utils import batchify

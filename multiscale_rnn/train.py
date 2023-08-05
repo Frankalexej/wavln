@@ -9,7 +9,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 import time
 import cPickle as pkl
-from data import TextIterator, Corpus
+from bin.data import TextIterator, Corpus
 import torch.optim as optim
 import numpy
 import torch.nn.functional as Func
