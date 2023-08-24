@@ -2,50 +2,46 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class CustomLoss(nn.Module):
-    def __init__(self, alpha=0.1):
-        super(CustomLoss, self).__init__()
-        self.alpha = alpha  # Hyperparameter to control regularization strength
+class MaskedLoss: 
+    def __init__(self, loss_fn):
+        self.loss_fn = loss_fn
 
-    def forward(self, predicted_output, target_output, sequence_masks):
-        # Compute your existing loss (e.g., reconstruction loss)
-        reconstruction_loss = your_existing_loss_function(predicted_output, target_output)
+    def get_loss(self, y_hat, y, mask): 
+        """
+        Computes the masked loss given a loss function, predicted values, ground truth values, and a mask tensor.
+        """
+        b, t, f = y_hat.shape
+        mask = mask.unsqueeze(-1).expand((b, t, f)).bool()  # both y_hat and y are of same size
+        # Apply mask to the predicted and ground truth values
+        y_hat_masked = y_hat.masked_select(mask)
+        y_masked = y.masked_select(mask)
 
-        # Calculate the regularization term based on inferred boundaries
-        batch_size, seq_length, _ = predicted_output.shape
+        # Calculate the loss using the masked values
+        loss = torch.sum(self.loss_fn(y_hat_masked, y_masked)) / torch.sum(mask)
+        # loss = loss_fn(y_hat_masked, y_masked)
 
-        # Compute a mask to identify boundaries (where the data changes)
-        diff = torch.abs(predicted_output[:, 1:] - predicted_output[:, :-1])
-        is_boundary = torch.any(diff > 0, dim=-1, keepdim=True)
+        return loss
 
-        # Apply sequence masks to handle varying sequence lengths
-        is_boundary = is_boundary * sequence_masks.unsqueeze(-1)
+
+class CombinedLoss: 
+    def __init__(self, loss_class, alpha=0.1):
+        self.loss_class = loss_class
+        self.alpha = alpha
+    
+    def get_loss(self, y_hat, y, mask, z2): 
+        # h2 is second layer output of encoder HMLSTM
+        # of shape (B, L)
+        reconstruction_loss = self.loss_class.get_loss(y_hat, y, mask)
+
+        b, t, f = z2.shape
+        mask = mask.unsqueeze(-1).expand((b, t, f)).bool()  # both y_hat and y are of same size
+        # Apply mask to the predicted and ground truth values
+        z2_masked = z2.masked_select(mask)
 
         # Calculate the number of boundaries for each sequence in the batch
-        num_boundaries = torch.sum(is_boundary, dim=1)
+        reg_loss = torch.sum(z2_masked) / torch.sum(mask)
 
         # Compute the regularization term based on the number of boundaries
-        regularization_term = self.alpha * torch.mean(num_boundaries)
+        regularization_term = self.alpha * reg_loss
 
-        # Combine the reconstruction loss and regularization term
-        total_loss = reconstruction_loss + regularization_term
-
-        return total_loss
-
-
-
-
-
-
-"""
-In this updated loss function:
-
-We calculate the boundary indicators based on changes in the encoder output values. The is_boundary tensor will have a True value at positions where a boundary is inferred.
-
-We apply the sequence masks to zero out the boundary indicators for positions beyond the actual sequence lengths in the batch.
-
-We calculate the number of boundaries for each sequence in the batch and then compute the regularization term based on the average number of boundaries.
-
-This approach allows you to incorporate the inferred boundaries into your custom loss function while handling varying sequence lengths within the batch. Adjust the alpha hyperparameter as needed to control the regularization strength.
-
-"""
+        return (reconstruction_loss, regularization_term)

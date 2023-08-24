@@ -45,7 +45,7 @@ class Encoder(Module):
         # hid_r = self.lin_2(h_2) # (B, L, S1) -> (B, L, H)
         # hid_r = mask_it(hid_r, in_mask)
         hid_r = h_2
-        return hid_r
+        return (hid_r, z_1, z_2)
     
     def encode(self, inputs, in_mask, hidden): 
         enc_x = self.lin_1(inputs) # (B, L, I) -> (B, L, I2)
@@ -124,10 +124,11 @@ class PhonLearn_Net(Module):
         batch_size = inputs.size(0)
         enc_hid = self.encoder.inits(batch_size=batch_size, device=self.device)
         dec_hid, init_in = self.decoder.inits(batch_size=batch_size, device=self.device)
-        enc_out = self.encoder(inputs, in_mask, enc_hid)
+
+        enc_out, z_1, z_2 = self.encoder(inputs, in_mask, enc_hid)
         dec_out, attn_w = self.decoder(enc_out, in_mask, init_in, dec_hid)
         
-        return dec_out, attn_w
+        return dec_out, attn_w, z_2
     
     def encode(self, inputs, in_mask): 
         batch_size = inputs.size(0)

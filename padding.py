@@ -51,21 +51,21 @@ def mask_it(original, mask):
     mask_expanded = mask.unsqueeze(-1).float()
     return original * mask_expanded
 
-def masked_loss(loss_fn, y_hat, y, mask):
-    """
-    Computes the masked loss given a loss function, predicted values, ground truth values, and a mask tensor.
-    """
-    b, t, f = y_hat.shape
-    mask = mask.unsqueeze(-1).expand((b, t, f)).bool()  # both y_hat and y are of same size
-    # Apply mask to the predicted and ground truth values
-    y_hat_masked = y_hat.masked_select(mask)
-    y_masked = y.masked_select(mask)
+# def masked_loss(loss_fn, y_hat, y, mask):
+#     """
+#     Computes the masked loss given a loss function, predicted values, ground truth values, and a mask tensor.
+#     """
+#     b, t, f = y_hat.shape
+#     mask = mask.unsqueeze(-1).expand((b, t, f)).bool()  # both y_hat and y are of same size
+#     # Apply mask to the predicted and ground truth values
+#     y_hat_masked = y_hat.masked_select(mask)
+#     y_masked = y.masked_select(mask)
 
-    # Calculate the loss using the masked values
-    loss = torch.sum(loss_fn(y_hat_masked, y_masked)) / torch.sum(mask)
-    # loss = loss_fn(y_hat_masked, y_masked)
+#     # Calculate the loss using the masked values
+#     loss = torch.sum(loss_fn(y_hat_masked, y_masked)) / torch.sum(mask)
+#     # loss = loss_fn(y_hat_masked, y_masked)
 
-    return loss
+#     return loss
 
 # --------------------------
 # Testing codes
