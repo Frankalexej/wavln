@@ -1,6 +1,7 @@
 import torch.nn as nn
 from torch.nn import Module
 import torch
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from layers import HM_LSTM, LinearPack
 from padding import mask_it
 from attention import ScaledDotProductAttention
@@ -57,7 +58,6 @@ class Encoder(Module):
         hid_r = h_2
         return (hid_r, z_1, z_2)
 
-
 class Decoder(Module): 
     def __init__(self, size_list, in2_size, hid_size, out_size, num_layers=1):
         super(Decoder, self).__init__()
@@ -71,6 +71,89 @@ class Decoder(Module):
         self.rnn = nn.LSTM(size_list[1], in2_size, num_layers=self.num_layers, batch_first=True)  # only using h_2, therefore only size_list[1]
         self.attention = ScaledDotProductAttention(q_in=in2_size, kv_in=hid_size, qk_out=in2_size, v_out=in2_size)
         self.lin_2 = LinearPack(in_dim=in2_size, out_dim=out_size)
+
+    def inits(self, batch_size, device): 
+        h0 = torch.zeros((self.num_layers, batch_size, self.in2_size), dtype=torch.float, device=device, requires_grad=False)
+        c0 = torch.zeros((self.num_layers, batch_size, self.in2_size), dtype=torch.float, device=device, requires_grad=False)
+        hidden = (h0, c0)
+        dec_in_token = torch.zeros((batch_size, 1, self.out_size), dtype=torch.float, device=device, requires_grad=False)
+        return hidden, dec_in_token
+
+    def forward(self, hid_r, in_mask, init_in, hidden):
+        # Attention decoder
+        length = hid_r.size(1) # get length
+
+        dec_in_token = init_in
+
+        outputs = []
+        attention_weights = []
+        for t in range(length):
+            dec_x = self.lin_1(dec_in_token)
+            dec_x, hidden = self.rnn(dec_x, hidden)
+            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+            dec_x = self.lin_2(dec_x)
+            outputs.append(dec_x)
+            attention_weights.append(attention_weight)
+
+            # Use the current output as the next input token
+            dec_in_token = dec_x
+
+        outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        attention_weights = torch.stack(attention_weights, dim=1)
+        outputs = outputs.squeeze(2)
+        attention_weights = attention_weights.squeeze(2)
+        outputs = mask_it(outputs, in_mask)     # test! I think it should be correct. 
+        
+        return outputs, attention_weights
+
+class SimpleEncoder(Module): 
+    def __init__(self, size_list, num_layers=1):
+        super(Encoder, self).__init__()
+        self.lin_1 = LinearPack(in_dim=size_list[0], out_dim=size_list[1])
+        self.rnn = nn.LSTM(input_size=size_list[1], hidden_size=size_list[2], num_layers=num_layers, batch_first=True)
+        self.lin_2 = LinearPack(in_dim=size_list[2], out_dim=size_list[3])
+
+    def forward(self, inputs, inputs_lens, in_mask=None, hidden=None):
+        """
+        Args:
+            inputs: input data (B, L, I)
+            inputs_lens: input lengths
+            in_mask: masking (B, L), abolished, since now we have packing and padding
+            hidden: HM_LSTM, abolished
+        """
+        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+
+        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+
+        enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
+
+        enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+
+        enc_x = self.lin_2(enc_x) # (B, L, I2) -> (B, L, I3)
+
+        return enc_x
+    
+    def encode(self, inputs, inputs_lens, in_mask=None, hidden=None): 
+        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+
+        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+
+        enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
+
+        enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+
+        enc_x = self.lin_2(enc_x) # (B, L, I2) -> (B, L, I3)
+
+        return enc_x
+
+class SimpleDecoder(Module): 
+    def __init__(self, size_list, num_layers=1):
+        super(Decoder, self).__init__()
+        self.lin_1 = LinearPack(in_dim=size_list[-1], out_dim=size_list[1])  # NOTE: we use out size (last in size_list) as input size to lin, because we will take the direct output from last layer in dec. 
+        self.rnn = nn.LSTM(size_list[1], size_list[2], num_layers=num_layers, batch_first=True)
+        self.lin2 = LinearPack(in_dim=size_list[2], out_dim=size_list[3])
+        self.attention = ScaledDotProductAttention(q_in=size_list[0], kv_in=size_list[0], qk_out=size_list[1], v_out=size_list[1])
+        self.lin_2 = LinearPack(in_dim=in2_size, out_dim=size_list[-1])
 
     def inits(self, batch_size, device): 
         h0 = torch.zeros((self.num_layers, batch_size, self.in2_size), dtype=torch.float, device=device, requires_grad=False)
