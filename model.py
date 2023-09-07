@@ -108,7 +108,8 @@ class Decoder(Module):
 
 class SimpleEncoder(Module): 
     def __init__(self, size_list, num_layers=1):
-        super(Encoder, self).__init__()
+        # size_list = [39, 64, 16, 3]
+        super(SimpleEncoder, self).__init__()
         self.lin_1 = LinearPack(in_dim=size_list[0], out_dim=size_list[1])
         self.rnn = nn.LSTM(input_size=size_list[1], hidden_size=size_list[2], num_layers=num_layers, batch_first=True)
         self.lin_2 = LinearPack(in_dim=size_list[2], out_dim=size_list[3])
@@ -148,18 +149,23 @@ class SimpleEncoder(Module):
 
 class SimpleDecoder(Module): 
     def __init__(self, size_list, num_layers=1):
-        super(Decoder, self).__init__()
-        self.lin_1 = LinearPack(in_dim=size_list[-1], out_dim=size_list[1])  # NOTE: we use out size (last in size_list) as input size to lin, because we will take the direct output from last layer in dec. 
+        # size_list = [13   , 64, 16, 3]: similar to encoder, just layer 0 different
+        super(SimpleDecoder, self).__init__()
+        self.lin_1 = LinearPack(in_dim=size_list[0], out_dim=size_list[1])  # NOTE: we use out size (last in size_list) as input size to lin, because we will take the direct output from last layer in dec. 
         self.rnn = nn.LSTM(size_list[1], size_list[2], num_layers=num_layers, batch_first=True)
-        self.lin2 = LinearPack(in_dim=size_list[2], out_dim=size_list[3])
-        self.attention = ScaledDotProductAttention(q_in=size_list[0], kv_in=size_list[0], qk_out=size_list[1], v_out=size_list[1])
-        self.lin_2 = LinearPack(in_dim=in2_size, out_dim=size_list[-1])
+        self.lin_2 = LinearPack(in_dim=size_list[2], out_dim=size_list[3])
+        self.attention = ScaledDotProductAttention(q_in=size_list[3], kv_in=size_list[3], qk_out=size_list[3], v_out=size_list[3])
+        self.lin_3 = LinearPack(in_dim=size_list[3], out_dim=size_list[0])
+
+        # vars
+        self.num_layers = num_layers
+        self.size_list = size_list
 
     def inits(self, batch_size, device): 
-        h0 = torch.zeros((self.num_layers, batch_size, self.in2_size), dtype=torch.float, device=device, requires_grad=False)
-        c0 = torch.zeros((self.num_layers, batch_size, self.in2_size), dtype=torch.float, device=device, requires_grad=False)
+        h0 = torch.zeros((self.num_layers, batch_size, self.size_list[2]), dtype=torch.float, device=device, requires_grad=False)
+        c0 = torch.zeros((self.num_layers, batch_size, self.size_list[2]), dtype=torch.float, device=device, requires_grad=False)
         hidden = (h0, c0)
-        dec_in_token = torch.zeros((batch_size, 1, self.out_size), dtype=torch.float, device=device, requires_grad=False)
+        dec_in_token = torch.zeros((batch_size, 1, self.size_list[0]), dtype=torch.float, device=device, requires_grad=False)
         return hidden, dec_in_token
 
     def forward(self, hid_r, in_mask, init_in, hidden):
@@ -173,8 +179,9 @@ class SimpleDecoder(Module):
         for t in range(length):
             dec_x = self.lin_1(dec_in_token)
             dec_x, hidden = self.rnn(dec_x, hidden)
-            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
             dec_x = self.lin_2(dec_x)
+            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+            dec_x = self.lin_3(dec_x)
             outputs.append(dec_x)
             attention_weights.append(attention_weight)
 
@@ -188,6 +195,63 @@ class SimpleDecoder(Module):
         outputs = mask_it(outputs, in_mask)     # test! I think it should be correct. 
         
         return outputs, attention_weights
+
+class PhxLearner(Module):
+    def __init__(self, enc_size_list, dec_size_list, num_layers=1):
+        # input = (batch_size, time_steps, in_size); 
+        super(PhxLearner, self).__init__()
+
+        self.encoder = SimpleEncoder(size_list=enc_size_list, num_layers=num_layers)
+        self.decoder = SimpleDecoder(size_list=dec_size_list, num_layers=num_layers)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+    def forward(self, inputs, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.decoder.inits(batch_size=batch_size, device=self.device)
+
+        enc_out = self.encoder(inputs, in_mask)
+        dec_out, attn_w = self.decoder(enc_out, in_mask, init_in, dec_hid)
+        
+        return dec_out, attn_w
+    
+    def encode(self, inputs, in_mask): 
+        batch_size = inputs.size(0)
+        hidden = self.encoder.inits(batch_size=batch_size, device=self.device)
+        return self.encoder.encode(inputs, in_mask, hidden)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 class PhonLearn_Net(Module):
     # NOTE: the "summaries" of subsegments is the bottleneck of the model (I think)
