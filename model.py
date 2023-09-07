@@ -230,10 +230,11 @@ class OnlyRNNEncoder(Module):
     def __init__(self, size_list, num_layers=1):
         # size_list = [39, 64, 16, 3]
         super(OnlyRNNEncoder, self).__init__()
-        self.rnn = nn.LSTM(input_size=size_list[0], hidden_size=size_list[3], num_layers=num_layers, batch_first=True)
-        self.lin_1 = LinearPack(in_dim=size_list[3], out_dim=size_list[3])
-        self.act = nn.Tanh()
-        self.bn = nn.BatchNorm1d(size_list[3])
+        self.lin_1 = LinearPack(in_dim=size_list[0], out_dim=size_list[1])
+        self.rnn = nn.LSTM(input_size=size_list[1], hidden_size=size_list[2], num_layers=num_layers, batch_first=True)
+        self.lin_2 = LinearPack(in_dim=size_list[2], out_dim=size_list[3])
+        # self.act = nn.Tanh()
+        # self.bn = nn.BatchNorm1d(size_list[3])
 
     def forward(self, inputs, inputs_lens, in_mask=None, hidden=None):
         """
@@ -243,8 +244,7 @@ class OnlyRNNEncoder(Module):
             in_mask: masking (B, L), abolished, since now we have packing and padding
             hidden: HM_LSTM, abolished
         """
-        # enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
-        enc_x = inputs
+        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
 
         enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
 
@@ -252,17 +252,17 @@ class OnlyRNNEncoder(Module):
 
         enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
 
-        # enc_x = self.lin_2(enc_x) # (B, L, I2) -> (B, L, I3)
-        enc_x = self.lin_1(enc_x)
-        enc_x = self.act(enc_x)
+        enc_x = self.lin_2(enc_x) # (B, L, I2) -> (B, L, I3)
+        # enc_x = self.act(enc_x)
         
-        enc_x = enc_x.permute(0, 2, 1)
-        enc_x = self.bn(enc_x)
-        enc_x = enc_x.permute(0, 2, 1)
+        # enc_x = enc_x.permute(0, 2, 1)
+        # enc_x = self.bn(enc_x)
+        # enc_x = enc_x.permute(0, 2, 1)
 
         return enc_x
     
     def encode(self, inputs, inputs_lens, in_mask=None, hidden=None): 
+        # NOTE: 暂时不用
         # enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
         enc_x = inputs
 
@@ -291,7 +291,7 @@ class SimperRNNDecoder(Module):
         # self.lin_2 = LinearPack(in_dim=size_list[2], out_dim=size_list[3])
         self.attention = ScaledDotProductAttention(q_in=size_list[3], kv_in=size_list[3], qk_out=size_list[3], v_out=size_list[3])
         self.lin_3 = LinearPack(in_dim=size_list[3], out_dim=size_list[0])
-        self.act = nn.Tanh()
+        # self.act = nn.Tanh()
 
         # vars
         self.num_layers = num_layers
@@ -319,7 +319,7 @@ class SimperRNNDecoder(Module):
             # dec_x = self.lin_2(dec_x)
             dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
             dec_x = self.lin_3(dec_x)
-            dec_x = self.act(dec_x)
+            # dec_x = self.act(dec_x)
             outputs.append(dec_x)
             attention_weights.append(attention_weight)
 
