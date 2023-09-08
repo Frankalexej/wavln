@@ -167,16 +167,19 @@ class SeqDatasetInfo(Dataset):
 
         # Extract the "token" and "produced_segments" columns
         token_col = control_file['token'].astype(str)
+        produced_segments_col = control_file['produced_segments'].astype(str)
         
         # Merge the two columns by concatenating the strings with '_' and append extension name
         merged_col = rec_col + '_' + idx_col + ".wav"
         
         self.dataset = merged_col.tolist()
-        self.load_dir = load_dir
-        self.transform = transform
+        self.infoset = produced_segments_col.tolist()
         self.info_rec_set = rec_col.tolist()
         self.info_idx_set = idx_col.tolist()
         self.info_token_set = token_col.tolist()
+
+        self.load_dir = load_dir
+        self.transform = transform
         
     
     def __len__(self):
@@ -192,21 +195,22 @@ class SeqDatasetInfo(Dataset):
         if self.transform:
             data = self.transform(data, sr=sample_rate)
         
+        info = self.infoset[idx]
         # extra info for completing a csv
         info_rec = self.info_rec_set[idx]
         info_idx = self.info_idx_set[idx]
         info_token = self.info_token_set[idx]
         
-        return data, info_rec, info_idx, info_token
+        return data, info, info_rec, info_idx, info_token
 
 def collate_fn(data):
     # xx = data, aa bb cc = info_rec, info_idx, info_token
-    xx, aa, bb, cc = zip(*data)
+    xx, yy, aa, bb, cc = zip(*data)
     # only working for one data at the moment
     batch_first = True
     x_lens = [len(x) for x in xx]
     xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
-    return xx_pad, x_lens, aa, bb, cc
+    return xx_pad, x_lens, yy, aa, bb, cc
 
 
 class MyTransform(nn.Module): 
