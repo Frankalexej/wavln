@@ -18,7 +18,7 @@ from padding import generate_mask_from_lengths_mat, mask_it, masked_loss
 from datetime import datetime
 
 from model import PhonLearn_Net
-from mydataset import *
+from seqinfo_dataset import *
 
 
 model_save_dir = model_eng_save_dir
