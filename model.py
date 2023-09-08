@@ -356,10 +356,8 @@ class SimplerPhxLearner(Module):
         
         return dec_out, attn_w
     
-    def encode(self, inputs, in_mask): 
-        batch_size = inputs.size(0)
-        hidden = self.encoder.inits(batch_size=batch_size, device=self.device)
-        return self.encoder.encode(inputs, in_mask, hidden)
+    def encode(self, inputs, input_lens, in_mask): 
+        return self.encoder(inputs, input_lens, in_mask)
 
 
 
