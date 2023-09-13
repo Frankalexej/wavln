@@ -28,6 +28,8 @@ word_seg_anno_log_path = bsc_path + "word_seg_anno_log/"
 word_seg_anno_log_ref_path = bsc_path + "word_seg_anno_log_ref/"
 word_plot_path = bsc_path + "word_plot_path/"
 word_plot_res_path = bsc_path + "word_plot_res/"
+word_plot_info_path = bsc_path + "word_plot_info/"  # for placing other infos related to each word
+word_cluster_plot_path = bsc_path + "word_cluster_plot/"
 
 model_save_dir = root_path + "model_save/"
 model_eng_save_dir = model_save_dir + "eng/"
