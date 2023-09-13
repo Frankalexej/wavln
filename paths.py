@@ -27,6 +27,7 @@ phone_seg_anno_log_path = bsc_path + "phone_seg_anno_log/"
 word_seg_anno_log_path = bsc_path + "word_seg_anno_log/"
 word_seg_anno_log_ref_path = bsc_path + "word_seg_anno_log_ref/"
 word_plot_path = bsc_path + "word_plot_path/"
+word_plot_res_path = bsc_path + "word_plot_res/"
 
 model_save_dir = root_path + "model_save/"
 model_eng_save_dir = model_save_dir + "eng/"

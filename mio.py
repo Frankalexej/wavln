@@ -143,4 +143,3 @@ def append_to_csv(csv_path, new_df):
 ### 重点！有一个trainlist这样才能知道要加载哪些文件
 ### This trainlist will be like this
 ### rec_name (in original rec) cutname (of mfcc) start_time end_time token (phone/seq=p1@p2@.../no)
-
