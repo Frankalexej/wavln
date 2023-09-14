@@ -53,7 +53,3 @@ class ClusterHandler:
                 self.data = pickle.load(file)
         except Exception as e:
             print(f"Error loading info: {str(e)}")
-
-
-
-"""Please help me write a python function to detect in a np array: whetehr tehre were any "returning" value, that is, if  """
