@@ -33,3 +33,27 @@ class EncoderResHandler:
                 self.info = pickle.load(file)
         except Exception as e:
             print(f"Error loading info: {str(e)}")
+
+
+class ClusterHandler: 
+    def __init__(self, put_path, data=None):
+        self.put_path = put_path
+        self.data = data
+
+    def save(self): 
+        try:
+            with open(self.put_path, 'wb') as file:
+                pickle.dump(self.data, file)
+        except Exception as e:
+            print(f"Error saving info: {str(e)}")
+    
+    def read(self): 
+        try:
+            with open(self.put_path, 'rb') as file:
+                self.data = pickle.load(file)
+        except Exception as e:
+            print(f"Error loading info: {str(e)}")
+
+
+
+"""Please help me write a python function to detect in a np array: whetehr tehre were any "returning" value, that is, if  """

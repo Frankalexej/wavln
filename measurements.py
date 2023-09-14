@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn.cluster import DBSCAN
+from sklearn.cluster import DBSCAN, KMeans
 
 class DirectionalConsistency: 
     @staticmethod
@@ -42,3 +42,19 @@ class Clusterer:
         num_clusters = len(set(labels)) - (1 if -1 in labels else 0)
 
         return labels, num_clusters
+    
+
+    @staticmethod
+    def kmeans(data, n_clusters=1): 
+        if data.shape[0] < n_clusters:
+            # strange cases when number of clusters exceeds numebr of points
+            # in this case just give each point one cluster label
+            return np.array(list(range(data.shape[0])), dtype=np.int32), data 
+
+        kmeans = KMeans(n_clusters=n_clusters, init="k-means++", n_init='auto')
+        kmeans.fit(data)
+        # Get cluster assignments for each data point
+        cluster_assignments = kmeans.labels_
+        # Get cluster centroids
+        cluster_centers = kmeans.cluster_centers_
+        return cluster_assignments, cluster_centers

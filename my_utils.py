@@ -43,4 +43,19 @@ def filter_tensors(tensors):
     filtered_tensors = [tensor for tensor, m in zip(tensors, mask) if m]
 
     return filtered_tensors
-        
+
+
+def remove_starting_space(input_string):
+    """
+    Remove the starting space from a string if it exists.
+
+    Args:
+        input_string (str): The input string to process.
+
+    Returns:
+        str: The input string with the starting space removed, or the input string itself if it doesn't start with a space.
+    """
+    if input_string.startswith(' '):
+        return input_string[1:]  # Remove the first character (the space)
+    else:
+        return input_string
