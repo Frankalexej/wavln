@@ -83,6 +83,63 @@ class SeqDataset(Dataset):
 
 
 
+class SeqDatasetInfo(Dataset):
+    def __init__(self, load_dir, load_control_path, transform=None):
+        control_file = pd.read_csv(load_control_path)
+        control_file = control_file[control_file['n_frames'] > 400]
+        control_file = control_file[control_file['duration'] <= 2.0]
+        
+        # Extract the "rec" and "idx" columns
+        rec_col = control_file['rec'].astype(str)
+        idx_col = control_file['idx'].astype(str).str.zfill(8)
+
+        # Extract the "token" and "produced_segments" columns
+        token_col = control_file['token'].astype(str)
+        produced_segments_col = control_file['produced_segments'].astype(str)
+        
+        # Merge the two columns by concatenating the strings with '_' and append extension name
+        merged_col = rec_col + '_' + idx_col + ".wav"
+        
+        self.dataset = merged_col.tolist()
+        self.infoset = produced_segments_col.tolist()
+        self.info_rec_set = rec_col.tolist()
+        self.info_idx_set = idx_col.tolist()
+        self.info_token_set = token_col.tolist()
+
+        self.load_dir = load_dir
+        self.transform = transform
+        
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        wav_name = os.path.join(self.load_dir,
+                                self.dataset[idx])
+        
+        data, sample_rate = torchaudio.load(wav_name, normalize=True)
+        if self.transform:
+            data = self.transform(data)
+        
+        info = self.infoset[idx]
+        # extra info for completing a csv
+        info_rec = self.info_rec_set[idx]
+        info_idx = self.info_idx_set[idx]
+        info_token = self.info_token_set[idx]
+        
+        return data, info, info_rec, info_idx, info_token
+
+    @staticmethod
+    def collate_fn(data):
+        # xx = data, aa bb cc = info_rec, info_idx, info_token
+        xx, yy, aa, bb, cc = zip(*data)
+        # only working for one data at the moment
+        batch_first = True
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        return xx_pad, x_lens, yy, aa, bb, cc
 
 
 class MelSpecTransform(nn.Module): 

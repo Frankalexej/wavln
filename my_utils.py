@@ -59,3 +59,8 @@ def remove_starting_space(input_string):
         return input_string[1:]  # Remove the first character (the space)
     else:
         return input_string
+    
+def remove_newline(input_string): 
+    if "\n" in input_string: 
+        input_string = input_string.replace('\n', '')
+    return input_string
