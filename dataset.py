@@ -143,10 +143,9 @@ class SeqDatasetInfo(Dataset):
 
 
 
-class SeqDatasetWithInfo(Dataset):
+class SeqDatasetAnno(Dataset):
     """
-    This is an organized version of SeqDatasetInfo, 
-    not modified on old one in case of code corruption. 
+    SeqDataset with paired annotation
     """
     def __init__(self, load_dir, load_control_path, transform=None):
         """
@@ -164,16 +163,14 @@ class SeqDatasetWithInfo(Dataset):
 
         # Extract the "token" and "produced_segments" columns
         token_col = control_file['token'].astype(str)
-        produced_segments_col = control_file['produced_segments'].astype(str)
         
         # Merge the two columns by concatenating the strings with '_' and append extension name
         merged_col = rec_col + '_' + idx_col + ".wav"
+        name_col = rec_col + '_' + idx_col
         
         self.dataset = merged_col.tolist()
-        self.info_prodseg_set = produced_segments_col.tolist()
-        self.info_rec_set = rec_col.tolist()
-        self.info_idx_set = idx_col.tolist()
-        self.info_token_set = token_col.tolist()
+        self.token_set = token_col.tolist()
+        self.name_set = name_col.tolist()
 
         self.load_dir = load_dir
         self.transform = transform
@@ -191,24 +188,22 @@ class SeqDatasetWithInfo(Dataset):
         data, sample_rate = torchaudio.load(wav_name, normalize=True)
         if self.transform:
             data = self.transform(data)
-        
-        info_prodseg = self.info_prodseg_set[idx]
-        # extra info for completing a csv
-        info_rec = self.info_rec_set[idx]
-        info_idx = self.info_idx_set[idx]
-        info_token = self.info_token_set[idx]
-        
-        return data, info_prodseg, info_rec, info_idx, info_token
 
+        # extra info for completing a csv
+        token = self.token_set[idx]
+        name = self.name_set[idx]
+        
+        return data, token, name
+    
     @staticmethod
     def collate_fn(data):
         # xx = data, aa bb cc = info_rec, info_idx, info_token
-        xx, yy, aa, bb, cc = zip(*data)
+        xx, token, name = zip(*data)
         # only working for one data at the moment
         batch_first = True
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
-        return xx_pad, x_lens, yy, aa, bb, cc
+        return xx_pad, x_lens, token, name
 
 
 
