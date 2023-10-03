@@ -248,3 +248,28 @@ class MelSpecTransform(nn.Module):
         i_mel = self.inverse_mel(mel_spec)
         inv = self.grifflim(i_mel)
         return inv
+
+
+
+class MFCCTransform(nn.Module): 
+    def __init__(self, sample_rate, n_fft): 
+        super().__init__()
+        # self.transform = torchaudio.transforms.MelSpectrogram(sample_rate, n_fft=n_fft, n_mels=64)
+        # self.to_db = torchaudio.transforms.AmplitudeToDB()
+        # self.transform = torchaudio.transforms.MFCC(n_mfcc=13)
+    
+    def forward(self, waveform, sr=16000): 
+        # extract mfcc
+        feature = torchaudio.compliance.kaldi.mfcc(waveform, sample_frequency=sr)
+
+        # add deltas
+        d1 = torchaudio.functional.compute_deltas(feature)
+        d2 = torchaudio.functional.compute_deltas(d1)
+        feature = torch.cat([feature, d1, d2], dim=-1)
+
+        # Apply normalization (CMVN)
+        eps = 1e-9
+        mean = feature.mean(0, keepdim=True)
+        std = feature.std(0, keepdim=True, unbiased=False)
+        feature = (feature - mean) / (std + eps)
+        return feature

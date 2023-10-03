@@ -140,12 +140,12 @@ class LinearPack(nn.Module):
         # self.relu = nn.ReLU()
         # self.relu = nn.LeakyReLU()
         self.relu = nn.Tanh()
-        # self.dropout = nn.Dropout(dropout_rate)
+        self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, x):
         x = self.linear(x)
         x = self.relu(x)
-        # x = self.dropout(x)
+        x = self.dropout(x)
         return x
 
 """
