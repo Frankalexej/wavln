@@ -11,6 +11,7 @@ import torchaudio
 import os
 from torch.nn.utils.rnn import pad_sequence
 from torch import nn
+from my_utils import time_to_rel_frame
 
 class SeqDataset(Dataset):
     """
@@ -204,6 +205,69 @@ class SeqDatasetAnno(Dataset):
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
         return xx_pad, x_lens, token, name
+
+class SeqDatasetBoundary(Dataset):
+    """
+    SeqDataset with paired boundary information
+    """
+    def __init__(self, load_dir, load_control_path, transform=None):
+        """
+        load_dir: dir of audio
+        load_control_path: path to corresponding log.csv
+        transform: mel / mfcc
+        """
+        control_file = pd.read_csv(load_control_path)
+        control_file = control_file[control_file['n_frames'] > 400] # if <= 400, cannot make one frame, will cause error
+        control_file = control_file[control_file['duration'] <= 2.0]
+        control_file = control_file[control_file['match_status'] == 1]  # if individual phoneme time range matches with word time range
+        
+        # Extract the "rec" and "idx" columns
+        rec_col = control_file['rec'].astype(str)
+        idx_col = control_file['idx'].astype(str).str.zfill(8)
+
+        # t1 t2 ... tn -> ["t1", "t2", ..., "tn"] -> [t1, t2, ..., tn] -> [f1, f2, ..., fn]
+        phoneme_boundaries_col = control_file.apply(time_to_rel_frame, axis=1)
+        
+        # Merge the two columns by concatenating the strings with '_' and append extension name
+        merged_col = rec_col + '_' + idx_col + ".wav"
+        name_col = rec_col + '_' + idx_col
+        
+        self.dataset = merged_col.tolist()
+        self.bnd_set = phoneme_boundaries_col.tolist()
+        self.name_set = name_col.tolist()
+
+        self.load_dir = load_dir
+        self.transform = transform
+        
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        wav_name = os.path.join(self.load_dir,
+                                self.dataset[idx])
+        
+        data, sample_rate = torchaudio.load(wav_name, normalize=True)
+        if self.transform:
+            data = self.transform(data)
+
+        # extra info for completing a csv
+        bnd = self.bnd_set[idx]
+        name = self.name_set[idx]
+        
+        return data, bnd, name
+    
+    @staticmethod
+    def collate_fn(data):
+        # xx = data, aa bb cc = info_rec, info_idx, info_token
+        xx, bnd, name = zip(*data)
+        # only working for one data at the moment
+        batch_first = True
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        return xx_pad, x_lens, bnd, name
 
 
 

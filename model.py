@@ -334,6 +334,67 @@ class RALDecoder(Module):
         return outputs, attention_weights
         # return outputs, None
 
+class LHYEncoder(Module): 
+    def __init__(self, size_list, num_layers=1):
+        # size_list = [39, 64, 16, 3]
+        super(LHYEncoder, self).__init__()
+        self.lin = LinearPack(in_dim=size_list[0], out_dim=size_list[1])
+        self.rnn = nn.LSTM(input_size=size_list[1], hidden_size=size_list[3], num_layers=num_layers, batch_first=True)
+
+    def forward(self, inputs, inputs_lens, in_mask=None, hidden=None):
+        """
+        Args:
+            inputs: input data (B, L, I)
+            inputs_lens: input lengths
+            in_mask: masking (B, L), abolished, since now we have packing and padding
+            hidden: HM_LSTM, abolished
+        """
+        enc_x = self.lin(inputs) # (B, L, I2) -> (B, L, I3)
+
+        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+
+        enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
+
+        enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+
+        return enc_x
+    
+    def encode(self, inputs, inputs_lens, in_mask=None, hidden=None): 
+        enc_x = self.lin(inputs) # (B, L, I2) -> (B, L, I3)
+
+        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+
+        enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
+
+        enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+
+        return enc_x
+
+class LHYDecoder(Module): 
+    def __init__(self, size_list, num_layers=1):
+        # size_list = [39, 64, 16, 3]: similar to encoder, just layer 0 different
+        super(LHYDecoder, self).__init__()
+        self.rnn_in_dim = size_list[3]
+        self.rnn_out_dim = size_list[1]
+
+        self.rnn = nn.LSTM(self.rnn_in_dim, self.rnn_out_dim, num_layers=num_layers, batch_first=True)
+        self.lin = LinearPack(in_dim=size_list[1], out_dim=size_list[0])
+
+        # vars
+        self.num_layers = num_layers
+        self.size_list = size_list
+
+    def forward(self, hid_r, in_mask, init_in, hidden, inputs_lens):
+        dec_x = pack_padded_sequence(hid_r, inputs_lens, batch_first=True, enforce_sorted=False)
+
+        dec_x, (hn, cn) = self.rnn(dec_x)  # (B, L, I1) -> (B, L, I2)
+
+        dec_x, _ = pad_packed_sequence(dec_x, batch_first=True)
+
+        dec_x = self.lin(dec_x)
+        
+        return dec_x
+
 
 
 class SimplerPhxLearner(Module):
@@ -353,13 +414,34 @@ class SimplerPhxLearner(Module):
 
         enc_out = self.encoder(inputs, input_lens, in_mask)
         dec_out, attn_w = self.decoder(enc_out, in_mask, init_in, dec_hid)
-        
         return dec_out, attn_w
     
     def encode(self, inputs, input_lens, in_mask): 
         return self.encoder(inputs, input_lens, in_mask)
 
 
+
+class LHYPhxLearner(Module):
+    def __init__(self, enc_size_list, dec_size_list, num_layers=1):
+        # input = (batch_size, time_steps, in_size); 
+        super(LHYPhxLearner, self).__init__()
+
+        self.encoder = LHYEncoder(size_list=enc_size_list, num_layers=num_layers)
+        self.decoder = LHYDecoder(size_list=dec_size_list, num_layers=num_layers)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+
+        enc_out = self.encoder(inputs, input_lens, in_mask)
+        dec_out = self.decoder(enc_out, in_mask, None, None, input_lens)
+        
+        return dec_out, None
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        return self.encoder(inputs, input_lens, in_mask)
 
 
 

@@ -5,6 +5,7 @@
 import os
 import pytz
 from datetime import datetime
+import math
 
 def arr2str(arr):
     # Use the join() method of Python's str class to concatenate the strings
@@ -64,3 +65,11 @@ def remove_newline(input_string):
     if "\n" in input_string: 
         input_string = input_string.replace('\n', '')
     return input_string
+
+
+def time_to_frame(time_point_seconds, sr=16000, hop_length=200): 
+    return math.floor( time_point_seconds * sr / hop_length )
+
+def time_to_rel_frame(row): 
+    start_time = row["start_time"]
+    return [time_to_frame(float(time) - start_time) for time in row["phoneme_endtimes"].split()]
