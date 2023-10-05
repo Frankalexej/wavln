@@ -22,6 +22,7 @@ word_seg_anno_path = bsc_path + "word_seg_anno/"
 
 seq_seg_anno_path = bsc_path + "seq_seg_anno/"
 
+compound_word_log_path = bsc_path + "compound_word_log/"
 phone_seg_random_log_path = bsc_path + "phone_seg_random_log/"
 phone_seg_anno_log_path = bsc_path + "phone_seg_anno_log/"
 word_seg_anno_log_path = bsc_path + "word_seg_anno_log/"
