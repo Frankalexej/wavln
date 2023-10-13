@@ -227,6 +227,8 @@ class SeqDatasetBoundary(Dataset):
 
         # t1 t2 ... tn -> ["t1", "t2", ..., "tn"] -> [t1, t2, ..., tn] -> [f1, f2, ..., fn]
         phoneme_boundaries_col = control_file.apply(time_to_rel_frame, axis=1)
+
+        match_status_col = control_file['match_status'].astype(int)
         
         # Merge the two columns by concatenating the strings with '_' and append extension name
         merged_col = rec_col + '_' + idx_col + ".wav"
@@ -235,6 +237,7 @@ class SeqDatasetBoundary(Dataset):
         self.dataset = merged_col.tolist()
         self.bnd_set = phoneme_boundaries_col.tolist()
         self.name_set = name_col.tolist()
+        self.ms_set = match_status_col.tolist()
 
         self.load_dir = load_dir
         self.transform = transform
@@ -256,18 +259,19 @@ class SeqDatasetBoundary(Dataset):
         # extra info for completing a csv
         bnd = self.bnd_set[idx]
         name = self.name_set[idx]
+        match_status = self.ms_set[idx]
         
-        return data, bnd, name
+        return data, bnd, name, match_status
     
     @staticmethod
     def collate_fn(data):
         # xx = data, aa bb cc = info_rec, info_idx, info_token
-        xx, bnd, name = zip(*data)
+        xx, bnd, name, match_status = zip(*data)
         # only working for one data at the moment
         batch_first = True
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
-        return xx_pad, x_lens, bnd, name
+        return xx_pad, x_lens, bnd, name, match_status
 
 
 

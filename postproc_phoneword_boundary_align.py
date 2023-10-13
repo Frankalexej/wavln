@@ -24,7 +24,9 @@ def align(word_log_path, phone_dir, compound_dir):
 
         start_time_word = word_row['start_time']
         end_time_word = word_row['end_time']
-        if word_row["produced_segments_clean"] == "" or word_row["produced_segments_clean"].isna(): 
+        if word_row["produced_segments_clean"] == "" \
+            or pd.isna(word_row["produced_segments_clean"]) \
+                or pd.isnull(word_row["produced_segments_clean"]): 
             results.append({
                 'rec': rec,
                 'idx': word_row['idx'], 
