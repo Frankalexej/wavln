@@ -72,4 +72,8 @@ def time_to_frame(time_point_seconds, sr=16000, hop_length=200):
 
 def time_to_rel_frame(row): 
     start_time = row["start_time"]
-    return [time_to_frame(float(time) - start_time) for time in row["phoneme_endtimes"].split()]
+    try: 
+        output = [time_to_frame(float(time) - start_time) for time in row["phoneme_endtimes"].split()]
+    except Exception: 
+        output = []
+    return output

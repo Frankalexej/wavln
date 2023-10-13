@@ -8,7 +8,7 @@ def align(word_log_path, phone_dir, compound_dir):
     # Step 1: Read wordlog.csv and phonelog.csv into DataFrames
     wordlog_df = pd.read_csv(word_log_path)
     wordlog_df['produced_segments_clean'] = wordlog_df['produced_segments'].str.strip()
-    wordlog_df = wordlog_df[(wordlog_df["produced_segments_clean"]!="") & (wordlog_df["produced_segments_clean"].notna())]
+    # wordlog_df = wordlog_df[(wordlog_df["produced_segments_clean"]!="") & (wordlog_df["produced_segments_clean"].notna())]
 
     current_phonelog_df = None  # will be renewed along the way
     current_rec = ""  # init
@@ -24,6 +24,22 @@ def align(word_log_path, phone_dir, compound_dir):
 
         start_time_word = word_row['start_time']
         end_time_word = word_row['end_time']
+        if word_row["produced_segments_clean"] == "" or word_row["produced_segments_clean"].isna(): 
+            results.append({
+                'rec': rec,
+                'idx': word_row['idx'], 
+                'start_time': start_time_word,
+                'end_time': end_time_word,
+                'token': word_row['token'], 
+                'duration': word_row['duration'], 
+                'n_frames': word_row['n_frames'], 
+                'produced_segments': '',
+                'phonemes': '',
+                'phoneme_endtimes': '',
+                'match_status': 3
+            })
+            continue
+
         produced_segments = word_row['produced_segments_clean'].split()
 
         # Step 4: Filter phonelog_df for matching 'rec' and time range

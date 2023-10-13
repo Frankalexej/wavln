@@ -219,7 +219,7 @@ class SeqDatasetBoundary(Dataset):
         control_file = pd.read_csv(load_control_path)
         control_file = control_file[control_file['n_frames'] > 400] # if <= 400, cannot make one frame, will cause error
         control_file = control_file[control_file['duration'] <= 2.0]
-        control_file = control_file[control_file['match_status'] == 1]  # if individual phoneme time range matches with word time range
+        # control_file = control_file[control_file['match_status'] == 1]  # if individual phoneme time range matches with word time range
         
         # Extract the "rec" and "idx" columns
         rec_col = control_file['rec'].astype(str)
