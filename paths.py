@@ -37,6 +37,8 @@ word_cluster_kmeans_plot_path = bsc_path + "word_cluster_kmeans_plot/"  # when u
 phone_plot_res_path = bsc_path + "phone_plot_res/"
 phone_plot_path = bsc_path + "phone_plot/"
 
+cluster_res_path = bsc_path + "cluster_res/"
+
 model_save_dir = root_path + "model_save/"
 model_eng_save_dir = model_save_dir + "eng/"
 model_man_save_dir = model_save_dir + "man/"
