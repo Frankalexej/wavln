@@ -81,6 +81,54 @@ class AnnoEncoderResHandler:
         except Exception as e:
             print(f"Error loading names: {str(e)}")
 
+class AnnoEncoderMelResHandler: 
+    # stores anno, encoder output as well as mel transformed input
+    def __init__(self, whole_res_dir, file_prefix="", res=None, tok=None, transformed=None):
+        # whole_res_dir: dir to place whole res together, not for the purpose of individual plotting, but for general inspection. 
+        self.whole_res_dir = whole_res_dir
+        self.file_prefix = file_prefix
+        self.res = res    # res, list (of numpy arrays)
+        self.tok = tok    # token, list
+        self.transformed = transformed  # transformed, list
+
+    def save(self): 
+        try:
+            with open(os.path.join(self.whole_res_dir, self.file_prefix + ".res"), 'wb') as file:
+                pickle.dump(self.res, file)
+        except Exception as e:
+            print(f"Error saving results: {str(e)}")
+
+        try:
+            with open(os.path.join(self.whole_res_dir, self.file_prefix + ".input"), 'wb') as file:
+                pickle.dump(self.transformed, file)
+        except Exception as e:
+            print(f"Error saving inputs: {str(e)}")
+
+        try:
+            with open(os.path.join(self.whole_res_dir, self.file_prefix + ".tok"), 'wb') as file:
+                pickle.dump(self.tok, file)
+        except Exception as e:
+            print(f"Error saving tokens: {str(e)}")
+
+    def read(self): 
+        try:
+            with open(os.path.join(self.whole_res_dir, self.file_prefix + ".res"), 'rb') as file:
+                self.res = pickle.load(file)
+        except Exception as e:
+            print(f"Error loading results: {str(e)}")
+
+        try:
+            with open(os.path.join(self.whole_res_dir, self.file_prefix + ".input"), 'rb') as file:
+                self.transformed = pickle.load(file)
+        except Exception as e:
+            print(f"Error loading inputs: {str(e)}")
+
+        try:
+            with open(os.path.join(self.whole_res_dir, self.file_prefix + ".tok"), 'rb') as file:
+                self.tok = pickle.load(file)
+        except Exception as e:
+            print(f"Error loading tokens: {str(e)}")
+
 
 class BndEncoderResHandler: 
     def __init__(self, whole_res_dir, file_prefix="", res=None, tok=None, name=None, match_status=None):
