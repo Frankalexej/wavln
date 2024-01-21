@@ -349,8 +349,194 @@ class SeqDatasetName(Dataset):
         return xx_pad, x_lens, name
 
 
+class MelTransform(nn.Module):
+    def __init__(self, sample_rate, n_fft=400, n_mels=64): 
+        super().__init__()
+        self.sample_rate = sample_rate
+        n_stft = int((n_fft//2) + 1)
+        self.transform = torchaudio.transforms.MelSpectrogram(sample_rate, n_mels=n_mels, n_fft=n_fft)
+        self.inverse_mel = torchaudio.transforms.InverseMelScale(sample_rate=sample_rate, n_mels=n_mels, n_stft=n_stft)
+        self.grifflim = torchaudio.transforms.GriffinLim(n_fft=n_fft)
+    
+    def forward(self, waveform):
+        mel_spec = self.transform(waveform)
+        mel_spec = mel_spec.squeeze()
+        mel_spec = mel_spec.permute(1, 0) # (F, L) -> (L, F)
+        return mel_spec
+    
+class MelSpecTransformNew(nn.Module): 
+    def __init__(self, sample_rate, n_fft=400, n_mels=64, normalizer=None, denormalizer=None): 
+        super().__init__()
+        self.sample_rate = sample_rate
+        n_stft = int((n_fft//2) + 1)
+        self.transform = torchaudio.transforms.MelSpectrogram(sample_rate, n_mels=n_mels, n_fft=n_fft)
+        self.inverse_mel = torchaudio.transforms.InverseMelScale(sample_rate=sample_rate, n_mels=n_mels, n_stft=n_stft)
+        self.grifflim = torchaudio.transforms.GriffinLim(n_fft=n_fft)
+
+        self.normalizer = normalizer
+        self.denormalizer = denormalizer
+
+    def forward(self, waveform): 
+        # transform to mel_spectrogram
+        mel_spec = self.transform(waveform)  # (channel, n_mels, time)
+        mel_spec = mel_spec.squeeze()
+        mel_spec = mel_spec.permute(1, 0) # (F, L) -> (L, F)
+        mel_spec = self.normalizer(mel_spec)
+        return mel_spec
+    
+    def de_norm(self, this_mel_spec, waveform): 
+        # transform to mel_spectrogram
+        mel_spec = self.transform(waveform)  # (channel, n_mels, time)
+        mel_spec = mel_spec.squeeze()
+        mel_spec = mel_spec.permute(1, 0) # (F, L) -> (L, F)
+        this_mel_spec = self.denormalizer(this_mel_spec, mel_spec)
+        return this_mel_spec
+    
+    def inverse(self, mel_spec): 
+        mel_spec = mel_spec.permute(1, 0) # (L, F) -> (F, L)
+        mel_spec = mel_spec.unsqueeze(0)  # restore from (F, L) to (channel, F, L)
+        i_mel = self.inverse_mel(mel_spec)
+        inv = self.grifflim(i_mel)
+        return inv
+
 
 class MelSpecTransform(nn.Module): 
+    def __init__(self, sample_rate, n_fft=400, n_mels=64): 
+        super().__init__()
+        self.sample_rate = sample_rate
+        n_stft = int((n_fft//2) + 1)
+        self.transform = torchaudio.transforms.MelSpectrogram(sample_rate, n_mels=n_mels, n_fft=n_fft)
+        self.inverse_mel = torchaudio.transforms.InverseMelScale(sample_rate=sample_rate, n_mels=n_mels, n_stft=n_stft)
+        self.grifflim = torchaudio.transforms.GriffinLim(n_fft=n_fft)
+
+    def forward(self, waveform): 
+        # transform to mel_spectrogram
+        mel_spec = self.transform(waveform)  # (channel, n_mels, time)
+        mel_spec = mel_spec.squeeze()
+        mel_spec = mel_spec.permute(1, 0) # (F, L) -> (L, F)
+
+        """
+        There should be normalization method here, 
+        but for the moment we just leave it here, 
+        later, consider PCEN
+        """
+        # # Apply normalization (CMVN)
+        eps = 1e-9
+        mean = mel_spec.mean()
+        std = mel_spec.std(unbiased=False)
+        # # print(feature.shape)
+        # # print(mean, std)
+        mel_spec = (mel_spec - mean) / (std + eps)
+
+        # mel_spec = self.transform(waveform)
+        # # mel_spec = self.to_db(mel_spec)
+        # mel_spec = mel_spec.squeeze()
+        # mel_spec = mel_spec.permute(1, 0) # (F, L) -> (L, F)
+        return mel_spec
+    
+    def de_norm(self, this_mel_spec, waveform): 
+        # transform to mel_spectrogram
+        mel_spec = self.transform(waveform)  # (channel, n_mels, time)
+        mel_spec = mel_spec.squeeze()
+        mel_spec = mel_spec.permute(1, 0) # (F, L) -> (L, F)
+
+        eps = 1e-9
+        mean = mel_spec.mean()
+        std = mel_spec.std(unbiased=False)
+
+        this_mel_spec = this_mel_spec * std + mean
+        return this_mel_spec
+    
+    def inverse(self, mel_spec): 
+        mel_spec = mel_spec.permute(1, 0) # (L, F) -> (F, L)
+        mel_spec = mel_spec.unsqueeze(0)  # restore from (F, L) to (channel, F, L)
+        i_mel = self.inverse_mel(mel_spec)
+        inv = self.grifflim(i_mel)
+        return inv
+
+class Normalizer(nn.Module):
+    def __init__(self, fun): 
+        super().__init__()
+        self.fun = fun
+    
+    def forward(self, mel_spec):
+        return self.fun(mel_spec)
+    
+    @staticmethod
+    def norm_mvn(mel_spec):
+        eps = 1e-9
+        mean = mel_spec.mean()
+        std = mel_spec.std(unbiased=False)
+        norm_spec = (mel_spec - mean) / (std + eps)
+        return norm_spec
+    
+    @staticmethod
+    def norm_strip_mvn(mel_spec):
+        eps = 1e-9
+        mean = mel_spec.mean(1, keepdim=True)
+        std = mel_spec.std(1, keepdim=True, unbiased=False)
+        norm_spec = (mel_spec - mean) / (std + eps)
+        return norm_spec
+    
+    @staticmethod
+    def norm_time_mvn(mel_spec):
+        # this is bad
+        eps = 1e-9
+        mean = mel_spec.mean(0, keepdim=True)
+        std = mel_spec.std(0, keepdim=True, unbiased=False)
+        norm_spec = (mel_spec - mean) / (std + eps)
+        return norm_spec
+    
+    @staticmethod
+    def norm_minmax(mel_spec):
+        min_val = mel_spec.min()
+        max_val = mel_spec.max()
+        norm_spec = (mel_spec - min_val) / (max_val - min_val)
+        return norm_spec
+    
+    @staticmethod
+    def norm_strip_minmax(mel_spec):
+        min_val = mel_spec.min(1, keepdim=True)[0]
+        max_val = mel_spec.max(1, keepdim=True)[0]
+        norm_spec = (mel_spec - min_val) / (max_val - min_val)
+        return norm_spec
+    
+    @staticmethod
+    def no_norm(mel_spec):
+        return mel_spec
+
+
+class DeNormalizer(nn.Module):
+    def __init__(self, fun): 
+        super().__init__()
+        self.fun = fun
+    
+    def forward(self, mel_spec):
+        return self.fun(mel_spec)
+    
+    @staticmethod
+    def norm_mvn(mel_spec, non_normed_mel_spec):
+        eps = 1e-9
+        mean = non_normed_mel_spec.mean()
+        std = non_normed_mel_spec.std(unbiased=False)
+
+        mel_spec = mel_spec * std + mean
+        return mel_spec
+    
+    @staticmethod
+    def norm_strip_mvn(mel_spec, non_normed_mel_spec):
+        eps = 1e-9
+        mean = non_normed_mel_spec.mean(1, keepdim=True)
+        std = non_normed_mel_spec.std(1, keepdim=True, unbiased=False)
+
+        mel_spec = mel_spec * std + mean
+        return mel_spec
+    
+    @staticmethod
+    def no_norm(mel_spec, non_normed_mel_spec):
+        return mel_spec
+    
+class MelSpecTransformOld(nn.Module): 
     def __init__(self, sample_rate, n_fft=400, n_mels=64): 
         super().__init__()
         self.sample_rate = sample_rate
