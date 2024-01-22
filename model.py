@@ -7,6 +7,30 @@ from padding import mask_it
 from attention import ScaledDotProductAttention
 
 
+class LastElementExtractor(nn.Module): 
+    def __init__(self): 
+        super(LastElementExtractor, self).__init__()
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.cpu = torch.device('cpu')
+    
+    def forward(self, packed, lengths): 
+        lengths = torch.tensor(lengths, device=self.device)
+        sum_batch_sizes = torch.cat((
+            torch.zeros(2, dtype=torch.int64, device=self.device),
+            torch.cumsum(packed.batch_sizes, 0).to(self.device)
+        ))
+        sorted_lengths = lengths[packed.sorted_indices]
+        last_seq_idxs = sum_batch_sizes[sorted_lengths] + torch.arange(lengths.size(0), device=self.device)
+        last_seq_items = packed.data[last_seq_idxs]
+        last_seq_items = last_seq_items[packed.unsorted_indices]
+        return last_seq_items
+
+
+
+
+
+
+
 class Encoder(Module): 
     def __init__(self, a, size_list, in_size, in2_size, in3_size, hid_size):
         super(Encoder, self).__init__()
@@ -378,7 +402,8 @@ class LHYDecoder(Module):
         self.rnn_out_dim = size_list[1]
 
         self.rnn = nn.LSTM(self.rnn_in_dim, self.rnn_out_dim, num_layers=num_layers, batch_first=True)
-        self.lin = LinearPack(in_dim=size_list[1], out_dim=size_list[0])
+        # self.lin = LinearPack(in_dim=size_list[1], out_dim=size_list[0])
+        self.lin = nn.Linear(size_list[1], size_list[0])
 
         # vars
         self.num_layers = num_layers
@@ -394,7 +419,219 @@ class LHYDecoder(Module):
         dec_x = self.lin(dec_x)
         
         return dec_x
+    
+class LRLEncoder(Module): 
+    def __init__(self, size_list, num_layers=1):
+        # size_list = [39, 64, 16, 3]
+        super(LRLEncoder, self).__init__()
+        self.lin_1 = LinearPack(in_dim=size_list[0], out_dim=size_list[1])
+        self.rnn = nn.LSTM(input_size=size_list[1], hidden_size=size_list[2], num_layers=num_layers, batch_first=True)
+        # self.lin_2 = LinearPack(in_dim=size_list[2], out_dim=size_list[3])
+        self.lin_2 = nn.Linear(size_list[2], size_list[3])
+        # self.act = nn.Tanh()
+        # self.bn = nn.BatchNorm1d(size_list[3])
 
+    def forward(self, inputs, inputs_lens, in_mask=None, hidden=None):
+        """
+        Args:
+            inputs: input data (B, L, I)
+            inputs_lens: input lengths
+            in_mask: masking (B, L), abolished, since now we have packing and padding
+            hidden: HM_LSTM, abolished
+        """
+        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+        # enc_x = inputs
+
+        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+
+        enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
+
+        enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+
+        enc_x = self.lin_2(enc_x) # (B, L, I2) -> (B, L, I3)
+        # enc_x = self.act(enc_x)
+        
+        # enc_x = enc_x.permute(0, 2, 1)
+        # enc_x = self.bn(enc_x)
+        # enc_x = enc_x.permute(0, 2, 1)
+
+        return enc_x
+    
+    def encode(self, inputs, inputs_lens, in_mask=None, hidden=None): 
+        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+        # enc_x = inputs
+
+        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+
+        enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
+
+        enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+
+        enc_x = self.lin_2(enc_x) # (B, L, I2) -> (B, L, I3)
+        # enc_x = self.act(enc_x)
+
+        # enc_x = enc_x.permute(0, 2, 1)
+        # enc_x = self.bn(enc_x)
+        # enc_x = enc_x.permute(0, 2, 1)
+
+        return enc_x
+
+class LRALDecoder(Module): 
+    def __init__(self, size_list, num_layers=1):
+        # size_list = [13, 64, 16, 3]: similar to encoder, just layer 0 different
+        super(LRALDecoder, self).__init__()
+        self.lin_1 = LinearPack(in_dim=size_list[0], out_dim=size_list[1])  # NOTE: we use out size (last in size_list) as input size to lin, because we will take the direct output from last layer in dec. 
+        self.rnn = nn.LSTM(size_list[1], size_list[3], num_layers=num_layers, batch_first=True)
+        # self.lin_2 = LinearPack(in_dim=size_list[2], out_dim=size_list[3])
+        self.attention = ScaledDotProductAttention(q_in=size_list[3], kv_in=size_list[3], qk_out=size_list[3], v_out=size_list[3])
+        # self.lin_3 = LinearPack(in_dim=size_list[3], out_dim=size_list[0])
+        self.lin_3 = nn.Linear(size_list[3], size_list[0])
+        # self.act = nn.Tanh()
+
+        # vars
+        self.num_layers = num_layers
+        self.size_list = size_list
+
+    def inits(self, batch_size, device): 
+        h0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
+        c0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
+        hidden = (h0, c0)
+        dec_in_token = torch.zeros((batch_size, 1, self.size_list[0]), dtype=torch.float, device=device, requires_grad=False)
+        return hidden, dec_in_token
+
+    def forward(self, hid_r, in_mask, init_in, hidden):
+        # Attention decoder
+        length = hid_r.size(1) # get length
+        # last_hid_r = self.last_element_extractor()
+
+        # dec_in_token = init_in
+        # dec_in_token = self.lin_3()
+        dec_in_token = torch.zeros((hid_r.size(0), 1, self.size_list[0]), dtype=torch.float, device=hid_r.device, requires_grad=False)
+
+        outputs = []
+        attention_weights = []
+        for t in range(length):
+            dec_x = self.lin_1(dec_in_token)
+            dec_x, hidden = self.rnn(dec_x, hidden)
+            # dec_x = self.lin_2(dec_x)
+            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+            dec_x = self.lin_3(dec_x)
+            # dec_x = self.act(dec_x)
+            outputs.append(dec_x)
+            attention_weights.append(attention_weight)
+
+            # Use the current output as the next input token
+            dec_in_token = dec_x
+
+        outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        attention_weights = torch.stack(attention_weights, dim=1)
+        outputs = outputs.squeeze(2)
+        attention_weights = attention_weights.squeeze(2)
+        outputs = mask_it(outputs, in_mask)     # test! I think it should be correct. 
+        
+        return outputs, attention_weights
+        # return outputs, None
+
+class LRLDecoder(Module): 
+    def __init__(self, size_list, num_layers=1):
+        # size_list = [13, 64, 16, 3]: similar to encoder, just layer 0 different
+        super(LRLDecoder, self).__init__()
+        self.lin_1 = LinearPack(in_dim=size_list[0], out_dim=size_list[1])  # NOTE: we use out size (last in size_list) as input size to lin, because we will take the direct output from last layer in dec. 
+        self.rnn = nn.LSTM(size_list[1], size_list[3], num_layers=num_layers, batch_first=True)
+        self.lin_3 = nn.Linear(size_list[3], size_list[0])
+        # self.act = nn.Tanh()
+        self.last_element_extractor = LastElementExtractor()
+
+        # vars
+        self.num_layers = num_layers
+        self.size_list = size_list
+
+    def inits(self, batch_size, device): 
+        h0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
+        c0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
+        hidden = (h0, c0)
+        dec_in_token = torch.zeros((batch_size, 1, self.size_list[0]), dtype=torch.float, device=device, requires_grad=False)
+        return hidden, dec_in_token
+
+    def forward(self, hid_r, inputs_lens, in_mask, init_in, hidden):
+        # Attention decoder
+        length = hid_r.size(1) # get length
+
+        # dec_in_token = init_in
+        # dec_in_token = self.lin_3(hid_r[:, -2:-1, :])
+        packed_hid_r = pack_padded_sequence(hid_r, inputs_lens, batch_first=True, enforce_sorted=False)
+        last_hid_r = self.last_element_extractor(packed_hid_r, inputs_lens).unsqueeze(1)
+        dec_in_token = self.lin_3(last_hid_r)
+
+        outputs = []
+        attention_weights = []
+        for t in range(length):
+            dec_x = self.lin_1(dec_in_token)
+            dec_x, hidden = self.rnn(dec_x, hidden)
+            # dec_x = self.lin_2(dec_x)
+            # dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+            dec_x = self.lin_3(dec_x)
+            # dec_x = self.act(dec_x)
+            outputs.append(dec_x)
+            # attention_weights.append(attention_weight)
+
+            # Use the current output as the next input token
+            dec_in_token = dec_x
+
+        outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        # attention_weights = torch.stack(attention_weights, dim=1)
+        outputs = outputs.squeeze(2)
+        # attention_weights = attention_weights.squeeze(2)
+        outputs = mask_it(outputs, in_mask)     # test! I think it should be correct. 
+        
+        return outputs, attention_weights
+        # return outputs, None
+
+
+class TwoLinPhxLearner(Module):
+    def __init__(self, enc_size_list, dec_size_list, num_layers=1):
+        # input = (batch_size, time_steps, in_size); 
+        super(TwoLinPhxLearner, self).__init__()
+
+        self.encoder = LRLEncoder(size_list=enc_size_list, num_layers=num_layers)
+        self.decoder = LRALDecoder(size_list=dec_size_list, num_layers=num_layers)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.decoder.inits(batch_size=batch_size, device=self.device)
+
+        enc_out = self.encoder(inputs, input_lens, in_mask)
+        dec_out, attn_w = self.decoder(enc_out, in_mask, init_in, dec_hid)
+        return dec_out, attn_w
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        return self.encoder(inputs, input_lens, in_mask)
+    
+
+class TwoLinNoAttentionPhxLearner(Module):
+    def __init__(self, enc_size_list, dec_size_list, num_layers=1):
+        # input = (batch_size, time_steps, in_size); 
+        super(TwoLinNoAttentionPhxLearner, self).__init__()
+
+        self.encoder = LRLEncoder(size_list=enc_size_list, num_layers=num_layers)
+        self.decoder = LRLDecoder(size_list=dec_size_list, num_layers=num_layers)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.decoder.inits(batch_size=batch_size, device=self.device)
+
+        enc_out = self.encoder(inputs, input_lens, in_mask)
+        dec_out, attn_w = self.decoder(enc_out, input_lens, in_mask, init_in, dec_hid)
+        return dec_out, attn_w
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        return self.encoder(inputs, input_lens, in_mask)
 
 
 class SimplerPhxLearner(Module):
