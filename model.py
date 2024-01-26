@@ -357,6 +357,58 @@ class RALDecoder(Module):
         
         return outputs, attention_weights
         # return outputs, None
+
+class InitRALDecoder(Module): 
+    def __init__(self, size_list, num_layers=1):
+        # size_list = [13, 64, 16, 3]: similar to encoder, just layer 0 different
+        super(InitRALDecoder, self).__init__()
+        # self.lin_1 = LinearPack(in_dim=size_list[0], out_dim=size_list[1])  # NOTE: we use out size (last in size_list) as input size to lin, because we will take the direct output from last layer in dec. 
+        self.rnn = nn.LSTM(size_list[0], size_list[3], num_layers=num_layers, batch_first=True)
+        # self.lin_2 = LinearPack(in_dim=size_list[2], out_dim=size_list[3])
+        self.attention = ScaledDotProductAttention(q_in=size_list[3], kv_in=size_list[3], qk_out=size_list[3], v_out=size_list[3])
+        self.lin_3 = LinearPack(in_dim=size_list[3], out_dim=size_list[0])
+        # self.act = nn.Tanh()
+
+        # vars
+        self.num_layers = num_layers
+        self.size_list = size_list
+
+    def inits(self, batch_size, device): 
+        h0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
+        c0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
+        hidden = (h0, c0)
+        dec_in_token = torch.zeros((batch_size, 1, self.size_list[0]), dtype=torch.float, device=device, requires_grad=False)
+        return hidden, dec_in_token
+
+    def forward(self, hid_r, in_mask, init_in, hidden):
+        # Attention decoder
+        length = hid_r.size(1) # get length
+
+        dec_in_token = init_in
+        # dec_in_token = self.lin_3(hid_r[:, -2:-1, :])
+
+        outputs = []
+        attention_weights = []
+        for t in range(length):
+            # dec_x = self.lin_1(dec_in_token)
+            dec_x, hidden = self.rnn(dec_in_token, hidden)
+            # dec_x = self.lin_2(dec_x)
+            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+            dec_x = self.lin_3(dec_x)
+            # dec_x = self.act(dec_x)
+            outputs.append(dec_x)
+            attention_weights.append(attention_weight)
+
+            # Use the current output as the next input token
+            dec_in_token = dec_x
+
+        outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        attention_weights = torch.stack(attention_weights, dim=1)
+        outputs = outputs.squeeze(2)
+        attention_weights = attention_weights.squeeze(2)
+        outputs = mask_it(outputs, in_mask)     # test! I think it should be correct. 
+        
+        return outputs, attention_weights
     
 class RleALDecoder(Module): 
     def __init__(self, size_list, num_layers=1):
@@ -693,6 +745,29 @@ class SimplerPhxLearner(Module):
 
         self.encoder = RLEncoder(size_list=enc_size_list, num_layers=num_layers)
         self.decoder = RALDecoder(size_list=dec_size_list, num_layers=num_layers)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.decoder.inits(batch_size=batch_size, device=self.device)
+
+        enc_out = self.encoder(inputs, input_lens, in_mask)
+        dec_out, attn_w = self.decoder(enc_out, in_mask, init_in, dec_hid)
+        return dec_out, attn_w
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        return self.encoder(inputs, input_lens, in_mask)
+
+class SimplerPhxLearnerInit(Module):
+    # RL + RAL(Init)
+    def __init__(self, enc_size_list, dec_size_list, num_layers=1):
+        # input = (batch_size, time_steps, in_size); 
+        super(SimplerPhxLearnerInit, self).__init__()
+
+        self.encoder = RLEncoder(size_list=enc_size_list, num_layers=num_layers)
+        self.decoder = InitRALDecoder(size_list=dec_size_list, num_layers=num_layers)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
