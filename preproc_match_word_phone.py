@@ -4,6 +4,7 @@ import os
 from paths import *
 from misc_tools import PathUtils as PU
 import argparse
+from misc_progress_bar import draw_progress_bar
 
 
 # def match_word_phone(words_data, phones_data):
@@ -37,6 +38,8 @@ def match_word_phone(df_words, df_phones):
     df_phones['word'] = None
     df_phones['in_id'] = None
 
+    total_rows = len(df_phones.index)
+
     # Iterate over each phone and find matching word within the same audio file
     for idx, phone in df_phones.iterrows():
         matching_words = df_words[(df_words['file'] == phone['file']) &
@@ -49,6 +52,7 @@ def match_word_phone(df_words, df_phones):
             df_phones.at[idx, 'word'] = word['segment']
             # Counting the internal index (in_id) of the phone within the word
             df_phones.at[idx, 'in_id'] = sum((df_phones['word_id'] == word['id']) & (df_phones.index <= idx))
+        draw_progress_bar(idx, total_rows)
 
     return df_phones
 
