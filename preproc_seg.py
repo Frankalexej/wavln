@@ -118,3 +118,4 @@ if __name__ == "__main__":
     run_mp(segment_and_extract, os.listdir(train_audio_), 64, *(train_audio_, train_tg_, train_cut_word_, train_cut_word_guide_, args.level))
     # segment_and_extract(os.listdir(train_audio_), train_audio_, train_tg_, train_cut_audio_, train_cut_guide_)
     # segment_and_extract(try_audio_, try_tg_, try_cut_audio_, try_cut_guide_)
+    # trial
