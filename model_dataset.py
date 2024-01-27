@@ -11,7 +11,7 @@ import torchaudio
 import os
 from torch.nn.utils.rnn import pad_sequence
 from torch import nn
-from my_utils import time_to_rel_frame
+from misc_my_utils import time_to_rel_frame
 import torch.nn.functional as F
 import librosa
 

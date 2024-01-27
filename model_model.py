@@ -2,9 +2,9 @@ import torch.nn as nn
 from torch.nn import Module
 import torch
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from layers import HM_LSTM, LinearPack
-from padding import mask_it
-from attention import ScaledDotProductAttention
+from model_layers import HM_LSTM, LinearPack
+from model_padding import mask_it
+from model_attention import ScaledDotProductAttention
 
 
 class LastElementExtractor(nn.Module): 
