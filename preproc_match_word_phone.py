@@ -59,9 +59,6 @@ def match_word_phone(df_words, df_phones):
 if __name__ == "__main__": 
     parser = argparse.ArgumentParser(description='argparse')
     parser.add_argument('--guide_path', '-gp', type=str, default="..//src/eng/", help="Path that holds the guide files")
-    parser.add_argument('--word_guide_name', '-wgn', type=str, default="word_guide.csv", help="Name of word guide file")
-    parser.add_argument('--phone_guide_name', '-pgn', type=str, default="phone_guide.csv", help="Name of phone guide file")
-    parser.add_argument('--matched_phone_guide_name', '-mpgn', type=str, default="matched_phone_guide.csv", help="Name of matched output guide file")
     args = parser.parse_args()
     # Load the words and phones data
     df_words = pd.read_csv(os.path.join(args.guide_path, args.word_guide_name))

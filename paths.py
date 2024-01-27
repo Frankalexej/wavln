@@ -9,6 +9,7 @@ train_cut_word_ = src_ + "train-clean-100-cw/"  # cut words, ideally following s
 train_cut_word_guide_ = src_ + "train-clean-100-cwg/"  # cut guide, ideally following structure of original audio
 train_cut_phone_ = src_ + "train-clean-100-cp/"  # cut phones, phones will have a word idx marking to which word it belongs
 train_cut_phone_guide_ = src_ + "train-clean-100-cpg/"
+train_cut_matched_phone_guide_ = src_ + "train-clean-100-cmpg/" # store the phone guides after matching with words
 
 debug_ = src_ + "debug/"
 
