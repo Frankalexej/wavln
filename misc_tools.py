@@ -124,12 +124,27 @@ class AudioCut:
         # bare name, no extension
         # 19-198-0037 (example)
         return tuple(name.split("-"))
+    
+    @staticmethod
+    def record2speaker(record): 
+        # record is a row
+        sentence_name = record["file"]
+        speaker, rec, sentence = AudioCut.solve_name(sentence_name)
+        return speaker
 
     @staticmethod
     def record2filepath(record): 
         # record is a row
         sentence = record["file"]
         idx = AudioCut.idx2text(record["id"], fill_num=4)
+
+        return sentence.replace("-", "/") + "/" + sentence + "-" + idx + ".flac"
+    
+    @staticmethod
+    def wordrecord2filepath(record): 
+        # record is a row
+        sentence = record["file"]
+        idx = AudioCut.idx2text(record["word_id"], fill_num=4)
 
         return sentence.replace("-", "/") + "/" + sentence + "-" + idx + ".flac"
     

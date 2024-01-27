@@ -51,3 +51,6 @@ if __name__ == "__main__":
     elif args.level == "phones": 
         guide_, target_ = train_cut_phone_guide_, src_
         integrate_guides(guide_, os.path.join(target_, "phone_guide.csv"))
+    elif args.level == "matched_phones": 
+        guide_, target_ = train_cut_matched_phone_guide_, src_
+        integrate_guides(guide_, os.path.join(target_, "matched_phone_guide.csv"))
