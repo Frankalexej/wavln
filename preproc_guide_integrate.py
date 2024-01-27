@@ -23,7 +23,7 @@ def integrate_guides(src_path, target_filename):
     total_df = pd.DataFrame()
     total_speakers = len(os.listdir(src_path))
 
-    for idx, speaker_ in enumerate(sorted(os.listdir(src_path), key=str.casefold)): 
+    for speaker_ in tqdm(sorted(os.listdir(src_path), key=str.casefold)): 
         # train-clean-100-tg/[19]/198/19-198-0000.TextGrid
         src_speaker_ = os.path.join(src_path, speaker_)
         if not os.path.isdir(src_speaker_): 

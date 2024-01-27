@@ -116,6 +116,9 @@ if __name__ == "__main__":
     parser.add_argument('--num_processes', '-np', type=int, default=64, help="Number of processes")
     args = parser.parse_args()
     # run_mp(segment_and_extract, os.listdir(train_audio_), 32, *(train_audio_, train_tg_, train_cut_audio_, train_cut_guide_))
-    run_mp(segment_and_extract, os.listdir(train_audio_), args.num_processes, *(train_audio_, train_tg_, train_cut_word_, train_cut_word_guide_, args.level))
+    if args.level == "words": 
+        run_mp(segment_and_extract, os.listdir(train_audio_), args.num_processes, *(train_audio_, train_tg_, train_cut_word_, train_cut_word_guide_, args.level))
+    elif args.level == "phones": 
+        run_mp(segment_and_extract, os.listdir(train_audio_), args.num_processes, *(train_audio_, train_tg_, train_cut_phone_, train_cut_phone_guide_, args.level))
     # segment_and_extract(os.listdir(train_audio_), train_audio_, train_tg_, train_cut_audio_, train_cut_guide_)
     # segment_and_extract(try_audio_, try_tg_, try_cut_audio_, try_cut_guide_)
