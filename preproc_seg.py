@@ -4,31 +4,17 @@ from praatio import textgrid
 import pandas as pd
 from paths import *
 from misc_tools import PathUtils as PU, AudioCut
-# from misc_progress_bar import draw_progress_bar
 from misc_multiprocessing import *
-
-def segment_and_extract_word_from_sentence(au_, tg_, ca_, cg_, name, save_small=True):
-    audio_file = os.path.join(au_, name + ".flac")
-    tg_file = os.path.join(tg_, name + ".TextGrid")
-
-    tg = textgrid.openTextgrid(tg_file, False)
-    entries = tg.getTier("phones").entries # Get all intervals
-
-    segment = []    # note down what sound it is
-    file = []       # filename of [sentence], not sound
-    id = []         # address within sentence file
-    startTime = []  # start time of segment
-    endTime = []    # end time of segment
-    nSample = []    # number of samples in recording [not calculated]
+import argparse
 
 # xxx_ means xxx_path (self-defined abbr)
-def segment_and_extract_sentence(au_, tg_, ca_, cg_, name, save_small=True): 
+def segment_and_extract_sentence(au_, tg_, ca_, cg_, name, level="words", save_small=True): 
     # in current setting save_small is always true
     audio_file = os.path.join(au_, name + ".flac")
     tg_file = os.path.join(tg_, name + ".TextGrid")
 
     tg = textgrid.openTextgrid(tg_file, False)
-    entries = tg.getTier("phones").entries # Get all intervals
+    entries = tg.getTier(level).entries # Get all intervals
 
     segment = []    # note down what sound it is
     file = []       # filename of [sentence], not sound
@@ -79,7 +65,7 @@ def segment_and_extract_sentence(au_, tg_, ca_, cg_, name, save_small=True):
     return data
 
 
-def segment_and_extract(work_list, dir_au, dir_tg, dir_ca, dir_cg): 
+def segment_and_extract(work_list, dir_au, dir_tg, dir_ca, dir_cg, level="words"): 
     """
     This function reads textgrid files, and according to the 
     interval boundaries cut the corresponding recordings into small audios. 
@@ -120,12 +106,15 @@ def segment_and_extract(work_list, dir_au, dir_tg, dir_ca, dir_cg):
                     tg_=tg_speaker_rec_, 
                     ca_=ca_speaker_rec_, 
                     cg_=cg_speaker_rec_, 
-                    name=os.path.splitext(sentence)[0]
+                    name=os.path.splitext(sentence)[0], 
+                    level=level,
                 )
-        # draw_progress_bar(idx, total_speakers)
 
 if __name__ == "__main__": 
+    parser = argparse.ArgumentParser(description='argparse')
+    parser.add_argument('--level', '-l', type=str, default="words", help="Cut into words or phones")
+    args = parser.parse_args()
     # run_mp(segment_and_extract, os.listdir(train_audio_), 32, *(train_audio_, train_tg_, train_cut_audio_, train_cut_guide_))
-    run_mp(segment_and_extract, os.listdir(strain_audio_), 32, *(strain_audio_, strain_tg_, strain_cut_audio_, strain_cut_guide_))
+    run_mp(segment_and_extract, os.listdir(train_audio_), 64, *(train_audio_, train_tg_, train_cut_word_, train_cut_word_guide_, args.level))
     # segment_and_extract(os.listdir(train_audio_), train_audio_, train_tg_, train_cut_audio_, train_cut_guide_)
     # segment_and_extract(try_audio_, try_tg_, try_cut_audio_, try_cut_guide_)
