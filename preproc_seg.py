@@ -113,9 +113,9 @@ def segment_and_extract(work_list, dir_au, dir_tg, dir_ca, dir_cg, level="words"
 if __name__ == "__main__": 
     parser = argparse.ArgumentParser(description='argparse')
     parser.add_argument('--level', '-l', type=str, default="words", help="Cut into words or phones")
+    parser.add_argument('--num_processes', '-np', type=int, default=64, help="Number of processes")
     args = parser.parse_args()
     # run_mp(segment_and_extract, os.listdir(train_audio_), 32, *(train_audio_, train_tg_, train_cut_audio_, train_cut_guide_))
-    run_mp(segment_and_extract, os.listdir(train_audio_), 64, *(train_audio_, train_tg_, train_cut_word_, train_cut_word_guide_, args.level))
+    run_mp(segment_and_extract, os.listdir(train_audio_), args.num_processes, *(train_audio_, train_tg_, train_cut_word_, train_cut_word_guide_, args.level))
     # segment_and_extract(os.listdir(train_audio_), train_audio_, train_tg_, train_cut_audio_, train_cut_guide_)
     # segment_and_extract(try_audio_, try_tg_, try_cut_audio_, try_cut_guide_)
-    # trial
