@@ -14,36 +14,62 @@ from torch import nn
 from misc_my_utils import time_to_rel_frame
 import torch.nn.functional as F
 
-class WordDataset(Dataset):
-    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
-        guide_file = pd.read_csv(guide_)
+class SeqDataset(Dataset):
+    """
+    A PyTorch dataset that loads cutted wave files from disk and returns input-output pairs for
+    training autoencoder. [wav -> mel]
+    """
+    
+    def __init__(self, load_dir, load_control_path, transform=None):
+        """
+        Initializes the class by reading a CSV file and merging the "rec" and "idx" columns.
 
-        guide_file = guide_file[guide_file["segment_nostress"].isin(select)]
-        guide_file = guide_file[guide_file['nSample'] > 400]
-        guide_file = guide_file[guide_file['nSample'] <= 8000]
+        Args:
+        load_dir (str): The directory containing the files to load.
+        load_control_path (str): The path to the CSV file containing the "rec" and "idx" columns.
+        transform (Transform): when loading files, this will be applied to the sound data. 
+        """
+        control_file = pd.read_csv(load_control_path)
+        control_file = control_file[control_file['n_frames'] > 400]
+        control_file = control_file[control_file['duration'] <= 2.0]
         
-        path_col = guide_file["word_path"]
-        # seg_col = guide_file["segment_nostress"]
+        # Extract the "rec" and "idx" columns
+        rec_col = control_file['rec'].astype(str)
+        idx_col = control_file['idx'].astype(str).str.zfill(8)
         
-        self.dataset = path_col.tolist()
-        self.src_dir = src_dir
+        # Merge the two columns by concatenating the strings with '_' and append extension name
+        merged_col = rec_col + '_' + idx_col + ".wav"
+        
+        self.dataset = merged_col.tolist()
+        self.load_dir = load_dir
         self.transform = transform
-
-        self.mapper = mapper    # should not be used unless for derived classes that use ground truth. 
         
     
     def __len__(self):
         return len(self.dataset)
     
     def __getitem__(self, idx):
+        """
+        Returns a tuple (input_data, output_data) for the given index.
+
+        The function first checks if the provided index is a tensor, and if so, converts it to a list.
+        It then constructs the file path for the .wav file using the dataset attribute and the provided index.
+        The .wav file is loaded using torchaudio, and its data is normalized. If a transform is provided,
+        the data is transformed using the specified transform. Finally, the input_data and output_data are
+        set to the same data (creating a tuple), and the tuple is returned.
+
+        Note: 
+        This function assumes that the class has the following attributes:
+        - self.load_dir (str): The directory containing the .wav files.
+        - self.dataset (list): A list of .wav file names.
+        - self.transform (callable, optional): An optional transform to apply to the audio data.
+        """
         if torch.is_tensor(idx):
             idx = idx.tolist()
-        file_name = os.path.join(
-            self.src_dir, 
-            self.dataset[idx]
-        )
+        wav_name = os.path.join(self.load_dir,
+                                self.dataset[idx])
         
-        data, sample_rate = torchaudio.load(file_name, normalize=True)
+        data, sample_rate = torchaudio.load(wav_name, normalize=True)
         if self.transform:
             data = self.transform(data)
         

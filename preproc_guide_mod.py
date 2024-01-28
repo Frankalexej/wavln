@@ -61,7 +61,7 @@ if __name__ == "__main__":
                         help="Choose the task to perform")
     parser.add_argument('--guide_path', '-gp', type=str, default="..//src/eng/", help="Path that holds the guide files")
     parser.add_argument('--in_file_name', '-ifn', type=str, default="matched_phone_guide.csv", help="Name of input filename")
-    parser.add_argument('--out_file_name', '-ofn', type=str, default="matched_phone_guide_mod.csv", help="Name of output filename")
+    parser.add_argument('--out_file_name', '-ofn', type=str, default="matched_phone_guide.csv", help="Name of output filename")
     args = parser.parse_args()
 
 

@@ -20,7 +20,7 @@ Two tasks: cut the audio according to annotation and organize information into a
 
 1. preproc_seg.py: run this file and get the continuous recordings cut into phones or words  
 2. preproc_guide_integrate.py: run and integrate the guide files into one large guideline  
-3. preproc_guide_mod.py: run and make additional changes to the guide. You can self-define any change because this is post-hoc. Currently it includes "destress" (disregarding the stress markings) and "addpath" (add extra path combined from rec and idx. This will take around twice the size in storage but will save calculation time when loading dataset)  
+3. preproc_guide_mod.py: run and make additional changes to the guide. You can self-define any change because this is post-hoc. Currently it includes "destress" (disregarding the stress markings), "addpath" (add extra path combined from rec and idx. This will take around twice the size in storage but will save calculation time when loading dataset), "markspeaker" (separately mark the speaker of the recording, this can help with later separation of training, validation and testing sets)  
 4. preproc_guide_sepTVT.py: separate training, validation as well as test dataset. This will make sure any speaker (not only segments) is only in one of the sets. 
 
 

@@ -144,7 +144,11 @@ class AudioCut:
     def wordrecord2filepath(record): 
         # record is a row
         sentence = record["file"]
-        idx = AudioCut.idx2text(record["word_id"], fill_num=4)
+        try: 
+            idx = int(record["word_id"])
+        except:
+            idx = "xxxx"
+        idx = AudioCut.idx2text(idx, fill_num=4)
 
         return sentence.replace("-", "/") + "/" + sentence + "-" + idx + ".flac"
     
