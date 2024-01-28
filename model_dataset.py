@@ -13,16 +13,43 @@ from torch.nn.utils.rnn import pad_sequence
 from torch import nn
 from misc_my_utils import time_to_rel_frame
 import torch.nn.functional as F
+import pickle
+
+class DS_Tools:
+    @ staticmethod
+    def save_indices(filename, my_list):
+        try:
+            with open(filename, 'wb') as file:
+                pickle.dump(my_list, file)
+            return True
+        except Exception as e:
+            print(f"An error occurred while saving the list: {e}")
+            return False
+
+    @ staticmethod    
+    def read_indices(filename):
+        try:
+            with open(filename, 'rb') as file:
+                my_list = pickle.load(file)
+            return my_list
+        except Exception as e:
+            print(f"An error occurred while reading the list: {e}")
+            return None
 
 class WordDataset(Dataset):
     def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
         guide_file = pd.read_csv(guide_)
 
-        guide_file = guide_file[guide_file["segment_nostress"].isin(select)]
+        # guide_file = guide_file[guide_file["segment_nostress"].isin(select)]
+        # this is not needed for worddataset, we only need to kick out the non-word segments
+        guide_file = guide_file[~guide_file["segment_nostress"].isin(["sil", "sp", "spn"])]
         guide_file = guide_file[guide_file['nSample'] > 400]
         guide_file = guide_file[guide_file['nSample'] <= 8000]
         
-        path_col = guide_file["word_path"]
+        path_col = guide_file["word_path"].unique()
+        # have to use unique, because we are working on matched_phone_guide, 
+        # which repetitively marks the word path if the segment belongs to the word
+        
         # seg_col = guide_file["segment_nostress"]
         
         self.dataset = path_col.tolist()

@@ -4,7 +4,6 @@ import torch.nn.functional as Func
 from torch.nn import Module, Parameter
 import torch.nn as nn
 import math
-from utils import hard_sigm, bound
 
 class DoubleLin(Module): 
     def __init__(self, n_in, n_mid, n_out): 
