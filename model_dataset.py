@@ -11,7 +11,7 @@ import torchaudio
 import os
 from torch.nn.utils.rnn import pad_sequence
 from torch import nn
-from misc_my_utils import time_to_rel_frame
+from misc_my_utils import time_to_frame
 import torch.nn.functional as F
 import pickle
 from misc_tools import AudioCut
@@ -45,7 +45,7 @@ class WordDataset(Dataset):
         # this is not needed for worddataset, we only need to kick out the non-word segments
         guide_file = guide_file[~guide_file["segment_nostress"].isin(["sil", "sp", "spn"])]
         guide_file = guide_file[guide_file['word_nSample'] > 400]
-        guide_file = guide_file[guide_file['word_nSample'] <= 8000]
+        guide_file = guide_file[guide_file['word_nSample'] <= 15000]
         
         path_col = guide_file["word_path"].unique()
         # have to use unique, because we are working on matched_phone_guide, 
@@ -117,49 +117,34 @@ class WordDatasetBoundary(WordDataset):
     So we want to start from here and calculated the frames of each phone's ending times. 
     """
     def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
-        super().__init__(src_dir, guide_, select=[], mapper=None, transform=None)
-        self.name_set = self.guide_file.apply(AudioCut.wordrecord2wuid, axis=1).tolist()
+        super().__init__(src_dir, guide_, select, mapper, transform)
+        self.name_set = self.guide_file["wuid"].tolist()
 
-        # t1 t2 ... tn -> ["t1", "t2", ..., "tn"] -> [t1, t2, ..., tn] -> [f1, f2, ..., fn]
-        phoneme_boundaries_col = control_file.apply(time_to_rel_frame, axis=1)
-
-        match_status_col = control_file['match_status'].astype(int)
-        
-        self.bnd_set = phoneme_boundaries_col.tolist()
-
-        self.load_dir = load_dir
-        self.transform = transform
+        # e1/e2/.../en (belong to same word) -> [t1, t2, ..., tn] -> [f1, f2, ..., fn]
+        self.bnd_set = self.guide_file.groupby('wuid').apply(lambda x: [time_to_frame(row['endTime'] - row['word_startTime']) for index, row in x.iterrows()]).tolist()
         
     
     def __len__(self):
         return len(self.dataset)
     
     def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-        wav_name = os.path.join(self.load_dir,
-                                self.dataset[idx])
-        
-        data, sample_rate = torchaudio.load(wav_name, normalize=True)
-        if self.transform:
-            data = self.transform(data)
+        data = super().__getitem__(idx)
 
         # extra info for completing a csv
         bnd = self.bnd_set[idx]
         name = self.name_set[idx]
-        match_status = self.ms_set[idx]
         
-        return data, bnd, name, match_status
+        return data, bnd, name
     
     @staticmethod
     def collate_fn(data):
         # xx = data, aa bb cc = info_rec, info_idx, info_token
-        xx, bnd, name, match_status = zip(*data)
+        xx, bnd, name = zip(*data)
         # only working for one data at the moment
         batch_first = True
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
-        return xx_pad, x_lens, bnd, name, match_status
+        return xx_pad, x_lens, bnd, name
 
 
 
@@ -344,13 +329,58 @@ class MelSpecTransformNewNew(nn.Module):
         i_mel = self.inverse_mel(mel_spec)
         inv = self.grifflim(i_mel)
         return inv
+
+
+class MelSpecTransformDB(nn.Module): 
+    def __init__(self, sample_rate, n_fft=400, n_mels=64, normalizer=None, denormalizer=None): 
+        super().__init__()
+        self.sample_rate = sample_rate
+        n_stft = int((n_fft//2) + 1)
+        self.transform = torchaudio.transforms.MelSpectrogram(sample_rate, n_mels=n_mels, n_fft=n_fft)
+        self.inverse_mel = torchaudio.transforms.InverseMelScale(sample_rate=sample_rate, n_mels=n_mels, n_stft=n_stft)
+        self.grifflim = torchaudio.transforms.GriffinLim(n_fft=n_fft)
+        self.amplitude_to_DB = torchaudio.transforms.AmplitudeToDB(stype='power')
+
+        self.normalizer = normalizer
+        self.denormalizer = denormalizer
+
+    def forward(self, waveform): 
+        # transform to mel_spectrogram
+        mel_spec = self.transform(waveform)  # (channel, n_mels, time)
+        # mel_spec = F.amplitude_to_DB(mel_spec)
+        mel_spec = self.amplitude_to_DB(mel_spec)
+        # mel_spec = torch.tensor(librosa.power_to_db(mel_spec.squeeze().numpy()))
+        mel_spec = mel_spec.squeeze()
+        mel_spec = mel_spec.permute(1, 0) # (F, L) -> (L, F)
+        mel_spec = self.normalizer(mel_spec)
+        return mel_spec
     
+    def de_norm(self, this_mel_spec, waveform): 
+        # transform to mel_spectrogram
+        mel_spec = self.transform(waveform)  # (channel, n_mels, time)
+        # mel_spec = torch.tensor(librosa.power_to_db(mel_spec.squeeze().numpy()))
+        mel_spec = self.amplitude_to_DB(mel_spec)
+        mel_spec = mel_spec.squeeze()
+        mel_spec = mel_spec.permute(1, 0) # (F, L) -> (L, F)
+        this_mel_spec = self.denormalizer(this_mel_spec, mel_spec)
+        return this_mel_spec
+    
+    def inverse(self, mel_spec): 
+        mel_spec = mel_spec.permute(1, 0) # (L, F) -> (F, L)
+        # mel_spec = torch.tensor(librosa.db_to_power(mel_spec.numpy()))
+        mel_spec = torchaudio.functional.DB_to_amplitude(mel_spec, ref=1.0, power=1)
+        mel_spec = mel_spec.unsqueeze(0)  # restore from (F, L) to (channel, F, L)
+        i_mel = self.inverse_mel(mel_spec)
+        inv = self.grifflim(i_mel)
+        return inv
+
 
 class MelSpecTransformNoDB(nn.Module): 
     def __init__(self, sample_rate, n_fft=400, n_mels=64, normalizer=None, denormalizer=None): 
         super().__init__()
         self.sample_rate = sample_rate
-        n_stft = int((n_fft//2) + 1)
+        # n_stft = int((n_fft//2) + 1)
+        n_stft = n_fft//2 + 1
         self.transform = torchaudio.transforms.MelSpectrogram(sample_rate, n_mels=n_mels, n_fft=n_fft)
         self.inverse_mel = torchaudio.transforms.InverseMelScale(sample_rate=sample_rate, n_mels=n_mels, n_stft=n_stft)
         self.grifflim = torchaudio.transforms.GriffinLim(n_fft=n_fft)
@@ -512,6 +542,13 @@ class DeNormalizer(nn.Module):
         std = non_normed_mel_spec.std(1, keepdim=True, unbiased=False)
 
         mel_spec = mel_spec * std + mean
+        return mel_spec
+
+    @staticmethod
+    def norm_minmax(mel_spec, non_normed_mel_spec):
+        min_val = non_normed_mel_spec.min()
+        max_val = non_normed_mel_spec.max()
+        mel_spec = mel_spec * (max_val - min_val) + min_val
         return mel_spec
     
     @staticmethod
