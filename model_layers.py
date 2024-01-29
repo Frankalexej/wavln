@@ -37,7 +37,7 @@ class LinearPack(nn.Module):
     def __init__(self, in_dim, out_dim, dropout_rate=0.5):
         super(LinearPack, self).__init__()
         self.linear = nn.Linear(in_dim, out_dim)
-        self.layernorm = nn.LayerNorm(out_dim)  # Layer normalization
+        # self.layernorm = nn.LayerNorm(out_dim)  # Layer normalization
         self.relu = nn.ReLU()
         # self.relu = nn.LeakyReLU()
         # self.relu = nn.Tanh()
@@ -45,7 +45,7 @@ class LinearPack(nn.Module):
 
     def forward(self, x):
         x = self.linear(x)
-        x = self.layernorm(x)  # Apply LayerNorm after linear transformation
+        # x = self.layernorm(x)  # Apply LayerNorm after linear transformation
         x = self.relu(x)
         # x = self.dropout(x)  # Apply dropout after activation (if using dropout)
         return x
