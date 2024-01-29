@@ -14,6 +14,7 @@ from torch import nn
 from misc_my_utils import time_to_rel_frame
 import torch.nn.functional as F
 import pickle
+from misc_tools import AudioCut
 
 class DS_Tools:
     @ staticmethod
@@ -43,8 +44,8 @@ class WordDataset(Dataset):
         # guide_file = guide_file[guide_file["segment_nostress"].isin(select)]
         # this is not needed for worddataset, we only need to kick out the non-word segments
         guide_file = guide_file[~guide_file["segment_nostress"].isin(["sil", "sp", "spn"])]
-        guide_file = guide_file[guide_file['nSample'] > 400]
-        guide_file = guide_file[guide_file['nSample'] <= 8000]
+        guide_file = guide_file[guide_file['word_nSample'] > 400]
+        guide_file = guide_file[guide_file['word_nSample'] <= 8000]
         
         path_col = guide_file["word_path"].unique()
         # have to use unique, because we are working on matched_phone_guide, 
@@ -52,12 +53,13 @@ class WordDataset(Dataset):
         
         # seg_col = guide_file["segment_nostress"]
         
+        self.guide_file = guide_file
         self.dataset = path_col.tolist()
         self.src_dir = src_dir
         self.transform = transform
 
-        self.mapper = mapper    # should not be used unless for derived classes that use ground truth. 
-        
+        self.mapper = mapper
+        # should not be used unless for derived classes that use ground truth. 
     
     def __len__(self):
         return len(self.dataset)
@@ -83,6 +85,82 @@ class WordDataset(Dataset):
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
         return xx_pad, x_lens
+
+class WordDatasetPath(WordDataset): 
+    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
+        super().__init__(src_dir, guide_, select, mapper, transform)
+        self.name_set = self.guide_file["wuid"].unique().tolist()
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        data = super().__getitem__(idx)
+        name = self.name_set[idx]
+        
+        return data, name
+
+    @staticmethod
+    def collate_fn(data):
+        xx, name = zip(*data)
+        # only working for one data at the moment
+        batch_first = True
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        return xx_pad, x_lens, name
+
+class WordDatasetBoundary(WordDataset):
+    """
+    WordDataset with paired boundary information. 
+    Notice that in the matched phone guide there are naturally phones with starting and ending times marked. 
+    We also know to which word each phone belongs to. 
+    So we want to start from here and calculated the frames of each phone's ending times. 
+    """
+    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
+        super().__init__(src_dir, guide_, select=[], mapper=None, transform=None)
+        self.name_set = self.guide_file.apply(AudioCut.wordrecord2wuid, axis=1).tolist()
+
+        # t1 t2 ... tn -> ["t1", "t2", ..., "tn"] -> [t1, t2, ..., tn] -> [f1, f2, ..., fn]
+        phoneme_boundaries_col = control_file.apply(time_to_rel_frame, axis=1)
+
+        match_status_col = control_file['match_status'].astype(int)
+        
+        self.bnd_set = phoneme_boundaries_col.tolist()
+
+        self.load_dir = load_dir
+        self.transform = transform
+        
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        wav_name = os.path.join(self.load_dir,
+                                self.dataset[idx])
+        
+        data, sample_rate = torchaudio.load(wav_name, normalize=True)
+        if self.transform:
+            data = self.transform(data)
+
+        # extra info for completing a csv
+        bnd = self.bnd_set[idx]
+        name = self.name_set[idx]
+        match_status = self.ms_set[idx]
+        
+        return data, bnd, name, match_status
+    
+    @staticmethod
+    def collate_fn(data):
+        # xx = data, aa bb cc = info_rec, info_idx, info_token
+        xx, bnd, name, match_status = zip(*data)
+        # only working for one data at the moment
+        batch_first = True
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        return xx_pad, x_lens, bnd, name, match_status
+
 
 
 
@@ -207,148 +285,6 @@ class SeqDatasetAnno(Dataset):
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
         return xx_pad, x_lens, token, name
-
-class SeqDatasetBoundary(Dataset):
-    """
-    SeqDataset with paired boundary information
-    """
-    def __init__(self, load_dir, load_control_path, transform=None):
-        """
-        load_dir: dir of audio
-        load_control_path: path to corresponding log.csv
-        transform: mel / mfcc
-        """
-        control_file = pd.read_csv(load_control_path)
-        control_file = control_file[control_file['n_frames'] > 400] # if <= 400, cannot make one frame, will cause error
-        control_file = control_file[control_file['duration'] <= 2.0]
-        # control_file = control_file[control_file['match_status'] == 1]  # if individual phoneme time range matches with word time range
-        
-        # Extract the "rec" and "idx" columns
-        rec_col = control_file['rec'].astype(str)
-        idx_col = control_file['idx'].astype(str).str.zfill(8)
-
-        # t1 t2 ... tn -> ["t1", "t2", ..., "tn"] -> [t1, t2, ..., tn] -> [f1, f2, ..., fn]
-        phoneme_boundaries_col = control_file.apply(time_to_rel_frame, axis=1)
-
-        match_status_col = control_file['match_status'].astype(int)
-        
-        # Merge the two columns by concatenating the strings with '_' and append extension name
-        merged_col = rec_col + '_' + idx_col + ".wav"
-        name_col = rec_col + '_' + idx_col
-        
-        self.dataset = merged_col.tolist()
-        self.bnd_set = phoneme_boundaries_col.tolist()
-        self.name_set = name_col.tolist()
-        self.ms_set = match_status_col.tolist()
-
-        self.load_dir = load_dir
-        self.transform = transform
-        
-    
-    def __len__(self):
-        return len(self.dataset)
-    
-    def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-        wav_name = os.path.join(self.load_dir,
-                                self.dataset[idx])
-        
-        data, sample_rate = torchaudio.load(wav_name, normalize=True)
-        if self.transform:
-            data = self.transform(data)
-
-        # extra info for completing a csv
-        bnd = self.bnd_set[idx]
-        name = self.name_set[idx]
-        match_status = self.ms_set[idx]
-        
-        return data, bnd, name, match_status
-    
-    @staticmethod
-    def collate_fn(data):
-        # xx = data, aa bb cc = info_rec, info_idx, info_token
-        xx, bnd, name, match_status = zip(*data)
-        # only working for one data at the moment
-        batch_first = True
-        x_lens = [len(x) for x in xx]
-        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
-        return xx_pad, x_lens, bnd, name, match_status
-
-
-class SeqDatasetName(Dataset):
-    """
-    A PyTorch dataset that loads cutted wave files from disk and returns input-output pairs for
-    training autoencoder. [wav -> mel]
-    """
-    
-    def __init__(self, load_dir, load_control_path, transform=None):
-        """
-        Initializes the class by reading a CSV file and merging the "rec" and "idx" columns.
-
-        Args:
-        load_dir (str): The directory containing the files to load.
-        load_control_path (str): The path to the CSV file containing the "rec" and "idx" columns.
-        transform (Transform): when loading files, this will be applied to the sound data. 
-        """
-        control_file = pd.read_csv(load_control_path)
-        control_file = control_file[control_file['n_frames'] > 400]
-        control_file = control_file[control_file['duration'] <= 2.0]
-        
-        # Extract the "rec" and "idx" columns
-        rec_col = control_file['rec'].astype(str)
-        idx_col = control_file['idx'].astype(str).str.zfill(8)
-        
-        # Merge the two columns by concatenating the strings with '_' and append extension name
-        merged_col = rec_col + '_' + idx_col + ".wav"
-        name_col = rec_col + '_' + idx_col
-        
-        self.dataset = merged_col.tolist()
-        self.name_set = name_col.tolist()
-        self.load_dir = load_dir
-        self.transform = transform
-        
-    
-    def __len__(self):
-        return len(self.dataset)
-    
-    def __getitem__(self, idx):
-        """
-        Returns a tuple (input_data, output_data) for the given index.
-
-        The function first checks if the provided index is a tensor, and if so, converts it to a list.
-        It then constructs the file path for the .wav file using the dataset attribute and the provided index.
-        The .wav file is loaded using torchaudio, and its data is normalized. If a transform is provided,
-        the data is transformed using the specified transform. Finally, the input_data and output_data are
-        set to the same data (creating a tuple), and the tuple is returned.
-
-        Note: 
-        This function assumes that the class has the following attributes:
-        - self.load_dir (str): The directory containing the .wav files.
-        - self.dataset (list): A list of .wav file names.
-        - self.transform (callable, optional): An optional transform to apply to the audio data.
-        """
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-        wav_name = os.path.join(self.load_dir,
-                                self.dataset[idx])
-        
-        data, sample_rate = torchaudio.load(wav_name, normalize=True)
-        if self.transform:
-            data = self.transform(data)
-        
-        name = self.name_set[idx]
-        
-        return data, name
-
-    @staticmethod
-    def collate_fn(data):
-        xx, name = zip(*data)
-        # only working for one data at the moment
-        batch_first = True
-        x_lens = [len(x) for x in xx]
-        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
-        return xx_pad, x_lens, name
 
 
 class MelTransform(nn.Module):

@@ -153,6 +153,17 @@ class AudioCut:
         return sentence.replace("-", "/") + "/" + sentence + "-" + idx + ".flac"
     
     @staticmethod
+    def wordrecord2wuid(record): 
+        sentence = record["file"]
+        try: 
+            idx = int(record["word_id"])
+        except:
+            idx = "xxxx"
+        idx = AudioCut.idx2text(idx, fill_num=4)
+
+        return sentence + "-" + idx
+    
+    @staticmethod
     def filename_id2filepath(filename, idx): 
         # record is a row
         sentence = filename
