@@ -15,6 +15,7 @@ from misc_my_utils import time_to_frame
 import torch.nn.functional as F
 import pickle
 from misc_tools import AudioCut
+import numpy as np
 
 class DS_Tools:
     @ staticmethod
@@ -35,7 +36,40 @@ class DS_Tools:
             return my_list
         except Exception as e:
             print(f"An error occurred while reading the list: {e}")
-            return None
+            return None 
+    
+    @staticmethod
+    def create_ground_truth(length, bp_pair):
+        # Initialize the ground truth tensor with zeros or a placeholder value
+        ground_truth = torch.zeros(length, dtype=torch.int)
+
+        # Start index for the first phoneme
+        start_idx = 0
+
+        # Process all but the last phoneme using the boundaries
+        for (boundary, phoneme) in bp_pair[:-1]:
+            ground_truth[start_idx:boundary] = phoneme
+            start_idx = boundary
+
+        # Handle the last phoneme, ensuring it extends to the end of the mel spectrogram if necessary
+        ground_truth[start_idx:] = bp_pair[-1][0]
+
+        return ground_truth
+
+class TokenMap: 
+    def __init__(self, token_list, starter=0):  
+        self.token2idx = {element: index + starter for index, element in enumerate(token_list)}
+        self.idx2token = {index + starter: element for index, element in enumerate(token_list)}
+    
+    def encode(self, token): 
+        return self.token2idx[token]
+    
+    def decode(self, idx): 
+        return self.idx2token[idx]
+    
+    def token_num(self): 
+        return len(self.token2idx)
+
 
 class WordDataset(Dataset):
     def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
@@ -109,7 +143,7 @@ class WordDatasetPath(WordDataset):
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
         return xx_pad, x_lens, name
 
-class WordDatasetBoundary(WordDataset):
+class WordDatasetFramephone(WordDataset):
     """
     WordDataset with paired boundary information. 
     Notice that in the matched phone guide there are naturally phones with starting and ending times marked. 
@@ -118,11 +152,20 @@ class WordDatasetBoundary(WordDataset):
     """
     def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
         super().__init__(src_dir, guide_, select, mapper, transform)
+
+        self.mapper = mapper
         self.name_set = self.guide_file["wuid"].tolist()
 
         # e1/e2/.../en (belong to same word) -> [t1, t2, ..., tn] -> [f1, f2, ..., fn]
-        self.bnd_set = self.guide_file.groupby('wuid').apply(lambda x: [time_to_frame(row['endTime'] - row['word_startTime']) for index, row in x.iterrows()]).tolist()
-        
+        bp_pair_set = self.guide_file.groupby('wuid').apply(lambda x: [(self.mapper.encode(row["segment_nostress"]), time_to_frame(row['endTime'] - row['word_startTime'])) for index, row in x.iterrows()])
+
+        unique_wuid_df = self.guide_file.drop_duplicates(subset='wuid')
+        word_framelength_set = ((unique_wuid_df['word_nSample'] // 200).astype(int) + 1).tolist()
+
+        self.ground_truth_set = [DS_Tools.create_ground_truth(word_framelength, 
+                                                              bp_pair) for 
+                                 word_framelength, bp_pair in 
+                                 zip(word_framelength_set, bp_pair_set)]
     
     def __len__(self):
         return len(self.dataset)
@@ -131,22 +174,23 @@ class WordDatasetBoundary(WordDataset):
         data = super().__getitem__(idx)
 
         # extra info for completing a csv
-        bnd = self.bnd_set[idx]
-        name = self.name_set[idx]
+        ground_truth = self.ground_truth_set[idx]
         
-        return data, bnd, name
+        return data, ground_truth
     
     @staticmethod
     def collate_fn(data):
         # xx = data, aa bb cc = info_rec, info_idx, info_token
-        xx, bnd, name = zip(*data)
+        xx, yy = zip(*data)
         # only working for one data at the moment
         batch_first = True
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
-        return xx_pad, x_lens, bnd, name
+        y_lens = [len(x) for x in yy]
+        yy_pad = pad_sequence(yy, batch_first=batch_first, padding_value=0)
+        return xx_pad, x_lens, yy_pad, y_lens
 
-class WordDatasetFramephone(WordDataset):
+class WordDatasetBoundary(WordDataset):
     """
     WordDataset with paired framephone information. 
     Framephone is the nickname for the ground truth inferred from the matched phone guide, which marks which phones belong to the current word. 

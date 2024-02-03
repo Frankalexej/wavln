@@ -305,60 +305,6 @@ class RLEncoder(Module):
 
         return enc_x
     
-class RLEncoder(Module): 
-    def __init__(self, size_list, num_layers=1):
-        # size_list = [39, 64, 16, 3]
-        super(RLEncoder, self).__init__()
-        # self.lin_1 = LinearPack(in_dim=size_list[0], out_dim=size_list[1])
-        self.rnn = nn.LSTM(input_size=size_list[0], hidden_size=size_list[2], num_layers=num_layers, batch_first=True)
-        self.lin_2 = LinearPack(in_dim=size_list[2], out_dim=size_list[3])
-        # self.act = nn.Tanh()
-        # self.bn = nn.BatchNorm1d(size_list[3])
-
-    def forward(self, inputs, inputs_lens, in_mask=None, hidden=None):
-        """
-        Args:
-            inputs: input data (B, L, I)
-            inputs_lens: input lengths
-            in_mask: masking (B, L), abolished, since now we have packing and padding
-            hidden: HM_LSTM, abolished
-        """
-        # enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
-        enc_x = inputs
-
-        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
-
-        enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
-
-        enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
-
-        enc_x = self.lin_2(enc_x) # (B, L, I2) -> (B, L, I3)
-        # enc_x = self.act(enc_x)
-        
-        # enc_x = enc_x.permute(0, 2, 1)
-        # enc_x = self.bn(enc_x)
-        # enc_x = enc_x.permute(0, 2, 1)
-
-        return enc_x
-    
-    def encode(self, inputs, inputs_lens, in_mask=None, hidden=None): 
-        # enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
-        enc_x = inputs
-
-        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
-
-        enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
-
-        enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
-
-        enc_x = self.lin_2(enc_x) # (B, L, I2) -> (B, L, I3)
-        # enc_x = self.act(enc_x)
-
-        # enc_x = enc_x.permute(0, 2, 1)
-        # enc_x = self.bn(enc_x)
-        # enc_x = enc_x.permute(0, 2, 1)
-
-        return enc_x
 
 class RALDecoder(Module): 
     def __init__(self, size_list, num_layers=1):
@@ -847,6 +793,30 @@ class SimplerPhxLearnerInit(Module):
     
     def encode(self, inputs, input_lens, in_mask): 
         return self.encoder(inputs, input_lens, in_mask)
+    
+class PhonePredNet(Module): 
+    # RL + L
+    def __init__(self, enc_size_list, out_dim, num_layers=1):
+        # input = (batch_size, time_steps, in_size); 
+        super(PhonePredNet, self).__init__()
+
+        self.encoder = RLEncoder(size_list=enc_size_list, num_layers=num_layers)
+        self.decoder = nn.Linear(enc_size_list[3], out_dim)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+    def forward(self, inputs, input_lens, in_mask):
+        enc_out = self.encoder(inputs, input_lens, in_mask)
+        pred_out = self.decoder(enc_out)
+        return pred_out
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        return self.encoder(inputs, input_lens, in_mask)
+    
+    def predict_on_output(self, output): 
+        output = nn.Softmax(dim=1)(output)
+        preds = torch.argmax(output, dim=1)
+        return preds
     
 class LRLInitLRALNet(Module):
     # LRL + LRAL(Init)

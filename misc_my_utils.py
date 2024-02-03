@@ -68,6 +68,7 @@ def remove_newline(input_string):
 
 
 def time_to_frame(time_point_seconds, sr=16000, hop_length=200): 
+    # this is because for frame indices we start from 0. 
     return math.floor( time_point_seconds * sr / hop_length )
 
 def time_to_rel_frame(row): 
