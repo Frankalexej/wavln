@@ -146,7 +146,41 @@ class WordDatasetBoundary(WordDataset):
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
         return xx_pad, x_lens, bnd, name
 
+class WordDatasetFramephone(WordDataset):
+    """
+    WordDataset with paired framephone information. 
+    Framephone is the nickname for the ground truth inferred from the matched phone guide, which marks which phones belong to the current word. 
+    Now we take this, also given the boundary generate a vector of shape same as the melspectrogram of words. Each frame a phone. 
+    """
+    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
+        super().__init__(src_dir, guide_, select, mapper, transform)
+        self.name_set = self.guide_file["wuid"].tolist()
 
+        # e1/e2/.../en (belong to same word) -> [t1, t2, ..., tn] -> [f1, f2, ..., fn]
+        self.bnd_set = self.guide_file.groupby('wuid').apply(lambda x: [time_to_frame(row['endTime'] - row['word_startTime']) for index, row in x.iterrows()]).tolist()
+        
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        data = super().__getitem__(idx)
+
+        # extra info for completing a csv
+        bnd = self.bnd_set[idx]
+        name = self.name_set[idx]
+        
+        return data, bnd, name
+    
+    @staticmethod
+    def collate_fn(data):
+        # xx = data, aa bb cc = info_rec, info_idx, info_token
+        xx, bnd, name = zip(*data)
+        # only working for one data at the moment
+        batch_first = True
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        return xx_pad, x_lens, bnd, name
 
 
 class SeqDatasetInfo(Dataset):
