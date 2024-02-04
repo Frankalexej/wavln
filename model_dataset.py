@@ -15,6 +15,7 @@ from misc_my_utils import time_to_frame
 import torch.nn.functional as F
 import pickle
 from misc_tools import AudioCut
+from misc_tools import PathUtils as PU
 import numpy as np
 
 class DS_Tools:
@@ -150,22 +151,28 @@ class WordDatasetFramephone(WordDataset):
     We also know to which word each phone belongs to. 
     So we want to start from here and calculated the frames of each phone's ending times. 
     """
-    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
+    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None, ground_truth_path=""):
         super().__init__(src_dir, guide_, select, mapper, transform)
 
         self.mapper = mapper
-        self.name_set = self.guide_file["wuid"].tolist()
 
-        # e1/e2/.../en (belong to same word) -> [t1, t2, ..., tn] -> [f1, f2, ..., fn]
-        bp_pair_set = self.guide_file.groupby('wuid').apply(lambda x: [(self.mapper.encode(row["segment_nostress"]), time_to_frame(row['endTime'] - row['word_startTime'])) for index, row in x.iterrows()])
+        if ground_truth_path != "" and PU.path_exist(ground_truth_path): 
+            with open(ground_truth_path, "rb") as file:
+                # Load the object from the file
+                self.ground_truth_set = pickle.load(file)
+        else: 
+            # e1/e2/.../en (belong to same word) -> [t1, t2, ..., tn] -> [f1, f2, ..., fn]
+            bp_pair_set = self.guide_file.groupby('wuid').apply(lambda x: [(self.mapper.encode(row["segment_nostress"]), time_to_frame(row['endTime'] - row['word_startTime'])) for index, row in x.iterrows()])
+            unique_wuid_df = self.guide_file.drop_duplicates(subset='wuid')
+            word_framelength_set = ((unique_wuid_df['word_nSample'] // 200).astype(int) + 1).tolist()
 
-        unique_wuid_df = self.guide_file.drop_duplicates(subset='wuid')
-        word_framelength_set = ((unique_wuid_df['word_nSample'] // 200).astype(int) + 1).tolist()
-
-        self.ground_truth_set = [DS_Tools.create_ground_truth(word_framelength, 
-                                                              bp_pair) for 
-                                 word_framelength, bp_pair in 
-                                 zip(word_framelength_set, bp_pair_set)]
+            self.ground_truth_set = [DS_Tools.create_ground_truth(word_framelength, 
+                                                                bp_pair) for 
+                                    word_framelength, bp_pair in 
+                                    zip(word_framelength_set, bp_pair_set)]
+        
+            with open(ground_truth_path, 'wb') as file:
+                pickle.dump(self.ground_truth_set, file)
     
     def __len__(self):
         return len(self.dataset)
@@ -188,6 +195,54 @@ class WordDatasetFramephone(WordDataset):
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
         y_lens = [len(x) for x in yy]
         yy_pad = pad_sequence(yy, batch_first=batch_first, padding_value=0)
+        return xx_pad, x_lens, yy_pad, y_lens
+    
+class WordDatasetPhoneseq(WordDataset):
+    """
+    This will pair each rec with the corresponding sequence of phones it contains. 
+    Notice that is given as a list of numbers, which is translated from the phoneme letter-spellings. 
+    """
+    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None, ground_truth_path=""):
+        super().__init__(src_dir, guide_, select, mapper, transform)
+
+        self.mapper = mapper
+
+        if ground_truth_path != "" and PU.path_exist(ground_truth_path): 
+            with open(ground_truth_path, "rb") as file:
+                # Load the object from the file
+                self.ground_truth_set = pickle.load(file)
+                # self.ground_truth_set = [torch.tensor(one_gt) for one_gt in self.ground_truth_set]
+                # with open(ground_truth_path, 'wb') as file:
+                #     pickle.dump(self.ground_truth_set, file)
+        else: 
+            # e1/e2/.../en (belong to same word) -> [t1, t2, ..., tn] -> [f1, f2, ..., fn]
+            self.ground_truth_set = self.guide_file.groupby('wuid').apply(lambda x: torch.tensor([self.mapper.encode(row["segment_nostress"]) for index, row in x.iterrows()]))
+        
+            with open(ground_truth_path, 'wb') as file:
+                pickle.dump(self.ground_truth_set, file)
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        data = super().__getitem__(idx)
+
+        # extra info for completing a csv
+        ground_truth = self.ground_truth_set[idx]
+        
+        return data, ground_truth
+    
+    @staticmethod
+    def collate_fn(data):
+        # xx = data, aa bb cc = info_rec, info_idx, info_token
+        xx, yy = zip(*data)
+        # only working for one data at the moment
+        batch_first = True
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        y_lens = [len(x) for x in yy]
+        yy_pad = pad_sequence(yy, batch_first=batch_first, padding_value=0)
+        # yy_cat = torch.cat(yy)
         return xx_pad, x_lens, yy_pad, y_lens
 
 class WordDatasetBoundary(WordDataset):

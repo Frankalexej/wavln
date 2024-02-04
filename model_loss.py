@@ -21,6 +21,17 @@ class MaskedLoss:
         # loss = loss_fn(y_hat_masked, y_masked)
 
         return loss
+    
+class MaskedFlatLoss: 
+    # This used for CrossEntropyLoss, which needs (B, C, L) and (B, L) as input and will give
+    # (B, L) as output. Therefore masking can simply be appied with mask being of shape (B, L)
+    def __init__(self, loss_fn):
+        self.loss_fn = loss_fn
+
+    def get_loss(self, y_hat, y, mask): 
+        y_hat = y_hat.permute(0, 2, 1)  # (B, L, C) -> (B, C, L)
+        loss = torch.sum(self.loss_fn(y_hat, y) * mask) / torch.sum(mask)
+        return loss
 
 
 class CombinedLoss: 

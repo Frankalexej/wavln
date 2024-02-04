@@ -814,8 +814,58 @@ class PhonePredNet(Module):
         return self.encoder(inputs, input_lens, in_mask)
     
     def predict_on_output(self, output): 
-        output = nn.Softmax(dim=1)(output)
-        preds = torch.argmax(output, dim=1)
+        output = nn.Softmax(dim=-1)(output)
+        preds = torch.argmax(output, dim=-1)
+        return preds
+    
+class PhonePredCTCNet(Module): 
+    # RL + L
+    def __init__(self, enc_size_list, out_dim, num_layers=1):
+        # input = (batch_size, time_steps, in_size); 
+        super(PhonePredCTCNet, self).__init__()
+
+        self.encoder = RLEncoder(size_list=enc_size_list, num_layers=num_layers)
+        self.decoder = nn.Linear(enc_size_list[3], out_dim)
+        self.softmax = nn.LogSoftmax(dim=-1)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+    def forward(self, inputs, input_lens, in_mask):
+        enc_out = self.encoder(inputs, input_lens, in_mask)
+        pred_out = self.decoder(enc_out)
+        pred_out = self.softmax(pred_out)
+        return pred_out
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        return self.encoder(inputs, input_lens, in_mask)
+    
+    def predict_on_output(self, output): 
+        # output = nn.Softmax(dim=-1)(output)
+        preds = torch.argmax(output, dim=-1)
+        return preds
+    
+class RLInitRALPP(Module): 
+    # RL + L
+    def __init__(self, enc_size_list, dec_size_list, num_layers=1):
+        # input = (batch_size, time_steps, in_size); 
+        super(RLInitRALPP, self).__init__()
+
+        self.encoder = RLEncoder(size_list=enc_size_list, num_layers=num_layers)
+        self.decoder = nn.Linear(enc_size_list[3], out_dim)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+    def forward(self, inputs, input_lens, in_mask):
+        enc_out = self.encoder(inputs, input_lens, in_mask)
+        pred_out = self.decoder(enc_out)
+        return pred_out
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        return self.encoder(inputs, input_lens, in_mask)
+    
+    def predict_on_output(self, output): 
+        output = nn.Softmax(dim=-1)(output)
+        preds = torch.argmax(output, dim=-1)
         return preds
     
 class LRLInitLRALNet(Module):
