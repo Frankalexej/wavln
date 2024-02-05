@@ -28,4 +28,6 @@ Two tasks: cut the audio according to annotation and organize information into a
 ## Frank's Notes
 1. The phonetic aligment (&transcription) is using [ARPABET](https://en.wikipedia.org/wiki/ARPABET), with alphabet (combination)s marking sounds and numbers noting stress. 
 
-2. We can just leave the structure of the dataset as it is after cutting. Since it will just change the path of files, it won't really affect the reading efficiency during training. 
+2. We can just leave the structure of the dataset as it is after cutting. Since it will just change the path of files, it won't really affect the reading efficiency during training.
+
+3. 20240205 todo: try bidirectional LSTM for prediction CTC, this would require us to check how to deal with padding. If that does not work either, check what Mockingjoy is doing and try to replicate that with LSTM. 
