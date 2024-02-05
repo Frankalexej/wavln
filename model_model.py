@@ -392,8 +392,8 @@ class LBiRInitDecoder(Module):
         self.size_list = size_list
 
     def inits(self, batch_size, device): 
-        h0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
-        c0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
+        h0 = torch.zeros((2 * self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
+        c0 = torch.zeros((2 * self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
         hidden = (h0, c0)
         dec_in_token = torch.zeros((batch_size, 1, self.size_list[0]), dtype=torch.float, device=device, requires_grad=False)
         return hidden, dec_in_token
@@ -403,14 +403,13 @@ class LBiRInitDecoder(Module):
         length = hid_r.size(1) # get length
 
         dec_in_token = init_in
-        dec_in_token = self.lin_1(dec_in_token)
         # dec_in_token = self.lin_3(hid_r[:, -2:-1, :])
 
         outputs = []
         attention_weights = []
         for t in range(length):
-            # dec_x = self.lin_1(dec_in_token)
-            dec_x, hidden = self.rnn(dec_in_token, hidden)
+            dec_x = self.lin_1(dec_in_token)
+            dec_x, hidden = self.rnn(dec_x, hidden)
             # dec_x = self.lin_2(dec_x)
             dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
             dec_x = self.lin_2(dec_x)
