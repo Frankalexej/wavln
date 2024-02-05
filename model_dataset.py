@@ -143,6 +143,33 @@ class WordDatasetPath(WordDataset):
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
         return xx_pad, x_lens, name
+    
+class WordDatasetRandomMasking(WordDataset): 
+    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None, mask_rate=0.15):
+        super().__init__(src_dir, guide_, select, mapper, transform)
+        self.mask_rate = mask_rate
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        data = super().__getitem__(idx)
+        # this is only applicable with transform. 
+        # this version does not apply continuous selection, just random masking
+        l, d = data.shape   # length, dimension
+        mask = torch.rand((l, )) > self.mask_rate
+        masked_data = data * mask.unsqueeze(-1)
+        return masked_data, data
+
+    @staticmethod
+    def collate_fn(data):
+        masked_xx, xx = zip(*data)
+        batch_first = True
+        masked_x_lens = [len(x) for x in masked_xx]
+        masked_xx_pad = pad_sequence(masked_xx, batch_first=batch_first, padding_value=0)
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        return masked_xx_pad, masked_x_lens, xx_pad, x_lens
 
 class WordDatasetFramephone(WordDataset):
     """
@@ -216,7 +243,7 @@ class WordDatasetPhoneseq(WordDataset):
                 #     pickle.dump(self.ground_truth_set, file)
         else: 
             # e1/e2/.../en (belong to same word) -> [t1, t2, ..., tn] -> [f1, f2, ..., fn]
-            self.ground_truth_set = self.guide_file.groupby('wuid').apply(lambda x: torch.tensor([self.mapper.encode(row["segment_nostress"]) for index, row in x.iterrows()]))
+            self.ground_truth_set = self.guide_file.groupby('wuid').apply(lambda x: torch.tensor([self.mapper.encode(row["segment_nostress"]) for index, row in x.iterrows()])).tolist()
         
             with open(ground_truth_path, 'wb') as file:
                 pickle.dump(self.ground_truth_set, file)
@@ -244,6 +271,19 @@ class WordDatasetPhoneseq(WordDataset):
         yy_pad = pad_sequence(yy, batch_first=batch_first, padding_value=0)
         # yy_cat = torch.cat(yy)
         return xx_pad, x_lens, yy_pad, y_lens
+    
+    @staticmethod
+    def collate_fn_yNoPad(data):
+        # xx = data, aa bb cc = info_rec, info_idx, info_token
+        xx, yy = zip(*data)
+        # only working for one data at the moment
+        batch_first = True
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        y_lens = [len(x) for x in yy]
+        # yy_pad = pad_sequence(yy, batch_first=batch_first, padding_value=0)
+        # yy_cat = torch.cat(yy)
+        return xx_pad, x_lens, yy, y_lens
 
 class WordDatasetBoundary(WordDataset):
     """
