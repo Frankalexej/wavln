@@ -31,3 +31,9 @@ Two tasks: cut the audio according to annotation and organize information into a
 2. We can just leave the structure of the dataset as it is after cutting. Since it will just change the path of files, it won't really affect the reading efficiency during training.
 
 3. 20240205 todo: try bidirectional LSTM for prediction CTC, this would require us to check how to deal with padding. If that does not work either, check what Mockingjoy is doing and try to replicate that with LSTM. 
+
+
+
+Frank Modification Note (since 20240216)
+<!-- - 20240216 1: Instead of trying to limit the hidden representation, we first try to restore the hierarchical multiscale LSTM. This is because we gave up the model during the time when we trained the model on the wrong data. This time, since we are on the corrected data, I want to try this and check whether it will learn the correct thing.  -->
+- 20240216 2: We will try VQ-VAE first. To achieve this, let's try VAE first. 
