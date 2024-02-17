@@ -1165,20 +1165,20 @@ class LHYPhxLearner(Module):
 
 
 ################ New Code Place [since 20240216] #######################################################################
-class LBiREncoder(Module): 
+class VAEEncoderV1(Module): 
     """
-    Linear + Bidirectional LSTM
+    VAE V1: Linear + Bidirectional LSTM
     """
     def __init__(self, size_list, num_layers=1, dropout=0.5):
         # size_list = [39, 64, 16, 3]
-        super(LBiREncoder, self).__init__()
+        super(VAEEncoderV1, self).__init__()
         # self.lin_1 = LinearPack(in_dim=size_list[0], out_dim=size_list[3])
         self.lin_1 = nn.Linear(size_list[0], size_list[3])
         self.rnn = nn.LSTM(input_size=size_list[3], hidden_size=size_list[3], 
                            num_layers=num_layers, batch_first=True, 
                            dropout=dropout, bidirectional=True)
 
-    def forward(self, inputs, inputs_lens, in_mask=None, hidden=None):
+    def forward(self, inputs, inputs_lens):
         """
         Args:
             inputs: input data (B, L, I)
@@ -1192,89 +1192,108 @@ class LBiREncoder(Module):
         enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
         return enc_x
     
-    def encode(self, inputs, inputs_lens, in_mask=None, hidden=None): 
+    def encode(self, inputs, inputs_lens): 
         enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
         enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
         enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
         enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
         return enc_x
     
-class LBiRInitDecoder(Module): 
+class VAEDecoderV1(Module): 
+    """
+    VAE V1: Bidirectional LSTM + Linear; no attention. 
+            This is not autoregressive, because we are making it predict each timestep only. 
+    """
     def __init__(self, size_list, num_layers=1, dropout=0.5):
         # size_list = [13, 64, 16, 3]: similar to encoder, just layer 0 different
-        super(LBiRInitDecoder, self).__init__()
-        self.lin_1 = nn.Linear(size_list[0], size_list[3])
+        super(VAEDecoderV1, self).__init__()
+        # self.lin_1 = nn.Linear(size_list[0], size_list[3])
         self.rnn = nn.LSTM(input_size=size_list[3], hidden_size=size_list[3], 
                             num_layers=num_layers, batch_first=True, 
                             dropout=dropout, bidirectional=True)
-        self.attention = ScaledDotProductAttention(q_in=2 * size_list[3], kv_in=2 * size_list[3], qk_out=size_list[3], v_out=size_list[3])
-        self.lin_2 = nn.Linear(size_list[3], size_list[0])
+        # self.attention = ScaledDotProductAttention(q_in=2 * size_list[3], kv_in=2 * size_list[3], qk_out=size_list[3], v_out=size_list[3])
+        self.lin_2 = nn.Linear(size_list[3] * 2, size_list[0])
 
         # vars
         self.num_layers = num_layers
         self.size_list = size_list
 
-    def inits(self, batch_size, device): 
-        h0 = torch.zeros((2 * self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
-        c0 = torch.zeros((2 * self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
-        hidden = (h0, c0)
-        dec_in_token = torch.zeros((batch_size, 1, self.size_list[0]), dtype=torch.float, device=device, requires_grad=False)
-        return hidden, dec_in_token
-
-    def forward(self, hid_r, in_mask, init_in, hidden):
-        # Attention decoder
-        length = hid_r.size(1) # get length
-
-        dec_in_token = init_in
-        # dec_in_token = self.lin_3(hid_r[:, -2:-1, :])
-
-        outputs = []
-        attention_weights = []
-        for t in range(length):
-            dec_x = self.lin_1(dec_in_token)
-            dec_x, hidden = self.rnn(dec_x, hidden)
-            # dec_x = self.lin_2(dec_x)
-            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
-            dec_x = self.lin_2(dec_x)
-            # dec_x = self.act(dec_x)
-            outputs.append(dec_x)
-            attention_weights.append(attention_weight)
-
-            # Use the current output as the next input token
-            dec_in_token = dec_x
-
-        outputs = torch.stack(outputs, dim=1)   # stack along length dim
-        attention_weights = torch.stack(attention_weights, dim=1)
-        outputs = outputs.squeeze(2)
-        attention_weights = attention_weights.squeeze(2)
-        outputs = mask_it(outputs, in_mask)     # test! I think it should be correct. 
-        
-        return outputs, attention_weights
+    def forward(self, hid_r, lengths): 
+        dec_x = hid_r
+        dec_x = pack_padded_sequence(dec_x, lengths, batch_first=True, enforce_sorted=False)
+        dec_x, (hn, cn) = self.rnn(dec_x)  # (B, L, I1) -> (B, L, I2)
+        dec_x, _ = pad_packed_sequence(dec_x, batch_first=True)
+        dec_x = self.lin_2(dec_x)
+        return dec_x
     
-class VAE_LBiR_LBiRInit(Module):
+class VAENetV1(Module):
     # RL + RAL(Init) [VAE]
     def __init__(self, enc_size_list, dec_size_list, num_layers=1, dropout=0.5):
         # input = (batch_size, time_steps, in_size); 
-        super(VAE_LBiR_LBiRInit, self).__init__()
+        super(VAENetV1, self).__init__()
 
-        self.encoder = LBiREncoder(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
-        self.decoder = LBiRInitDecoder(size_list=dec_size_list, num_layers=num_layers, dropout=dropout)
+        self.encoder = VAEEncoderV1(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        self.decoder = VAEDecoderV1(size_list=dec_size_list, num_layers=num_layers, dropout=dropout)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        self.mu_lin = nn.Linear()
+        # we take in bi-directional hidrs, and output only 8-dimensional
+        self.mu_lin = nn.Linear(enc_size_list[3] * 2, enc_size_list[3])
+        self.logvar_lin = nn.Linear(enc_size_list[3] * 2, enc_size_list[3])
 
     def reparameterise(self, mu, logvar):
         epsilon = torch.randn_like(mu)
         return mu + epsilon * torch.exp(logvar / 2)
 
-    def forward(self, inputs, input_lens, in_mask):
-        # inputs : batch_size * time_steps * in_size
-        batch_size = inputs.size(0)
-        dec_hid, init_in = self.decoder.inits(batch_size=batch_size, device=self.device)
+    def forward(self, inputs, input_lens):
+        enc_out = self.encoder(inputs, input_lens)
 
-        enc_out = self.encoder(inputs, input_lens, in_mask)
-        dec_out, attn_w = self.decoder(enc_out, in_mask, init_in, dec_hid)
-        return dec_out, attn_w
+        mu = self.mu_lin(enc_out)
+        logvar = self.logvar_lin(enc_out)
+        z = self.reparameterise(mu, logvar)
+
+        dec_out = self.decoder(z, input_lens)
+        return dec_out, (mu, logvar)
     
-    def encode(self, inputs, input_lens, in_mask): 
-        return self.encoder(inputs, input_lens, in_mask)
+    def encode(self, inputs, input_lens): 
+        enc_out = self.encoder(inputs, input_lens)
+        mu = self.mu_lin(enc_out)
+        logvar = self.logvar_lin(enc_out)
+        return mu, logvar
+    
+
+class VAENetV1a(Module):
+    # RL + RAL(Init) [non-VAE]
+    def __init__(self, enc_size_list, dec_size_list, num_layers=1, dropout=0.5):
+        # input = (batch_size, time_steps, in_size); 
+        super(VAENetV1a, self).__init__()
+
+        self.encoder = VAEEncoderV1(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        self.decoder = VAEDecoderV1(size_list=dec_size_list, num_layers=num_layers, dropout=dropout)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        # we take in bi-directional hidrs, and output only 8-dimensional
+        self.lin = nn.Linear(enc_size_list[3] * 2, enc_size_list[3])
+        # self.logvar_lin = nn.Linear(enc_size_list[3] * 2, enc_size_list[3])
+
+    # def reparameterise(self, mu, logvar):
+    #     epsilon = torch.randn_like(mu)
+    #     return mu + epsilon * torch.exp(logvar / 2)
+
+    def forward(self, inputs, input_lens):
+        enc_out = self.encoder(inputs, input_lens)
+
+        # mu = self.mu_lin(enc_out)
+        # logvar = self.logvar_lin(enc_out)
+        # z = self.reparameterise(mu, logvar)
+
+        z = self.lin(enc_out)
+
+        dec_out = self.decoder(z, input_lens)
+        return dec_out, None
+    
+    def encode(self, inputs, input_lens): 
+        enc_out = self.encoder(inputs, input_lens)
+        # mu = self.mu_lin(enc_out)
+        # logvar = self.logvar_lin(enc_out)
+        z = self.lin(enc_out)
+        return z, None

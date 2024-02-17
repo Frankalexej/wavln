@@ -19,7 +19,6 @@ class MaskedLoss:
         # Calculate the loss using the masked values
         loss = torch.sum(self.loss_fn(y_hat_masked, y_masked)) / torch.sum(mask)
         # loss = loss_fn(y_hat_masked, y_masked)
-
         return loss
     
 class MaskedFlatLoss: 
@@ -56,3 +55,17 @@ class CombinedLoss:
         regularization_term = self.alpha * reg_loss
 
         return (reconstruction_loss, regularization_term)
+    
+
+class MaskedKLDivLoss: 
+    def __init__(self):
+        pass
+    def get_loss(self, mu, logvar, mask): 
+        """
+        mask: (batch, len)
+        mu, logvar: (batch, len, hiddim)
+        """
+        de_feature_loss = -0.5 * torch.sum((1 + logvar - mu.pow(2) - logvar.exp()), 
+                                          dim=-1)
+        loss = torch.sum(de_feature_loss * mask) / torch.sum(mask)
+        return loss
