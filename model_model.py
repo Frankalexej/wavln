@@ -1297,3 +1297,127 @@ class VAENetV1a(Module):
         # logvar = self.logvar_lin(enc_out)
         z = self.lin(enc_out)
         return z, None
+    
+
+
+################################# VQVAE #################################
+class VQEncoderV1(Module): 
+    """
+    Linear + Bidirectional LSTM
+    """
+    def __init__(self, size_list, num_layers=1, dropout=0.5):
+        # size_list = [39, 64, 16, 3]
+        super(VQEncoderV1, self).__init__()
+        # self.lin_1 = LinearPack(in_dim=size_list[0], out_dim=size_list[3])
+        self.lin_1 = nn.Linear(size_list[0], size_list[3])
+        self.rnn = nn.LSTM(input_size=size_list[3], hidden_size=size_list[3], 
+                           num_layers=num_layers, batch_first=True, 
+                           dropout=dropout, bidirectional=True)
+        self.lin_2 = nn.Linear(size_list[3] * 2, size_list[3])
+
+    def forward(self, inputs, inputs_lens):
+        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+        enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
+        enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+        enc_x = self.lin_2(enc_x)   # this merges the bidirectional into one.
+        return enc_x
+    
+    def encode(self, inputs, inputs_lens): 
+        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+        enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
+        enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+        enc_x = self.lin_2(enc_x)   # this merges the bidirectional into one.
+        return enc_x
+    
+class VQDecoderV1(Module): 
+    """
+    注意：decoder是自回归的，因而无需bidirectional
+    """
+    def __init__(self, size_list, num_layers=1, dropout=0.5):
+        # size_list = [13, 64, 16, 3]: similar to encoder, just layer 0 different
+        super(VQDecoderV1, self).__init__()
+        self.lin_1 = nn.Linear(size_list[0], size_list[3])
+        self.rnn = nn.LSTM(input_size=size_list[3], hidden_size=size_list[3], 
+                            num_layers=num_layers, batch_first=True, 
+                            dropout=dropout, bidirectional=False)
+        self.attention = ScaledDotProductAttention(q_in=size_list[3], kv_in=size_list[3], qk_out=size_list[3], v_out=size_list[3])
+        self.lin_2 = nn.Linear(size_list[3], size_list[0])
+
+        # vars
+        self.num_layers = num_layers
+        self.size_list = size_list
+
+    def inits(self, batch_size, device): 
+        h0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
+        c0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
+        hidden = (h0, c0)
+        dec_in_token = torch.zeros((batch_size, 1, self.size_list[0]), dtype=torch.float, device=device, requires_grad=False)
+        return hidden, dec_in_token
+
+    def forward(self, hid_r, in_mask, init_in, hidden):
+        # Attention decoder
+        length = hid_r.size(1) # get length
+
+        dec_in_token = init_in
+
+        outputs = []
+        attention_weights = []
+        for t in range(length):
+            dec_x = self.lin_1(dec_in_token)
+            dec_x, hidden = self.rnn(dec_x, hidden)
+            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+            dec_x = self.lin_2(dec_x)
+            outputs.append(dec_x)
+            attention_weights.append(attention_weight)
+            # Use the current output as the next input token
+            dec_in_token = dec_x
+
+        outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        attention_weights = torch.stack(attention_weights, dim=1)
+        outputs = outputs.squeeze(2)
+        attention_weights = attention_weights.squeeze(2)
+        return outputs, attention_weights
+
+class VQVAEV1(Module):
+    # RL + RAL(Init)
+    def __init__(self, enc_size_list, dec_size_list, embedding_dim, num_layers=1, dropout=0.5):
+        # embedding_dim: the number of discrete vectors in hidden representation space
+        super(VQVAEV1, self).__init__()
+
+        self.encoder = VQEncoderV1(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        self.decoder = VQDecoderV1(size_list=dec_size_list, num_layers=num_layers, dropout=dropout)
+        self.vq_embedding = nn.Embedding(embedding_dim, enc_size_list[3])
+        self.vq_embedding.weight.data.uniform_(-1.0 / embedding_dim,
+                                               1.0 / embedding_dim)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.decoder.inits(batch_size=batch_size, device=self.device)
+
+        ze = self.encoder(inputs, input_lens, in_mask)
+
+        # now finding the closest vector
+        # ze: [B, L, C]
+        # embedding: [K, C]
+        embedding = self.vq_embedding.weight.data
+        B, L, C = ze.shape
+        K, _ = embedding.shape
+        embedding_broadcast = embedding.reshape(1, 1, K, C)
+        ze_broadcast = ze.reshape(B, L, 1, C)
+        distance = torch.sum((embedding_broadcast - ze_broadcast)**2, -1) # (B, L, K)
+        nearest_neighbor = torch.argmin(distance, -1)   # (B, L)
+
+        zq = self.vq_embedding(nearest_neighbor)    # (B, L, C)
+        # stop gradient
+        dec_in = ze + (zq - ze).detach()
+
+        dec_out, attn_w = self.decoder(dec_in, in_mask, init_in, dec_hid)
+        return dec_out, attn_w, (ze, zq)
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        return self.encoder(inputs, input_lens, in_mask)
