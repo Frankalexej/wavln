@@ -41,4 +41,4 @@ Frank Modification Note (since 20240216)
 - 20240218 1: Today we tried beta-VAE, and tried beta=5 and 1.5. Neither worked better than beta=1. This means that the problem does not lie here. For the next step I am thinking about VQVAE. It seems that VAEs usually work with CNN and non-sequential data; however, we cannot do it that way. This is because CNN does not seem very suitable for getting **a sequence of hidden representations**, which we need in essence. Considering Begus' works, they don't really target sequences longer than, at most, a small sequence of phonemes, which look similar to ours but their model treat the small sequence as a whole. So what we want is different. So for the next step we either test VQ-VAE or adapt this model to VQAE (then similar to SE19). 
 
 
-try
+trytry
