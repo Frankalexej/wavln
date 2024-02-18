@@ -1399,7 +1399,7 @@ class VQVAEV1(Module):
         batch_size = inputs.size(0)
         dec_hid, init_in = self.decoder.inits(batch_size=batch_size, device=self.device)
 
-        ze = self.encoder(inputs, input_lens, in_mask)
+        ze = self.encoder(inputs, input_lens)
 
         # now finding the closest vector
         # ze: [B, L, C]
