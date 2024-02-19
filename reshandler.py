@@ -273,6 +273,28 @@ class WordEncodeResHandler:
             print(f"Error loading names: {str(e)}")
 
 
+class DictResHandler: 
+    def __init__(self, whole_res_dir, file_prefix=""):
+        # whole_res_dir: dir to place whole res together, not for the purpose of individual plotting, but for general inspection. 
+        self.whole_res_dir = whole_res_dir
+        self.file_prefix = file_prefix
+        self.res = {}
+
+    def save(self): 
+        try:
+            with open(os.path.join(self.whole_res_dir, self.file_prefix + ".res"), 'wb') as file:
+                pickle.dump(self.res, file)
+        except Exception as e:
+            print(f"Error saving res: {str(e)}")
+
+    def read(self): 
+        try:
+            with open(os.path.join(self.whole_res_dir, self.file_prefix + ".res"), 'rb') as file:
+                self.res = pickle.load(file)
+        except Exception as e:
+            print(f"Error loading res: {str(e)}")
+
+
 class ClusterHandler: 
     def __init__(self, put_path, data=None):
         self.put_path = put_path

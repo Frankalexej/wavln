@@ -1315,8 +1315,12 @@ class VQEncoderV1(Module):
                            dropout=dropout, bidirectional=True)
         self.lin_2 = nn.Linear(size_list[3] * 2, size_list[3])
 
+        self.act = nn.ReLU()
+        # self.softmax = nn.Softmax(-1)
+
     def forward(self, inputs, inputs_lens):
         enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+        enc_x = self.act(enc_x)
         enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
         enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
         enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
@@ -1325,6 +1329,7 @@ class VQEncoderV1(Module):
     
     def encode(self, inputs, inputs_lens): 
         enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+        enc_x = self.act(enc_x)
         enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
         enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
         enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
@@ -1344,6 +1349,8 @@ class VQDecoderV1(Module):
                             dropout=dropout, bidirectional=False)
         self.attention = ScaledDotProductAttention(q_in=size_list[3], kv_in=size_list[3], qk_out=size_list[3], v_out=size_list[3])
         self.lin_2 = nn.Linear(size_list[3], size_list[0])
+
+        self.act = nn.ReLU()
 
         # vars
         self.num_layers = num_layers
@@ -1366,6 +1373,7 @@ class VQDecoderV1(Module):
         attention_weights = []
         for t in range(length):
             dec_x = self.lin_1(dec_in_token)
+            dec_x = self.act(dec_x)
             dec_x, hidden = self.rnn(dec_x, hidden)
             dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
             dec_x = self.lin_2(dec_x)
@@ -1420,4 +1428,34 @@ class VQVAEV1(Module):
         return dec_out, attn_w, (ze, zq)
     
     def encode(self, inputs, input_lens, in_mask): 
-        return self.encoder(inputs, input_lens, in_mask)
+        ze = self.encoder(inputs, input_lens)
+        embedding = self.vq_embedding.weight.data
+        B, L, C = ze.shape
+        K, _ = embedding.shape
+        embedding_broadcast = embedding.reshape(1, 1, K, C)
+        ze_broadcast = ze.reshape(B, L, 1, C)
+        distance = torch.sum((embedding_broadcast - ze_broadcast)**2, -1) # (B, L, K)
+        nearest_neighbor = torch.argmin(distance, -1)   # (B, L)
+
+        zq = self.vq_embedding(nearest_neighbor)    # (B, L, C)
+
+        return ze, zq
+    
+
+class VQPhonePredV1(Module): 
+    # RL + L
+    def __init__(self, in_dim, out_dim):
+        # input = (batch_size, time_steps, in_size); 
+        super(VQPhonePredV1, self).__init__()
+        self.decoder = nn.Linear(in_dim, out_dim)
+        self.softmax = nn.LogSoftmax(dim=-1)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, z):
+        pred_out = self.decoder(z)
+        pred_out = self.softmax(pred_out)
+        return pred_out
+    
+    def predict_on_output(self, output): 
+        preds = torch.argmax(output, dim=-1)
+        return preds
