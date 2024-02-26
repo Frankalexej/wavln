@@ -403,8 +403,7 @@ class TargetDataset(Dataset):
         return xx_pad, x_lens, pt, sn
 
 
-class TargetSTDataset(Dataset):
-    # In this we only give ST data. 
+class TargetDatasetBoundary(Dataset):
     # Target means the phenomenon-target, that is, e.g. /th/ or /st/. 
     def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
         # guide_file = pd.read_csv(guide_)
@@ -414,23 +413,26 @@ class TargetSTDataset(Dataset):
             guide_file = guide_
         else:
             raise Exception("Guide neither to read or to be used directly")
-        
-        guide_file = guide_file[guide_file["phi_type"] == "ST"]
 
         # guide_file = guide_file[guide_file["segment_nostress"].isin(select)]
         # this is not needed for worddataset, we only need to kick out the non-word segments
         # guide_file = guide_file[~guide_file["segment_nostress"].isin(["sil", "sp", "spn"])]
         # guide_file = guide_file[guide_file['word_nSample'] > 400]
         # guide_file = guide_file[guide_file['word_nSample'] <= 15000]
+        guide_file["sep_frame"] = guide_file.apply(lambda x: time_to_frame(x['stop_startTime'] - x['sibilant_startTime']), axis=1)
         
         sib_path_col = guide_file["sibilant_path"]
         stop_path_col = guide_file["stop_path"]
+        phi_type_col = guide_file["phi_type"]
         stop_name_col = guide_file["stop"]
+        sep_frame_col = guide_file["sep_frame"]
         
         self.guide_file = guide_file
         self.dataset = stop_path_col.tolist()
         self.sib_path = sib_path_col.tolist()
+        self.phi_type = phi_type_col.tolist()
         self.stop_name = stop_name_col.tolist()
+        self.sep_frame = sep_frame_col.tolist()
         self.src_dir = src_dir
         self.transform = transform
 
@@ -472,21 +474,16 @@ class TargetSTDataset(Dataset):
         if self.transform:
             data = self.transform(data)
         
-        return data, self.phi_type[idx], self.stop_name[idx]
+        return data, self.phi_type[idx], self.stop_name[idx], self.sep_frame[idx]
 
     @staticmethod
     def collate_fn(data):
         # only working for one data at the moment
         batch_first = True
-        xx, pt, sn = zip(*data)
+        xx, pt, sn, sf = zip(*data)
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
-        return xx_pad, x_lens, pt, sn
-
-
-
-
-
+        return xx_pad, x_lens, pt, sn, sf
 
 
 
