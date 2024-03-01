@@ -278,6 +278,7 @@ def main(train_name, ts, stop_epoch):
     plot_spectrogram(all_recon[i].T, title="reconstructed mel-spectrogram", ax=axs[1])
     fig.tight_layout()
     plt.savefig(os.path.join(res_save_dir, f"recon-at-{stop_epoch}-{all_stop_names[i]}.png"))
+    plt.close()
 
     # Plot Attention Trajectory
     n_steps = 100
@@ -340,6 +341,7 @@ def main(train_name, ts, stop_epoch):
     plt.grid(True)
     # plt.show()
     plt.savefig(os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"))
+    plt.close()
 
     # Attention Stats
     all_boundary_attn = []
@@ -398,6 +400,7 @@ def main(train_name, ts, stop_epoch):
     # Show the plot
     # plt.show()
     plt.savefig(os.path.join(res_save_dir, f"attnstats-at-{stop_epoch}.png"))
+    plt.close()
 
 
     # Plot Hidden Representations
@@ -410,37 +413,67 @@ def main(train_name, ts, stop_epoch):
     mymap = TokenMap(mylist)
 
     cluster_groups = ["T", "ST"]
-    sil_list = []
-    jumper = 0.1
-    x_range = range(int(1/jumper))
+    # sil_list = []
+    # jumper = 0.1
+    # x_range = range(int(1/jumper))
 
-    for offset_start_ten in x_range: 
-        offsets = (offset_start_ten * jumper, offset_start_ten * jumper + jumper)
-        print(offsets)
-        # get usable cluster groups
-        hidr_cs, tags_cs = get_toplot(hiddens=all_zq, 
-                                        sepframes=all_sepframes,
-                                        phi_types=all_phi_type,
-                                        stop_names=all_stop_names,
-                                        offsets=offsets)
-        color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
-        # Use Counter to count the occurrences of each item
-        item_counts = Counter(tags_cs)
-        X, Y = hidr_cs, tags_cs
-        silhouette_avg = silhouette_score(X, tags_cs)
-        sil_list.append(silhouette_avg)
+    # for offset_start_ten in x_range: 
+    #     offsets = (offset_start_ten * jumper, offset_start_ten * jumper + jumper)
+    #     print(offsets)
+    #     # get usable cluster groups
+    #     hidr_cs, tags_cs = get_toplot(hiddens=all_zq, 
+    #                                     sepframes=all_sepframes,
+    #                                     phi_types=all_phi_type,
+    #                                     stop_names=all_stop_names,
+    #                                     offsets=offsets)
+    #     color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
+    #     # Use Counter to count the occurrences of each item
+    #     item_counts = Counter(tags_cs)
+    #     X, Y = hidr_cs, tags_cs
+    #     silhouette_avg = silhouette_score(X, tags_cs)
+    #     sil_list.append(silhouette_avg)
 
-    plt.plot(x_range, sil_list) # Plot the points
-    plt.title(f'Plot {"-".join(cluster_groups)}')
-    plt.xlabel('Offset (x10)')
-    plt.ylabel('Silhouette Score')
-    # plt.show()
-    plt.savefig(os.path.join(res_save_dir, f"silplot-at-{stop_epoch}.png"))
+    # plt.plot(x_range, sil_list) # Plot the points
+    # plt.title(f'Plot {"-".join(cluster_groups)}')
+    # plt.xlabel('Offset (x10)')
+    # plt.ylabel('Silhouette Score')
+    # # plt.show()
+    # plt.savefig(os.path.join(res_save_dir, f"silplot-at-{stop_epoch}.png"))
+
+    hidr_cs, tags_cs = get_toplot(hiddens=all_zq, 
+                                    sepframes=all_sepframes,
+                                    phi_types=all_phi_type,
+                                    stop_names=all_stop_names,
+                                    offsets=(0.4, 0.6))
+    color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
+    # Use Counter to count the occurrences of each item
+    # item_counts = Counter(tags_cs)
+    X, Y = hidr_cs, tags_cs
+    # silhouette_avg = silhouette_score(X, tags_cs)
+    
+    n_clusters = len(cluster_groups)
+    kmeans = KMeans(n_clusters=n_clusters, random_state=0)
+    cluster_labels = kmeans.fit_predict(X)
+
+    silhouette_avg = adjusted_rand_score(tags_cs, cluster_labels)
+    return silhouette_avg
 
 
 
 if __name__ == "__main__":
     train_name = "C_02"
     ts = "0301171500"
-    for i in range(1, 11):
-        main(train_name, ts, i)
+    sil_list = []
+    for i in range(0, 40):
+        sil_score = main(train_name, ts, i)
+        sil_list.append(sil_score)
+
+    model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}")
+    res_save_dir = os.path.join(model_save_dir, "eval_res")
+    plt.plot(sil_list) # Plot the points
+    plt.title(f'Middle Silhouette Score')
+    plt.xlabel('Epoch')
+    plt.ylabel('Silhouette Score')
+    # plt.show()
+    plt.savefig(os.path.join(res_save_dir, f"silplot-global.png"))
+    plt.close()
