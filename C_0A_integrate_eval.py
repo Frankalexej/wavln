@@ -193,6 +193,39 @@ def plot_attention_trajectory(all_attn, all_stop_names, all_sepframes, save_path
     plt.savefig(save_path)
     plt.close()
 
+def plot_silhouette(silarray, save_path): 
+    n_steps = 100
+    # Convert list of arrays into 2D NumPy arrays for easier manipulation
+    group1_array = np.array(silarray)
+
+    # Calculate the mean trajectory for each group
+    mean_trajectory_group1 = np.mean(group1_array, axis=0)
+
+    # Calculate the SEM for each step in both groups
+    sem_group1 = sem(group1_array, axis=0)
+
+    # Calculate the 95% CI for both groups
+    ci_95_group1 = 1.96 * sem_group1
+
+    # Upper and lower bounds of the 95% CI for both groups
+    upper_bound_group1 = mean_trajectory_group1 + ci_95_group1
+    lower_bound_group1 = mean_trajectory_group1 - ci_95_group1
+
+    # Plotting
+    plt.figure(figsize=(12, 8))
+    # Mean trajectory for Group 1
+    plt.plot(mean_trajectory_group1, label='silhouette', color='blue')
+    # 95% CI area for Group 1
+    plt.fill_between(range(n_steps), lower_bound_group1, upper_bound_group1, color='blue', alpha=0.2)
+
+    plt.xlabel('Epoch')
+    plt.ylabel('Silhouette Score (40%~60%)')
+    plt.title('Silhouette Score Across Epochs')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(save_path)
+    plt.close()
+
 
 def plot_attention_statistics(all_attn, all_sepframes, save_path): 
     all_boundary_attn = []
@@ -252,242 +285,17 @@ def plot_attention_statistics(all_attn, all_sepframes, save_path):
 
 
 
+def read_result_at(res_save_dir, epoch): 
+    all_handler = DictResHandler(whole_res_dir=res_save_dir, 
+                                 file_prefix=f"all-{epoch}")
 
+    hidrep_handler = DictResHandler(whole_res_dir=res_save_dir, 
+                                 file_prefix=f"hidrep-{epoch}")
 
+    all_handler.read()
+    hidrep_handler.read()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def get_data(rec_dir, guide_path):
-    mytrans = TheTransform(sample_rate=REC_SAMPLE_RATE, 
-                        n_fft=N_FFT, n_mels=N_MELS, 
-                        normalizer=Normalizer.norm_mvn, 
-                        denormalizer=DeNormalizer.norm_mvn)
-
-    st_valid = pd.read_csv(guide_path)
-
-    valid_ds = ThisDataset(rec_dir, 
-                        st_valid, 
-                        transform=mytrans)
-
-    valid_loader = DataLoader(valid_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=LOADER_WORKER, collate_fn=ThisDataset.collate_fn)
-    return valid_loader
-
-def get_data_both(rec_dir, t_guide_path, st_guide_path):
-    mytrans = TheTransform(sample_rate=REC_SAMPLE_RATE, 
-                        n_fft=N_FFT, n_mels=N_MELS, 
-                        normalizer=Normalizer.norm_mvn, 
-                        denormalizer=DeNormalizer.norm_mvn)
-
-    st_valid = pd.read_csv(st_guide_path)
-    t_valid = pd.read_csv(t_guide_path)
-    t_valid["sibilant_startTime"] = 0
-    all_valid = pd.concat([t_valid, st_valid], ignore_index=True, sort=False)
-
-    valid_ds = ThisDataset(rec_dir, 
-                        all_valid, 
-                        transform=mytrans)
-
-    valid_loader = DataLoader(valid_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=LOADER_WORKER, collate_fn=ThisDataset.collate_fn)
-    return valid_loader
-
-
-def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch, res_save_dir): 
-    # Model
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    recon_loss = nn.MSELoss(reduction='none')
-    masked_recon_loss = MaskedLoss(recon_loss)
-    model_loss = masked_recon_loss
-
-    model.to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
-
-    # Load model
-    model_name = "{}.pt".format(stop_epoch)
-    model_path = os.path.join(model_save_dir, model_name)
-    state = torch.load(model_path)
-    model.load_state_dict(state)
-    model.to(device)
-
-    # Run model on data to collect results
-    model.eval()
-    reshandler = DictResHandler(whole_res_dir=res_save_dir, 
-                                 file_prefix=f"all-{stop_epoch}")
-    all_ze = []
-    all_zq = []
-    all_stop_names = []
-    all_sepframes = []
-    all_attn = []
-    all_recon = []
-    all_ori = []
-    all_phi_type = []
-
-    for (x, x_lens, pt, sn, sf) in tqdm(single_loader): 
-        # name = name[0]
-
-        x_mask = generate_mask_from_lengths_mat(x_lens, device=device)
-        
-        x = x.to(device)
-
-        x_hat, attn_w, (ze, zq) = model(x, x_lens, x_mask)
-
-        ze = ze.cpu().detach().numpy().squeeze()
-        zq = zq.cpu().detach().numpy().squeeze()
-        attn_w = attn_w.cpu().detach().numpy().squeeze()
-        
-        recon_x = x_hat.cpu().detach().numpy().squeeze()
-        ori_x = x.cpu().detach().numpy().squeeze()
-
-        all_ze += [ze]
-        all_zq += [zq]
-        all_attn += [attn_w]
-        all_recon += [recon_x]
-        all_ori += [ori_x]
-        # note that this is bit different, not each frame, but each sequence is treated as one data point
-        # all_name += [name]
-        all_stop_names += sn
-        all_sepframes += sf
-        all_phi_type += pt
-    
-    reshandler.res["ze"] = all_ze
-    reshandler.res["zq"] = all_zq
-    reshandler.res["sn"] = all_stop_names
-    reshandler.res["sep-frame"] = all_sepframes
-    reshandler.res["attn"] = all_attn
-    reshandler.res["recon"] = all_recon
-    reshandler.res["ori"] = all_ori
-    reshandler.res["phi-type"] = all_phi_type
-    reshandler.save()
-    print(f"Results all saved at {res_save_dir}")
-
-
-    # Plot Reconstructions
-    i = 25
-    fig, axs = plt.subplots(2, 1)
-    plot_spectrogram(all_ori[i].T, title=f"mel-spectrogram of input {all_stop_names[i]}", ax=axs[0])
-    plot_spectrogram(all_recon[i].T, title=f"reconstructed mel-spectrogram {all_stop_names[i]}", ax=axs[1])
-    fig.tight_layout()
-    plt.savefig(os.path.join(res_save_dir, f"recon-at-{stop_epoch}.png"))
-    plt.close()
-
-    # Plot Attention Trajectory
-    plot_attention_trajectory(all_attn, all_stop_names, all_sepframes, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"))
-
-    # Attention Stats
-    plot_attention_statistics(all_attn, all_sepframes, os.path.join(res_save_dir, f"attnstat-at-{stop_epoch}.png"))
-
-
-
-    model.eval()
-    reshandler = DictResHandler(whole_res_dir=res_save_dir, 
-                                 file_prefix=f"hidrep-{stop_epoch}")
-    all_ze = []
-    all_zq = []
-    all_stop_names = []
-    all_sepframes = []
-    all_phi_type = []
-
-    for (x, x_lens, pt, sn, sf) in tqdm(both_loader): 
-        x_mask = generate_mask_from_lengths_mat(x_lens, device=device)
-        
-        x = x.to(device)
-
-        x_hat, attn_w, (ze, zq) = model(x, x_lens, x_mask)
-
-        ze = ze.cpu().detach().numpy().squeeze()
-        zq = zq.cpu().detach().numpy().squeeze()
-
-        all_ze += [ze]
-        all_zq += [zq]
-        all_stop_names += sn
-        all_sepframes += sf
-        all_phi_type += pt
-    
-    reshandler.res["ze"] = all_ze
-    reshandler.res["zq"] = all_zq
-    reshandler.res["sn"] = all_stop_names
-    reshandler.res["sep-frame"] = all_sepframes
-    reshandler.res["phi-type"] = all_phi_type
-    reshandler.save()
-    print(f"Results hidrep saved to {res_save_dir}")
-
-    # Silhouette Score
-    cluster_groups = ["T", "ST"]
-
-    hidr_cs, tags_cs = get_toplot(hiddens=all_zq, 
-                                    sepframes=all_sepframes,
-                                    phi_types=all_phi_type,
-                                    stop_names=all_stop_names,
-                                    offsets=(0.4, 0.6))
-    color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
-    X, Y = hidr_cs, tags_cs
-    silhouette_avg = silhouette_score(X, tags_cs)
-    return silhouette_avg
-
-
-
-def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir): 
-    # Dirs
-    rec_dir = train_cut_phone_
-    # Check model path
-    assert PU.path_exist(model_save_dir)
-    guide_dir = os.path.join(model_save_dir, "guides")
-
-    # Load data
-    st_guide_path = os.path.join(guide_dir, "ST-valid.csv")
-    single_loader = get_data(rec_dir, st_guide_path)
-    # note that we always use the balanced data to evaluate, this is because we want the evaluation to have 
-    # equal contrast, instead of having huge bias. 
-    both_loader = get_data_both(rec_dir, os.path.join(guide_dir, "T-valid-sampled.csv"), st_guide_path)
-
-    if model_type == "ae":
-        model = AEV1(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
-                   embedding_dim=EMBEDDING_DIM, 
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-    elif model_type == "vqvae":
-        model = VQVAEV1(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
-                   embedding_dim=EMBEDDING_DIM, 
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-    else:
-        model = VQVAEV1(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
-                   embedding_dim=EMBEDDING_DIM, 
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-
-    sil_list = []
-    for epoch in range(0, 100): 
-        silhouette_avg = run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch, res_save_dir)
-        sil_list.append(silhouette_avg)
-
-    plt.plot(sil_list) # Plot the points
-    plt.title(f'Middle Silhouette Score')
-    plt.xlabel('Epoch')
-    plt.ylabel('Silhouette Score')
-    plt.savefig(os.path.join(res_save_dir, f"silplot-global.png"))
-    plt.close()
-
-    reshandler = DictResHandler(whole_res_dir=res_save_dir, 
-                                 file_prefix=f"silscore")
-    reshandler.res["sillist"] = sil_list
-    reshandler.save()
-    return 
-
+    return all_handler.res, hidrep_handler.res
 
 
 if __name__ == "__main__":
@@ -503,9 +311,32 @@ if __name__ == "__main__":
 
     ts = args.timestamp # this timestamp does not contain run number
     train_name = "C_0A"
-    model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}")
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
-    this_model_condition_dir = os.path.join(res_save_dir, args.model, args.condition)
-    mk(this_model_condition_dir)
+    model_condition_dir = os.path.join(res_save_dir, args.model, args.condition)
+    assert PU.path_exist(model_condition_dir)
+    this_save_dir = os.path.join(model_condition_dir, "integrated_results")
+    mk(this_save_dir)
 
-    main(train_name, ts, args.runnumber, args.model, model_save_dir, this_model_condition_dir)
+    sil_list = []
+    for run_number in range(1, 11):
+        this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
+        sillist_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
+                                    file_prefix=f"silscore")
+
+        sillist_handler.read()
+        sil_list.append(sillist_handler.res["sillist"])
+    plot_silhouette(sil_list, os.path.join(this_save_dir, "silhouette.png"))
+
+    for epoch in range(0, 100): 
+        cat_attns = []
+        cat_sepframes = []
+        cat_stop_names = []
+
+        for run_number in range(1, 11):
+            this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
+            allres, hidrepres = read_result_at(this_model_condition_dir, epoch)
+            cat_attns += allres["attn"]
+            cat_sepframes += allres["sep-frame"]
+            cat_stop_names += allres["sn"]
+        plot_attention_trajectory(cat_attns, cat_stop_names, cat_sepframes, os.path.join(this_save_dir, f"attntraj-at-{epoch}.png"))
+        plot_attention_statistics(cat_attns, cat_sepframes, os.path.join(this_save_dir, f"attnstat-at-{epoch}.png"))

@@ -336,7 +336,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     all_ori = []
     all_phi_type = []
 
-    for (x, x_lens, pt, sn, sf) in tqdm(single_loader): 
+    for (x, x_lens, pt, sn, sf) in single_loader: 
         # name = name[0]
 
         x_mask = generate_mask_from_lengths_mat(x_lens, device=device)
@@ -372,7 +372,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     reshandler.res["ori"] = all_ori
     reshandler.res["phi-type"] = all_phi_type
     reshandler.save()
-    print(f"Results all saved at {res_save_dir}")
+    print(f"Results all-{stop_epoch} saved at {res_save_dir}")
 
 
     # Plot Reconstructions
@@ -401,7 +401,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     all_sepframes = []
     all_phi_type = []
 
-    for (x, x_lens, pt, sn, sf) in tqdm(both_loader): 
+    for (x, x_lens, pt, sn, sf) in both_loader: 
         x_mask = generate_mask_from_lengths_mat(x_lens, device=device)
         
         x = x.to(device)
@@ -423,7 +423,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     reshandler.res["sep-frame"] = all_sepframes
     reshandler.res["phi-type"] = all_phi_type
     reshandler.save()
-    print(f"Results hidrep saved to {res_save_dir}")
+    print(f"Results hidrep-{stop_epoch} saved to {res_save_dir}")
 
     # Silhouette Score
     cluster_groups = ["T", "ST"]
