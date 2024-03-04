@@ -12,7 +12,7 @@ generate_random_number() {
 
 # Arrays of options for each argument
 ms=('ae' 'vqvae')
-cs=('u' 'b' 'nt')
+cs=('u' 'nt')
 
 # Generate a 10-digit random number
 ts='0304122055'
