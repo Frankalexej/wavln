@@ -302,6 +302,36 @@ class VQPhonePredV1(Module):
         return preds
 
 
+############################ Normal AE with same structure as VQVAE ############################
+class AEV1(Module):
+    # RL + RAL(Init)
+    # AEV1 also returns ze and zq, just to make it consistent with VQVAE
+    # This is just a normal autoencoder, but with the same structure as VQVAE
+    def __init__(self, enc_size_list, dec_size_list, embedding_dim, num_layers=1, dropout=0.5):
+        # embedding_dim: the number of discrete vectors in hidden representation space
+        super(AEV1, self).__init__()
+
+        self.encoder = VQEncoderV1(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        self.decoder = VQDecoderV1(size_list=dec_size_list, num_layers=num_layers, dropout=dropout)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.decoder.inits(batch_size=batch_size, device=self.device)
+
+        ze = self.encoder(inputs, input_lens)
+        zq = ze
+        dec_in = ze
+        dec_out, attn_w = self.decoder(dec_in, in_mask, init_in, dec_hid)
+        return dec_out, attn_w, (ze, zq)
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        ze = self.encoder(inputs, input_lens)
+        zq = ze
+        return ze, zq
+
+
 ############################ CTC Predictor [20240223] ############################
 class CTCEncoderV1(Module): 
     """
