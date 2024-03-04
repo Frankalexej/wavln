@@ -359,18 +359,18 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
 
 
         if epoch % 10 == 0:
-            draw_learning_curve_and_accuracy(losses=(train_losses.get(), valid_losses.get(), onlyST_valid_losses.get()), 
-                                            recons=(train_recon_losses.get(), valid_recon_losses.get(), onlyST_valid_recon_losses.get()),
-                                            embeddings=(train_embedding_losses.get(), valid_embedding_losses.get(), onlyST_valid_embedding_losses.get()),
-                                            commitments=(train_commitment_losses.get(), valid_commitment_losses.get(), onlyST_valid_commitment_losses.get()),
+            draw_learning_curve_and_accuracy(losses=(train_losses, valid_losses, onlyST_valid_losses), 
+                                            recons=(train_recon_losses, valid_recon_losses, onlyST_valid_recon_losses),
+                                            embeddings=(train_embedding_losses, valid_embedding_losses, onlyST_valid_embedding_losses),
+                                            commitments=(train_commitment_losses, valid_commitment_losses, onlyST_valid_commitment_losses),
                                             start=0, end=epoch,
                                             save_name=os.path.join(model_save_dir, "vis.png"))
 
-        draw_learning_curve_and_accuracy(losses=(train_losses.get(), valid_losses.get(), onlyST_valid_losses.get()), 
-                                        recons=(train_recon_losses.get(), valid_recon_losses.get(), onlyST_valid_recon_losses.get()),
-                                        embeddings=(train_embedding_losses.get(), valid_embedding_losses.get(), onlyST_valid_embedding_losses.get()),
-                                        commitments=(train_commitment_losses.get(), valid_commitment_losses.get(), onlyST_valid_commitment_losses.get()),
-                                        start=0, end=num_epochs,
+        draw_learning_curve_and_accuracy(losses=(train_losses, valid_losses, onlyST_valid_losses), 
+                                        recons=(train_recon_losses, valid_recon_losses, onlyST_valid_recon_losses),
+                                        embeddings=(train_embedding_losses, valid_embedding_losses, onlyST_valid_embedding_losses),
+                                        commitments=(train_commitment_losses, valid_commitment_losses, onlyST_valid_commitment_losses),
+                                        start=0, end=epoch,
                                         save_name=os.path.join(model_save_dir, "vis.png"))
 
 
