@@ -12,6 +12,8 @@ from torch.utils.data import Dataset, DataLoader, random_split
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import argparse
+# import summary
 from model_model import VQVAEV1, AEV1
 from model_dataset import DS_Tools
 from model_dataset import TargetDataset as ThisDataset
@@ -191,7 +193,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
     with open(model_txt_path, "w") as f:
         f.write(model_str)
         f.write("\n")
-        f.write(str(summary(model, input_size=(128, 1, 64, 21))))
+        # f.write(str(summary(model, input_size=(128, 1, 64, 21))))
 
     # Load Data
     guide_path = os.path.join(hyper_dir, "guides")
@@ -202,8 +204,10 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
         train_loader = load_data(rec_dir, guide_path, load="train", select="both", sampled=True)
         valid_loader = load_data(rec_dir, guide_path, load="valid", select="both", sampled=True)
     elif condition == "nt":
-        train_loader_noT = load_data(rec_dir, guide_path, load="train", select="ST", sampled=True)
-        valid_loader_noT = load_data(rec_dir, guide_path, load="valid", select="ST", sampled=True)
+        train_loader = load_data(rec_dir, guide_path, load="train", select="ST", sampled=True)
+        valid_loader = load_data(rec_dir, guide_path, load="valid", select="ST", sampled=True)
+    else: 
+        raise Exception("Missing condition! ")
     
     onlyST_valid_loader = load_data(rec_dir, guide_path, load="valid", select="ST", sampled=True)
 
