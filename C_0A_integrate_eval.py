@@ -313,6 +313,7 @@ if __name__ == "__main__":
     train_name = "C_0A"
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
     model_condition_dir = os.path.join(res_save_dir, args.model, args.condition)
+    print(f"Model condition dir: {model_condition_dir}")
     assert PU.path_exist(model_condition_dir)
     this_save_dir = os.path.join(model_condition_dir, "integrated_results")
     mk(this_save_dir)
