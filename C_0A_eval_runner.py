@@ -440,12 +440,12 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
 
 
 
-def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir): 
+def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir): 
     # Dirs
     rec_dir = train_cut_phone_
     # Check model path
     assert PU.path_exist(model_save_dir)
-    guide_dir = os.path.join(model_save_dir, "guides")
+    assert PU.path_exist(guide_dir)
 
     # Load data
     st_guide_path = os.path.join(guide_dir, "ST-valid.csv")
@@ -505,9 +505,10 @@ if __name__ == "__main__":
     ts = args.timestamp # this timestamp does not contain run number
     rn = args.runnumber
     train_name = "C_0A"
-    model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}-{rn}")
+    model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}-{rn}", args.model, args.condition)
+    guide_dir = os.path.join(model_save_, f"{train_name}-{ts}-{rn}", "guides")
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
     this_model_condition_dir = os.path.join(res_save_dir, args.model, args.condition, f"{rn}")
     mk(this_model_condition_dir)
 
-    main(train_name, ts, args.runnumber, args.model, model_save_dir, this_model_condition_dir)
+    main(train_name, ts, args.runnumber, args.model, model_save_dir, this_model_condition_dir, guide_dir)
