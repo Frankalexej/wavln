@@ -25,7 +25,7 @@ for m in "${ms[@]}"; do
         # Randomly select a GPU between 0 and 8
         gpu=$((RANDOM % 9))
         # Run the Python script with the current combination of arguments in the background
-        python C_0A_integrate_eval.py -ts "$ts-$i" -m "$m" -cd "$c" -gpu "$gpu" &
+        python C_0A_integrate_eval.py -ts "$ts" -m "$m" -cd "$c" -gpu "$gpu" &
     done
 done
 
