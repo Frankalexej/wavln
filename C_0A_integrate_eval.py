@@ -345,6 +345,7 @@ if __name__ == "__main__":
             cat_attns = []
             cat_sepframes = []
             cat_stop_names = []
+            print(f"Processing {model_type} at {epoch}...")
 
             for run_number in range(1, 11):
                 this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
@@ -354,5 +355,5 @@ if __name__ == "__main__":
                 cat_stop_names += allres["sn"]
             plot_attention_trajectory(cat_attns, cat_stop_names, cat_sepframes, os.path.join(this_save_dir, f"attntraj-at-{epoch}.png"))
             plot_attention_statistics(cat_attns, cat_sepframes, os.path.join(this_save_dir, f"attnstat-at-{epoch}.png"))
-
     plot_silhouette(sil_dict["ae"], sil_dict["vqvae"], os.path.join(res_save_dir, f"silhouette-{args.condition}.png"))
+    print("Done.")
