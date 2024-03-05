@@ -193,30 +193,40 @@ def plot_attention_trajectory(all_attn, all_stop_names, all_sepframes, save_path
     plt.savefig(save_path)
     plt.close()
 
-def plot_silhouette(silarray, save_path): 
+def plot_silhouette(silarray_1, silarray_2, save_path): 
     n_steps = 100
     # Convert list of arrays into 2D NumPy arrays for easier manipulation
-    group1_array = np.array(silarray)
+    group1_array = np.array(silarray_1)
+    group2_array = np.array(silarray_2)
 
     # Calculate the mean trajectory for each group
     mean_trajectory_group1 = np.mean(group1_array, axis=0)
+    mean_trajectory_group2 = np.mean(group2_array, axis=0)
 
     # Calculate the SEM for each step in both groups
     sem_group1 = sem(group1_array, axis=0)
+    sem_group2 = sem(group2_array, axis=0)
 
     # Calculate the 95% CI for both groups
     ci_95_group1 = 1.96 * sem_group1
+    ci_95_group2 = 1.96 * sem_group2
 
     # Upper and lower bounds of the 95% CI for both groups
     upper_bound_group1 = mean_trajectory_group1 + ci_95_group1
     lower_bound_group1 = mean_trajectory_group1 - ci_95_group1
+    upper_bound_group2 = mean_trajectory_group2 + ci_95_group2
+    lower_bound_group2 = mean_trajectory_group2 - ci_95_group2
 
     # Plotting
     plt.figure(figsize=(12, 8))
     # Mean trajectory for Group 1
-    plt.plot(mean_trajectory_group1, label='silhouette', color='blue')
+    plt.plot(mean_trajectory_group1, label='AE', color='blue')
     # 95% CI area for Group 1
     plt.fill_between(range(n_steps), lower_bound_group1, upper_bound_group1, color='blue', alpha=0.2)
+    # Mean trajectory for Group 2
+    plt.plot(mean_trajectory_group2, label='VQVAE', color='red')
+    # 95% CI area for Group 2
+    plt.fill_between(range(n_steps), lower_bound_group2, upper_bound_group2, color='red', alpha=0.2)
 
     plt.xlabel('Epoch')
     plt.ylabel('Silhouette Score (40%~60%)')
@@ -312,31 +322,37 @@ if __name__ == "__main__":
     ts = args.timestamp # this timestamp does not contain run number
     train_name = "C_0A"
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
-    model_condition_dir = os.path.join(res_save_dir, args.model, args.condition)
-    assert PU.path_exist(model_condition_dir)
-    this_save_dir = os.path.join(model_condition_dir, "integrated_results")
-    mk(this_save_dir)
 
-    sil_list = []
-    for run_number in range(1, 11):
-        this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
-        sillist_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
-                                    file_prefix=f"silscore")
+    sil_dict = {}
+    for model_type in ["ae", "vqvae"]: 
+        model_condition_dir = os.path.join(res_save_dir, model_type, args.condition)
+        assert PU.path_exist(model_condition_dir)
+        this_save_dir = os.path.join(model_condition_dir, "integrated_results")
+        mk(this_save_dir)
 
-        sillist_handler.read()
-        sil_list.append(sillist_handler.res["sillist"])
-    plot_silhouette(sil_list, os.path.join(this_save_dir, "silhouette.png"))
-
-    for epoch in range(0, 100): 
-        cat_attns = []
-        cat_sepframes = []
-        cat_stop_names = []
-
+        sil_list = []
         for run_number in range(1, 11):
             this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
-            allres, hidrepres = read_result_at(this_model_condition_dir, epoch)
-            cat_attns += allres["attn"]
-            cat_sepframes += allres["sep-frame"]
-            cat_stop_names += allres["sn"]
-        plot_attention_trajectory(cat_attns, cat_stop_names, cat_sepframes, os.path.join(this_save_dir, f"attntraj-at-{epoch}.png"))
-        plot_attention_statistics(cat_attns, cat_sepframes, os.path.join(this_save_dir, f"attnstat-at-{epoch}.png"))
+            sillist_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
+                                        file_prefix=f"silscore")
+
+            sillist_handler.read()
+            sil_list.append(sillist_handler.res["sillist"])
+        # plot_silhouette(sil_list, os.path.join(this_save_dir, "silhouette.png"))
+        sil_dict[model_type] = sil_list
+
+        for epoch in range(0, 100): 
+            cat_attns = []
+            cat_sepframes = []
+            cat_stop_names = []
+
+            for run_number in range(1, 11):
+                this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
+                allres, hidrepres = read_result_at(this_model_condition_dir, epoch)
+                cat_attns += allres["attn"]
+                cat_sepframes += allres["sep-frame"]
+                cat_stop_names += allres["sn"]
+            plot_attention_trajectory(cat_attns, cat_stop_names, cat_sepframes, os.path.join(this_save_dir, f"attntraj-at-{epoch}.png"))
+            plot_attention_statistics(cat_attns, cat_sepframes, os.path.join(this_save_dir, f"attnstat-at-{epoch}.png"))
+
+    plot_silhouette(sil_dict["ae"], sil_dict["vqvae"], os.path.join(res_save_dir, f"silhouette-{args.condition}.png"))
