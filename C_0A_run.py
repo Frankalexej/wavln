@@ -187,7 +187,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
 
     model.to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-5)
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
     model_str = str(model)
     model_txt_path = os.path.join(model_save_dir, "model.txt")
     with open(model_txt_path, "w") as f:
@@ -211,7 +211,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
     
     onlyST_valid_loader = load_data(rec_dir, guide_path, load="valid", select="ST", sampled=True)
 
-    num_epochs = 100
+    num_epochs = 300
     l_w_embedding = 1
     l_w_commitment = 0.25
 
@@ -358,20 +358,20 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
         onlyST_valid_commitment_losses.save()
 
 
-        if epoch % 10 == 0:
-            draw_learning_curve_and_accuracy(losses=(train_losses, valid_losses, onlyST_valid_losses), 
-                                            recons=(train_recon_losses, valid_recon_losses, onlyST_valid_recon_losses),
-                                            embeddings=(train_embedding_losses, valid_embedding_losses, onlyST_valid_embedding_losses),
-                                            commitments=(train_commitment_losses, valid_commitment_losses, onlyST_valid_commitment_losses),
-                                            start=0, end=epoch,
-                                            save_name=os.path.join(model_save_dir, "vis.png"))
+        # if epoch % 10 == 0:
+        #     draw_learning_curve_and_accuracy(losses=(train_losses, valid_losses, onlyST_valid_losses), 
+        #                                     recons=(train_recon_losses, valid_recon_losses, onlyST_valid_recon_losses),
+        #                                     embeddings=(train_embedding_losses, valid_embedding_losses, onlyST_valid_embedding_losses),
+        #                                     commitments=(train_commitment_losses, valid_commitment_losses, onlyST_valid_commitment_losses),
+        #                                     start=0, end=epoch,
+        #                                     save_name=os.path.join(model_save_dir, "vis.png"))
 
-        draw_learning_curve_and_accuracy(losses=(train_losses, valid_losses, onlyST_valid_losses), 
-                                        recons=(train_recon_losses, valid_recon_losses, onlyST_valid_recon_losses),
-                                        embeddings=(train_embedding_losses, valid_embedding_losses, onlyST_valid_embedding_losses),
-                                        commitments=(train_commitment_losses, valid_commitment_losses, onlyST_valid_commitment_losses),
-                                        start=0, end=epoch,
-                                        save_name=os.path.join(model_save_dir, "vis.png"))
+    draw_learning_curve_and_accuracy(losses=(train_losses, valid_losses, onlyST_valid_losses), 
+                                    recons=(train_recon_losses, valid_recon_losses, onlyST_valid_recon_losses),
+                                    embeddings=(train_embedding_losses, valid_embedding_losses, onlyST_valid_embedding_losses),
+                                    commitments=(train_commitment_losses, valid_commitment_losses, onlyST_valid_commitment_losses),
+                                    start=0, end=epoch,
+                                    save_name=os.path.join(model_save_dir, "vis.png"))
 
 
 
