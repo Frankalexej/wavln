@@ -20,12 +20,13 @@ echo "Timestamp: $ts"
 
 # Loop from 1 to 10, incrementing by 1
 # Loop over each combination of arguments
-for c in "${cs[@]}"; do
-    # Randomly select a GPU between 0 and 8
-    gpu=$((RANDOM % 9))
-    # Run the Python script with the current combination of arguments in the background
-    python C_0A_integrate_eval_shiyi1.py -ts "$ts" -m "$m" -cd "$c" -gpu "$gpu" &
+for m in "${cs[@]}"; do
+    for c in "${cs[@]}"; do
+        # Randomly select a GPU between 0 and 8
+        gpu=$((RANDOM % 9))
+        # Run the Python script with the current combination of arguments in the background
+        python C_0A_integrate_eval_shiyi1.py -ts "$ts" -m "$m" -cd "$c" -gpu "$gpu" &
+    done
 done
-
 # Wait for all background processes to finish
 wait
