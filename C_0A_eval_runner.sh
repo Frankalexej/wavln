@@ -15,11 +15,11 @@ ms=('ae')
 cs=('b' 'u')
 
 # Generate a 10-digit random number
-ts='0307112005'
+ts='0308001933'
 echo "Timestamp: $ts"
 
 # Loop from 1 to 10, incrementing by 1
-for (( i=1; i<=10; i++ )); do
+for (( i=1; i<=5; i++ )); do
     # Loop over each combination of arguments
     for m in "${ms[@]}"; do
         for c in "${cs[@]}"; do
