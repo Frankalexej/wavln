@@ -193,7 +193,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
 
     model.to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = optim.Adam(model.parameters(), lr=5e-4)
     model_str = str(model)
     model_txt_path = os.path.join(model_save_dir, "model.txt")
     with open(model_txt_path, "w") as f:
@@ -217,7 +217,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
     
     onlyST_valid_loader = load_data(rec_dir, guide_path, load="valid", select="ST", sampled=True)
 
-    num_epochs = 100
+    num_epochs = 300
     l_w_embedding = 1
     l_w_commitment = 0.25
 
