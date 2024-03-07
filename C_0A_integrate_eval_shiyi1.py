@@ -368,7 +368,7 @@ if __name__ == "__main__":
 
             all_zq = hidrep["zq"]
             all_sepframes = hidrep["sep-frame"]
-            all_phi_type = hidrep["phi_type"]
+            all_phi_type = hidrep["phi-type"]
             all_stop_names = hidrep["sn"]
 
             # Silhouette Score
