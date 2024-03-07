@@ -138,6 +138,12 @@ def draw_learning_curve_and_accuracy(losses, recons, embeddings, commitments, st
     ax4.plot(valid_commitment_losses.get()[start:end], label='Valid')
     ax4.plot(onlyST_valid_commitment_losses.get()[start:end], label='OnlyST Valid')
     ax4.set_title("Learning Curve Commitment Loss")
+
+    ax1.legend()
+    ax2.legend()
+    ax3.legend()
+    ax4.legend()
+    plt.tight_layout()
     plt.savefig(save_name)
     return 
 
@@ -211,7 +217,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
     
     onlyST_valid_loader = load_data(rec_dir, guide_path, load="valid", select="ST", sampled=True)
 
-    num_epochs = 300
+    num_epochs = 100
     l_w_embedding = 1
     l_w_commitment = 0.25
 

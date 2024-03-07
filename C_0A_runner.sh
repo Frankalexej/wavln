@@ -12,14 +12,14 @@ generate_random_number() {
 
 # Arrays of options for each argument
 ms=('ae')
-cs=('u' 'b' 'nt')
+cs=('u' 'b')
 
 # Generate a 10-digit random number
 ts=$(date +"%m%d%H%M%S")
 echo "Timestamp: $ts"
 
 # Loop from 1 to 10, incrementing by 1
-for (( i=1; i<=10; i++ )); do
+for (( i=1; i<=5; i++ )); do
     # Loop over each combination of arguments
     python C_0A_run.py -ts "$ts-$i" -dp
     for m in "${ms[@]}"; do
