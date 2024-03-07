@@ -11,7 +11,7 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=('ae' 'vqvae')
+ms=('ae')
 cs=('u' 'b' 'nt')
 
 # Generate a 10-digit random number
