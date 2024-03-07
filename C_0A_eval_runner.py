@@ -425,18 +425,18 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     reshandler.save()
     print(f"Results hidrep-{stop_epoch} saved to {res_save_dir}")
 
-    # Silhouette Score
-    cluster_groups = ["T", "ST"]
+    # # Silhouette Score
+    # cluster_groups = ["T", "ST"]
 
-    hidr_cs, tags_cs = get_toplot(hiddens=all_zq, 
-                                    sepframes=all_sepframes,
-                                    phi_types=all_phi_type,
-                                    stop_names=all_stop_names,
-                                    offsets=(0.4, 0.6))
-    color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
-    X, Y = hidr_cs, tags_cs
-    silhouette_avg = silhouette_score(X, tags_cs)
-    return silhouette_avg
+    # hidr_cs, tags_cs = get_toplot(hiddens=all_zq, 
+    #                                 sepframes=all_sepframes,
+    #                                 phi_types=all_phi_type,
+    #                                 stop_names=all_stop_names,
+    #                                 offsets=(0.4, 0.6))
+    # color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
+    # X, Y = hidr_cs, tags_cs
+    # silhouette_avg = silhouette_score(X, tags_cs)
+    return 0
 
 
 
@@ -470,22 +470,22 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
                    embedding_dim=EMBEDDING_DIM, 
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
 
-    sil_list = []
+    # sil_list = []
     for epoch in range(0, 100): 
         silhouette_avg = run_one_epoch(model, single_loader, both_loader, model_save_dir, epoch, res_save_dir)
-        sil_list.append(silhouette_avg)
+        # sil_list.append(silhouette_avg)
 
-    plt.plot(sil_list) # Plot the points
-    plt.title(f'Middle Silhouette Score')
-    plt.xlabel('Epoch')
-    plt.ylabel('Silhouette Score')
-    plt.savefig(os.path.join(res_save_dir, f"silplot-global.png"))
-    plt.close()
+    # plt.plot(sil_list) # Plot the points
+    # plt.title(f'Middle Silhouette Score')
+    # plt.xlabel('Epoch')
+    # plt.ylabel('Silhouette Score')
+    # plt.savefig(os.path.join(res_save_dir, f"silplot-global.png"))
+    # plt.close()
 
-    reshandler = DictResHandler(whole_res_dir=res_save_dir, 
-                                 file_prefix=f"silscore")
-    reshandler.res["sillist"] = sil_list
-    reshandler.save()
+    # reshandler = DictResHandler(whole_res_dir=res_save_dir, 
+    #                              file_prefix=f"silscore")
+    # reshandler.res["sillist"] = sil_list
+    # reshandler.save()
     return 
 
 
