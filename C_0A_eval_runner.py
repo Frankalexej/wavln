@@ -388,7 +388,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     plot_attention_trajectory(all_attn, all_stop_names, all_sepframes, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"))
 
     # Attention Stats
-    plot_attention_statistics(all_attn, all_sepframes, os.path.join(res_save_dir, f"attnstat-at-{stop_epoch}.png"))
+    # plot_attention_statistics(all_attn, all_sepframes, os.path.join(res_save_dir, f"attnstat-at-{stop_epoch}.png"))
 
 
 
