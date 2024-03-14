@@ -214,7 +214,7 @@ def plot_attention_trajectory(all_attn, all_stop_names, all_sepframes, save_path
     plt.close()
 
 def plot_silhouette(silarray_1, silarray_2, save_path): 
-    n_steps = 100
+    n_steps = 300
     # Convert list of arrays into 2D NumPy arrays for easier manipulation
     group1_array = np.array(silarray_1)
     group2_array = np.array(silarray_2)
@@ -354,12 +354,12 @@ if __name__ == "__main__":
     asp_sil_lists = []   # silhouette score between aspirated and deaspirated plosives
     stop_sil_lists = []  # silhouette score between p, t, and k
 
-    for run_number in range(1, 11):
+    for run_number in range(2, 6):
         asp_list = []
         stop_list = []
         print(f"Processing {model_type} in run {run_number}...")
 
-        for epoch in range(0, 100):     
+        for epoch in range(0, 300):     
             this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
             hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
                                  file_prefix=f"hidrep-{epoch}")

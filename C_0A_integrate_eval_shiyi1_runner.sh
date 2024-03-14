@@ -12,10 +12,10 @@ generate_random_number() {
 
 # Arrays of options for each argument
 ms=('ae')
-cs=('b' 'u' 'nt')
+cs=('b' 'u')
 
 # Generate a 10-digit random number
-ts='0304122055'
+ts='0308012232'
 echo "Timestamp: $ts"
 
 # Loop from 1 to 10, incrementing by 1

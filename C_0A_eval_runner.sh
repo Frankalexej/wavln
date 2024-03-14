@@ -15,7 +15,7 @@ ms=('ae')
 cs=('b' 'u')
 
 # Generate a 10-digit random number
-ts='0308001933'
+ts='0308012232'
 echo "Timestamp: $ts"
 
 # Loop from 1 to 10, incrementing by 1
