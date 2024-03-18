@@ -147,6 +147,18 @@ def draw_learning_curve_and_accuracy(losses, recons, embeddings, commitments, st
     plt.savefig(save_name)
     return 
 
+def initialize_model(model):
+    # init LSTM-attn AE
+    for name, param in model.named_parameters():
+        if 'weight_ih' in name:  # Weights of the input-hidden for LSTM layers
+            nn.init.orthogonal_(param.data)
+        elif 'weight_hh' in name:  # Weights of the hidden-hidden (recurrent) for LSTM layers
+            nn.init.orthogonal_(param.data)
+        elif 'weight' in name:  # Weights of linear layers
+            layer_type = name.split('.')[0]
+            if isinstance(getattr(model, layer_type), nn.Linear):  # Check if the layer is linear
+                nn.init.orthogonal_(param.data)
+
 
 def run_once(hyper_dir, model_type="ae", condition="b"): 
     model_save_dir = os.path.join(hyper_dir, model_type, condition)
@@ -193,6 +205,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
 
     model.to(device)
+    initialize_model(model)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     model_str = str(model)
     model_txt_path = os.path.join(model_save_dir, "model.txt")
