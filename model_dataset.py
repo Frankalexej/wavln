@@ -577,7 +577,8 @@ class TargetVowelDataset(Dataset):
         return xx_pad, x_lens, pt, sn            
 
 
-class TargetVowelDatasetBoundary(Dataset):  # not yet modified
+class TargetVowelDatasetBoundary(Dataset): 
+    # this mixes T and ST. 
     # Target means the phenomenon-target, that is, e.g. /th/ or /st/. 
     def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
         # guide_file = pd.read_csv(guide_)
@@ -587,26 +588,28 @@ class TargetVowelDatasetBoundary(Dataset):  # not yet modified
             guide_file = guide_
         else:
             raise Exception("Guide neither to read or to be used directly")
-
-        # guide_file = guide_file[guide_file["segment_nostress"].isin(select)]
-        # this is not needed for worddataset, we only need to kick out the non-word segments
-        # guide_file = guide_file[~guide_file["segment_nostress"].isin(["sil", "sp", "spn"])]
-        # guide_file = guide_file[guide_file['word_nSample'] > 400]
-        # guide_file = guide_file[guide_file['word_nSample'] <= 15000]
-        guide_file["sep_frame"] = guide_file.apply(lambda x: time_to_frame(x['stop_startTime'] - x['sibilant_startTime']), axis=1)
         
-        sib_path_col = guide_file["sibilant_path"]
+        guide_file["first_sep_frame"] = guide_file.apply(lambda x: time_to_frame(x['stop_startTime'] - x['pre_startTime']), axis=1)
+        guide_file["second_sep_frame"] = guide_file.apply(lambda x: time_to_frame(x['vowel_startTime'] - x['pre_startTime']), axis=1)
+        
+        pre_path_col = guide_file["pre_path"]
         stop_path_col = guide_file["stop_path"]
+        vowel_path_col = guide_file["vowel_path"]
         phi_type_col = guide_file["phi_type"]
         stop_name_col = guide_file["stop"]
-        sep_frame_col = guide_file["sep_frame"]
+        vowel_name_col = guide_file["vowel"]
+        first_sep_frame_col = guide_file["first_sep_frame"]
+        second_sep_frame_col = guide_file["second_sep_frame"]
         
         self.guide_file = guide_file
         self.dataset = stop_path_col.tolist()
-        self.sib_path = sib_path_col.tolist()
+        self.pre_path = pre_path_col.tolist()
+        self.vowel_path = vowel_path_col.tolist()
         self.phi_type = phi_type_col.tolist()
         self.stop_name = stop_name_col.tolist()
-        self.sep_frame = sep_frame_col.tolist()
+        self.vowel_name = vowel_name_col.tolist()
+        self.first_sep_frame = first_sep_frame_col.tolist()
+        self.second_sep_frame = second_sep_frame_col.tolist()
         self.src_dir = src_dir
         self.transform = transform
 
@@ -619,49 +622,58 @@ class TargetVowelDatasetBoundary(Dataset):  # not yet modified
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
-        
+
         if self.phi_type[idx] == "ST": 
             # read two and concat
             S_name = os.path.join(
                 self.src_dir, 
-                self.sib_path[idx]
+                self.pre_path[idx]
             )
             T_name = os.path.join(
                 self.src_dir, 
                 self.dataset[idx]
             )
+            V_name = os.path.join(
+                self.src_dir, 
+                self.vowel_path[idx]
+            )
 
             S_data, sample_rate_S = torchaudio.load(S_name, normalize=True)
             T_data, sample_rate_T = torchaudio.load(T_name, normalize=True)
-            assert sample_rate_S == sample_rate_T
+            V_data, sample_rate_V = torchaudio.load(V_name, normalize=True)
+            assert sample_rate_S == sample_rate_T == sample_rate_V
 
-            data = torch.cat([S_data, T_data], dim=1)
+            data = torch.cat([S_data, T_data, V_data], dim=1)
         else: 
             # "T"
             T_name = os.path.join(
                 self.src_dir, 
                 self.dataset[idx]
             )
+            V_name = os.path.join(
+                self.src_dir, 
+                self.vowel_path[idx]
+            )
         
-            data, sample_rate = torchaudio.load(T_name, normalize=True)
+            T_data, sample_rate_T = torchaudio.load(T_name, normalize=True)
+            V_data, sample_rate_V = torchaudio.load(V_name, normalize=True)
+            assert sample_rate_T == sample_rate_V
+
+            data = torch.cat([T_data, V_data], dim=1)
 
         if self.transform:
             data = self.transform(data)
         
-        return data, self.phi_type[idx], self.stop_name[idx], self.sep_frame[idx]
+        return data, self.phi_type[idx], self.stop_name[idx], self.vowel_name[idx], self.first_sep_frame[idx], self.second_sep_frame[idx]
 
     @staticmethod
     def collate_fn(data):
         # only working for one data at the moment
         batch_first = True
-        xx, pt, sn, sf = zip(*data)
+        xx, pt, sn, vn, sf1, sf2 = zip(*data)
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
-        return xx_pad, x_lens, pt, sn, sf
-
-
-
-
+        return xx_pad, x_lens, pt, sn, vn, sf1, sf2
 
 
 
