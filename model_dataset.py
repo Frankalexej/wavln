@@ -74,7 +74,12 @@ class TokenMap:
 
 class WordDataset(Dataset):
     def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
-        guide_file = pd.read_csv(guide_)
+        if isinstance(guide_, str):
+            guide_file = pd.read_csv(guide_)
+        elif isinstance(guide_, pd.DataFrame):
+            guide_file = guide_
+        else:
+            raise Exception("Guide neither to read or to be used directly")
 
         # guide_file = guide_file[guide_file["segment_nostress"].isin(select)]
         # this is not needed for worddataset, we only need to kick out the non-word segments
