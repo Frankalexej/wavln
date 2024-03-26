@@ -2,7 +2,6 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from C_0B_eval import *
-from C_0B_control import GOOD_RUNS, stringify
 from scipy.stats import sem, ttest_ind
 
 def read_result_at(res_save_dir, epoch): 
@@ -195,7 +194,7 @@ if __name__ == "__main__":
     ts = args.timestamp # this timestamp does not contain run number
     model_type = args.model
     model_condition = args.condition
-    train_name = "C_0B"
+    train_name = "C_0C"
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
 
     sil_dict = {}
@@ -209,8 +208,9 @@ if __name__ == "__main__":
     every_sepframes2 = []
     every_phi_types = []
 
-    learned_runs = GOOD_RUNS[model_condition]
-    strseq_learned_runs = stringify(learned_runs)
+    learned_runs = [1, 3, 4]
+    string_learned_runs = [str(num) for num in learned_runs]
+    strseq_learned_runs = "".join(string_learned_runs)
 
     for epoch in range(0, 100): 
         cat_attns = []

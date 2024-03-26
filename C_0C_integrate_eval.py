@@ -40,6 +40,11 @@ if __name__ == "__main__":
     every_sepframes2 = []
     every_phi_types = []
 
+    # this is added because some runs failed to do any reconstruction. 
+    learned_runs = [1, 3, 4]
+    string_learned_runs = [str(num) for num in learned_runs]
+    strseq_learned_runs = "".join(string_learned_runs)
+
     for epoch in range(0, 100): 
         cat_attns = []
         cat_sepframes1 = []
@@ -47,7 +52,7 @@ if __name__ == "__main__":
         cat_phi_types = []
         print(f"Processing {model_type} at {epoch}...")
 
-        for run_number in range(1, 6):
+        for run_number in learned_runs:
             this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
             if not PU.path_exist(this_model_condition_dir): 
                 print(f"Run {run_number} does not exist.")
@@ -58,11 +63,11 @@ if __name__ == "__main__":
             cat_sepframes1 += allres["sep-frame1"]
             cat_sepframes2 += allres["sep-frame2"]
 
-        plot_attention_trajectory_together(cat_phi_types, cat_attns, cat_sepframes1, cat_sepframes2, os.path.join(this_save_dir, f"attntraj-at-{epoch}.png"))
+        # plot_attention_trajectory_together(cat_phi_types, cat_attns, cat_sepframes1, cat_sepframes2, os.path.join(this_save_dir, f"attntraj-at-{epoch}.png"))
         every_attns += cat_attns
         every_sepframes1 += cat_sepframes1
         every_sepframes2 += cat_sepframes2
         every_phi_types += cat_phi_types
-    plot_attention_trajectory_together(every_phi_types, every_attns, every_sepframes1, every_sepframes2, os.path.join(res_save_dir, f"attntraj-at-all-{model_type}-{model_condition}.png"))
+    plot_attention_trajectory_together(every_phi_types, every_attns, every_sepframes1, every_sepframes2, os.path.join(res_save_dir, f"attntraj-at-all-{model_type}-{model_condition}-{strseq_learned_runs}.png"))
 
     print("Done.")

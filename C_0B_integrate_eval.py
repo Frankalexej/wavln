@@ -2,6 +2,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from C_0B_eval import *
+from C_0B_control import GOOD_RUNS, stringify
 from scipy.stats import sem, ttest_rel
 
 def read_result_at(res_save_dir, epoch): 
@@ -41,6 +42,10 @@ if __name__ == "__main__":
     every_sepframes2 = []
     every_phi_types = []
 
+
+    learned_runs = GOOD_RUNS[model_condition]
+    strseq_learned_runs = stringify(learned_runs)
+
     for epoch in range(0, 100): 
         cat_attns = []
         cat_sepframes1 = []
@@ -48,7 +53,7 @@ if __name__ == "__main__":
         cat_phi_types = []
         print(f"Processing {model_type} at {epoch}...")
 
-        for run_number in range(1, 11):
+        for run_number in learned_runs:
             this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
             allres = read_result_at(this_model_condition_dir, epoch)
             cat_phi_types += allres["phi-type"]
@@ -56,11 +61,11 @@ if __name__ == "__main__":
             cat_sepframes1 += allres["sep-frame1"]
             cat_sepframes2 += allres["sep-frame2"]
 
-        plot_attention_trajectory_together(cat_phi_types, cat_attns, cat_sepframes1, cat_sepframes2, os.path.join(this_save_dir, f"attntraj-at-{epoch}.png"))
+        # plot_attention_trajectory_together(cat_phi_types, cat_attns, cat_sepframes1, cat_sepframes2, os.path.join(this_save_dir, f"attntraj-at-{epoch}.png"))
         every_attns += cat_attns
         every_sepframes1 += cat_sepframes1
         every_sepframes2 += cat_sepframes2
         every_phi_types += cat_phi_types
-    plot_attention_trajectory_together(every_phi_types, every_attns, every_sepframes1, every_sepframes2, os.path.join(res_save_dir, f"attntraj-at-all-{model_type}-{model_condition}.png"))
+    plot_attention_trajectory_together(every_phi_types, every_attns, every_sepframes1, every_sepframes2, os.path.join(res_save_dir, f"attntraj-at-all-{model_type}-{model_condition}-{strseq_learned_runs}.png"))
 
     print("Done.")

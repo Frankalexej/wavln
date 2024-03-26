@@ -2,6 +2,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from C_0B_eval import *
+from C_0B_control import GOOD_RUNS, stringify
 
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
@@ -152,7 +153,10 @@ if __name__ == "__main__":
     asp_sil_lists = []   # silhouette score between aspirated and deaspirated plosives
     stop_sil_lists = []  # silhouette score between p, t, and k
 
-    for run_number in range(1, 11):
+    learned_runs = GOOD_RUNS[model_condition]
+    strseq_learned_runs = stringify(learned_runs)
+
+    for run_number in learned_runs:
         asp_list = []
         stop_list = []
         print(f"Processing {model_type} in run {run_number}...")
@@ -200,5 +204,5 @@ if __name__ == "__main__":
         asp_sil_lists.append(asp_list)
         stop_sil_lists.append(stop_list)
 
-    plot_silhouette(asp_sil_lists, stop_sil_lists, os.path.join(res_save_dir, f"silhouette-VS-{model_type}-{model_condition}.png"))
+    plot_silhouette(asp_sil_lists, stop_sil_lists, os.path.join(res_save_dir, f"silhouette-VS-{model_type}-{model_condition}-{strseq_learned_runs}.png"))
     print("Done.")
