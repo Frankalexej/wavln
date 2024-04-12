@@ -223,23 +223,26 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
     train_guide_path = os.path.join(src_, "guide_train.csv")
     valid_guide_path = os.path.join(src_, "guide_validation.csv")
 
+    mapper = WordDictionary(os.path.join(src_, "unique_words_list.dict"))
+    embedding_dim = mapper.token_num()
+
     # Initialize Model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
     if model_type == "ae":
         model = WIDAEV1(enc_size_list=ENC_SIZE_LIST, 
                    dec_size_list=DEC_SIZE_LIST, 
-                   embedding_dim=EMBEDDING_DIM, 
+                   embedding_dim=embedding_dim, 
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
     elif model_type == "vqvae":
         model = WIDAEV1(enc_size_list=ENC_SIZE_LIST, 
                    dec_size_list=DEC_SIZE_LIST, 
-                   embedding_dim=EMBEDDING_DIM, 
+                   embedding_dim=embedding_dim, 
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
     else:
         model = WIDAEV1(enc_size_list=ENC_SIZE_LIST, 
                    dec_size_list=DEC_SIZE_LIST, 
-                   embedding_dim=EMBEDDING_DIM, 
+                   embedding_dim=embedding_dim, 
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
 
     model.to(device)
@@ -259,7 +262,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
     valid_loader = load_data_general(TrainDataset, 
                                      word_rec_dir, valid_guide_path, load="valid", select=0.3, sampled=False)
     onlyST_valid_loader = load_data_phenomenon(TestDataset, 
-                                               phone_rec_dir, guide_path, load="valid", select="both", sampled=True)
+                                               phone_rec_dir, guide_path, load="valid", select="both", sampled=True, word_guide_=valid_guide_path)
 
     num_epochs = 100
     l_w_embedding = 1
@@ -281,7 +284,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
             y = x
             x = x.to(device)
             y = y.to(device)
-            word = word.to(device)
+            word = torch.tensor(word, dtype=torch.long).to(device)
 
             x_hat, attn_w, (ze, zq) = model(x, x_lens, x_mask, word)
 
@@ -331,7 +334,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
             y = x
             x = x.to(device)
             y = y.to(device)
-            word = word.to(device)
+            word = torch.tensor(word, dtype=torch.long).to(device)
 
             x_hat, attn_w, (ze, zq) = model(x, x_lens, x_mask, word)
 
@@ -371,7 +374,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
             y = x
             x = x.to(device)
             y = y.to(device)
-            word = word.to(device)
+            word = torch.tensor(word, dtype=torch.long).to(device)
 
             x_hat, attn_w, (ze, zq) = model(x, x_lens, x_mask, word)
 

@@ -134,10 +134,16 @@ class WordDictionary:
         self.idx2word = {idx: word for idx, word in enumerate(unique_words_list)}
     
     def encode(self, word):
-        return self.word2idx[word]
+        if word in self.word2idx:
+            return self.word2idx[word]
+        else:
+            return 0
     
     def decode(self, idx): 
         return self.idx2word[idx]
+    
+    def token_num(self): 
+        return len(self.word2idx)
     
 class WordDatasetWord(WordDataset): 
     # This is for WIDAE. We additionally return word. 
@@ -718,10 +724,10 @@ class TargetVowelDatasetWord(Dataset):
     def collate_fn(data):
         # only working for one data at the moment
         batch_first = True
-        xx, pt, sn = zip(*data)
+        xx, pt, sn, word = zip(*data)
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
-        return xx_pad, x_lens, pt, sn
+        return xx_pad, x_lens, pt, sn, word
 
 
 class TargetVowelDatasetBoundary(Dataset): 
