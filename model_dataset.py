@@ -125,6 +125,44 @@ class WordDataset(Dataset):
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
         return xx_pad, x_lens
+    
+class WordDictionary:
+    def __init__(self, file_path):
+        with open(file_path, 'rb') as file:
+            unique_words_list = pickle.load(file)
+        self.word2idx = {word: idx for idx, word in enumerate(unique_words_list)}
+        self.idx2word = {idx: word for idx, word in enumerate(unique_words_list)}
+    
+    def encode(self, word):
+        return self.word2idx[word]
+    
+    def decode(self, idx): 
+        return self.idx2word[idx]
+    
+class WordDatasetWord(WordDataset): 
+    # This is for WIDAE. We additionally return word. 
+    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
+        super().__init__(src_dir, guide_, select, mapper, transform)
+        self.word_set = self.guide_file.drop_duplicates(subset='wuid', keep='first')["word"].tolist()
+        self.mapper = mapper
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        data = super().__getitem__(idx)
+        word = self.word_set[idx]
+        
+        return data, self.mapper.encode(word)
+
+    @staticmethod
+    def collate_fn(data):
+        xx, word = zip(*data)
+        # only working for one data at the moment
+        batch_first = True
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        return xx_pad, x_lens, word
 
 class WordDatasetPath(WordDataset): 
     def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
@@ -579,7 +617,111 @@ class TargetVowelDataset(Dataset):
         xx, pt, sn = zip(*data)
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
-        return xx_pad, x_lens, pt, sn            
+        return xx_pad, x_lens, pt, sn
+    
+class TargetVowelDatasetWord(Dataset):
+    # Target means the phenomenon-target, that is, e.g. /th/ or /st/. 
+    # This dataset additionally returns the word. 
+    # Let's use the select field to pass in the word list.
+    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
+        # guide_file = pd.read_csv(guide_)
+        if isinstance(guide_, str):
+            guide_file = pd.read_csv(guide_)
+        elif isinstance(guide_, pd.DataFrame):
+            guide_file = guide_
+        else:
+            raise Exception("Guide neither to read or to be used directly")
+        
+        if isinstance(select, str):
+            word_file = pd.read_csv(select)
+        elif isinstance(select, pd.DataFrame):
+            word_file = select
+        else:
+            raise Exception("Guide neither to read or to be used directly")
+        
+        pre_path_col = guide_file["pre_path"]
+        stop_path_col = guide_file["stop_path"]
+        vowel_path_col = guide_file["vowel_path"]
+
+        phi_type_col = guide_file["phi_type"]
+        stop_name_col = guide_file["stop"]
+
+        # get the corresponding word
+        unique_word = word_file.drop_duplicates(subset='wuid', keep='first')
+        wuid_col = guide_file["wuid"]
+        wuid_to_word = pd.Series(unique_word['word'].values, index=unique_word["wuid"])
+        self.word_set = wuid_col.map(wuid_to_word).tolist()
+        
+        self.guide_file = guide_file
+        self.dataset = stop_path_col.tolist()
+        self.pre_path = pre_path_col.tolist()
+        self.vowel_path = vowel_path_col.tolist()
+        self.phi_type = phi_type_col.tolist()
+        self.stop_name = stop_name_col.tolist()
+        self.src_dir = src_dir
+        self.transform = transform
+
+        self.mapper = mapper
+        # should not be used unless for derived classes that use ground truth. 
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        
+        if self.phi_type[idx] == "ST": 
+            # read two and concat
+            S_name = os.path.join(
+                self.src_dir, 
+                self.pre_path[idx]
+            )
+            T_name = os.path.join(
+                self.src_dir, 
+                self.dataset[idx]
+            )
+            V_name = os.path.join(
+                self.src_dir, 
+                self.vowel_path[idx]
+            )
+
+            S_data, sample_rate_S = torchaudio.load(S_name, normalize=True)
+            T_data, sample_rate_T = torchaudio.load(T_name, normalize=True)
+            V_data, sample_rate_V = torchaudio.load(V_name, normalize=True)
+            assert sample_rate_S == sample_rate_T == sample_rate_V
+
+            data = torch.cat([S_data, T_data, V_data], dim=1)
+        else: 
+            # "T"
+            T_name = os.path.join(
+                self.src_dir, 
+                self.dataset[idx]
+            )
+            V_name = os.path.join(
+                self.src_dir, 
+                self.vowel_path[idx]
+            )
+        
+            T_data, sample_rate_T = torchaudio.load(T_name, normalize=True)
+            V_data, sample_rate_V = torchaudio.load(V_name, normalize=True)
+            assert sample_rate_T == sample_rate_V
+
+            data = torch.cat([T_data, V_data], dim=1)
+
+        if self.transform:
+            data = self.transform(data)
+        
+        return data, self.phi_type[idx], self.stop_name[idx], self.mapper.encode(self.word_set[idx])
+
+    @staticmethod
+    def collate_fn(data):
+        # only working for one data at the moment
+        batch_first = True
+        xx, pt, sn = zip(*data)
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        return xx_pad, x_lens, pt, sn
 
 
 class TargetVowelDatasetBoundary(Dataset): 
