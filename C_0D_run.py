@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import argparse
 # import summary
-from model_model import WIDAEV1
+from model_model import WIDAEV1, WIDAEV2
 from model_dataset import DS_Tools
 from model_dataset import WordDatasetWord as TrainDataset
 from model_dataset import TargetVowelDatasetWord as TestDataset
@@ -239,6 +239,11 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                    dec_size_list=DEC_SIZE_LIST, 
                    embedding_dim=embedding_dim, 
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "aefixemb":
+        model = WIDAEV2(enc_size_list=ENC_SIZE_LIST, 
+                   dec_size_list=DEC_SIZE_LIST, 
+                   embedding_dim=embedding_dim, 
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
     else:
         model = WIDAEV1(enc_size_list=ENC_SIZE_LIST, 
                    dec_size_list=DEC_SIZE_LIST, 
@@ -294,7 +299,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                 l_commitment = masked_loss.get_loss(ze, zq.detach(), x_mask)
                 loss = l_reconstruct + \
                     l_w_embedding * l_embedding + l_w_commitment * l_commitment
-            elif model_type == "ae":
+            else:
                 l_embedding = torch.tensor(0)
                 l_commitment = torch.tensor(0)
                 loss = l_reconstruct
@@ -344,7 +349,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                 l_commitment = masked_loss.get_loss(ze, zq.detach(), x_mask)
                 loss = l_reconstruct + \
                     l_w_embedding * l_embedding + l_w_commitment * l_commitment
-            elif model_type == "ae":
+            else:
                 l_embedding = torch.tensor(0)
                 l_commitment = torch.tensor(0)
                 loss = l_reconstruct
@@ -384,7 +389,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                 l_commitment = masked_loss.get_loss(ze, zq.detach(), x_mask)
                 loss = l_reconstruct + \
                     l_w_embedding * l_embedding + l_w_commitment * l_commitment
-            elif model_type == "ae":
+            else:
                 l_embedding = torch.tensor(0)
                 l_commitment = torch.tensor(0)
                 loss = l_reconstruct

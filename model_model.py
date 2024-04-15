@@ -367,6 +367,44 @@ class WIDAEV1(Module):
         word_emb = self.word_embedding(word_info)
         zq = self.combine_layer(torch.cat(ze, word_emb, -1)) 
         return ze, zq   # !!! Check the use of ze and zq in later stages. Don't mix!!!
+    
+class WIDAEV2(Module):
+    # Fixed word embedding
+    # RL + RAL(Init)
+    # WIDAEV1 also returns ze and zq, just to make it consistent with VQVAE
+    # This is just a normal autoencoder, but with the same structure as VQVAE
+    def __init__(self, enc_size_list, dec_size_list, embedding_dim, num_layers=1, dropout=0.5):
+        # embedding_dim: the number of discrete vectors in hidden representation space
+        super(WIDAEV2, self).__init__()
+
+        self.encoder = VQEncoderV1(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        self.decoder = VQDecoderV1(size_list=dec_size_list, num_layers=num_layers, dropout=dropout)
+        self.word_embedding = nn.Embedding(embedding_dim, enc_size_list[3])
+        torch.nn.init.orthogonal_(self.word_embedding.weight)
+        self.word_embedding.weight.requires_grad = False  # Set trainable to False
+        self.combine_layer = nn.Linear(2 * enc_size_list[3], enc_size_list[3])
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, inputs, input_lens, in_mask, word_info):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.decoder.inits(batch_size=batch_size, device=self.device)
+
+        ze = self.encoder(inputs, input_lens)
+        word_emb = self.word_embedding(word_info)
+        word_emb = word_emb.unsqueeze(1).repeat_interleave(ze.shape[1], dim=1)
+        cat_ze = torch.cat([ze, word_emb], -1)
+        zq = self.combine_layer(cat_ze) 
+        # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
+        dec_in = zq
+        dec_out, attn_w = self.decoder(dec_in, in_mask, init_in, dec_hid)
+        return dec_out, attn_w, (ze, zq)
+    
+    def encode(self, inputs, input_lens, in_mask, word_info): 
+        ze = self.encoder(inputs, input_lens)
+        word_emb = self.word_embedding(word_info)
+        zq = self.combine_layer(torch.cat(ze, word_emb, -1)) 
+        return ze, zq   # !!! Check the use of ze and zq in later stages. Don't mix!!!
 
 ############################ CTC Predictor [20240223] ############################
 class CTCEncoderV1(Module): 
