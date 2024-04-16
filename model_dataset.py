@@ -169,6 +169,29 @@ class WordDatasetWord(WordDataset):
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
         return xx_pad, x_lens, word
+    
+class WordDatasetWordPath(WordDatasetWord): 
+    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
+        super().__init__(src_dir, guide_, select, mapper, transform)
+        self.name_set = self.guide_file["wuid"].unique().tolist()
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        data, word = super().__getitem__(idx)
+        name = self.name_set[idx]
+        
+        return data, word, name
+
+    @staticmethod
+    def collate_fn(data):
+        xx, word, name = zip(*data)
+        # only working for one data at the moment
+        batch_first = True
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        return xx_pad, x_lens, word, name
 
 class WordDatasetPath(WordDataset): 
     def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):

@@ -365,7 +365,9 @@ class WIDAEV1(Module):
     def encode(self, inputs, input_lens, in_mask, word_info): 
         ze = self.encoder(inputs, input_lens)
         word_emb = self.word_embedding(word_info)
-        zq = self.combine_layer(torch.cat(ze, word_emb, -1)) 
+        word_emb = word_emb.unsqueeze(1).repeat_interleave(ze.shape[1], dim=1)
+        cat_ze = torch.cat([ze, word_emb], -1)
+        zq = self.combine_layer(cat_ze) 
         return ze, zq   # !!! Check the use of ze and zq in later stages. Don't mix!!!
     
 class WIDAEV2(Module):
@@ -403,7 +405,9 @@ class WIDAEV2(Module):
     def encode(self, inputs, input_lens, in_mask, word_info): 
         ze = self.encoder(inputs, input_lens)
         word_emb = self.word_embedding(word_info)
-        zq = self.combine_layer(torch.cat(ze, word_emb, -1)) 
+        word_emb = word_emb.unsqueeze(1).repeat_interleave(ze.shape[1], dim=1)
+        cat_ze = torch.cat([ze, word_emb], -1)
+        zq = self.combine_layer(cat_ze) 
         return ze, zq   # !!! Check the use of ze and zq in later stages. Don't mix!!!
 
 ############################ CTC Predictor [20240223] ############################
