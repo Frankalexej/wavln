@@ -77,7 +77,7 @@ def get_toplot(data, name_dict, df, selector, max_counts=500, offsets=(0, 1)):
     cutstarts = selected_df["startFrame"]
     cutends = selected_df["endFrame"]
 
-    hid_sel = np.empty((0, 16))
+    hid_sel = np.empty((0, 8))
     tag_sel = []
     for (item, start, end, tag) in zip(selected_items, cutstarts, cutends, selected_df["segment_nostress"]): 
         hid = cutHid(item, start, end, offsets[0], offsets[1])
@@ -170,7 +170,7 @@ def evaluate_hidrep_one_epoch(hidreps, guide_file, name_dict, evaluation_pairs, 
 
 
 
-def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_): 
+def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_, run_eval="re"): 
     # Dirs
     rec_dir = train_cut_phone_
     # Check model path
@@ -207,9 +207,10 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
                    embedding_dim=embedding_dim, 
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
 
-    # Run model and save results        
-    for epoch in range(0, 100): 
-        run_one_epoch(model, single_loader, None, model_save_dir, epoch, res_save_dir)
+    if run_eval == "re" or run_eval == "r":
+        # Run model and save results        
+        for epoch in range(0, 100): 
+            run_one_epoch(model, single_loader, None, model_save_dir, epoch, res_save_dir)
 
     # Prepare guide file for hidrep evaluation        
     included_names = get_included_names(single_loader)
@@ -232,20 +233,21 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
 
     mymap = TokenMap(mylist)
 
-    # Evaluate hidrep
-    cross_epoch_sil_scores = []
-    for epoch in range(0, 100): 
-        reshandler = DictResHandler(whole_res_dir=res_save_dir, 
-                                    file_prefix=f"fullhid-{epoch}")
-        reshandler.read()
-        hidreps = reshandler.res["zq"]
-        example_save_path = os.path.join(res_save_dir, f"fullhidex-{epoch}.png")
-        sil_scores = evaluate_hidrep_one_epoch(hidreps, filtered_df, name_dict, full_hidrep_evaluate_list, example_save_path, mymap)
+    if run_eval == "re" or run_eval == "e":
+        # Evaluate hidrep
+        cross_epoch_sil_scores = []
+        for epoch in range(0, 100): 
+            reshandler = DictResHandler(whole_res_dir=res_save_dir, 
+                                        file_prefix=f"fullhid-{epoch}")
+            reshandler.read()
+            hidreps = reshandler.res["zq"]
+            example_save_path = os.path.join(res_save_dir, f"fullhidex-{epoch}.png")
+            sil_scores = evaluate_hidrep_one_epoch(hidreps, filtered_df, name_dict, full_hidrep_evaluate_list, example_save_path, mymap)
 
-        sil_score_path = os.path.join(res_save_dir, f"sil_scores_{epoch}.pk")
-        with open(sil_score_path, "wb") as file: 
-            pickle.dump(sil_scores, file)
-        cross_epoch_sil_scores.append(np.array(sil_scores).mean())
+            sil_score_path = os.path.join(res_save_dir, f"sil_scores_{epoch}.pk")
+            with open(sil_score_path, "wb") as file: 
+                pickle.dump(sil_scores, file)
+            cross_epoch_sil_scores.append(np.array(sil_scores).mean())
     return 
 
 if __name__ == "__main__":
@@ -255,6 +257,7 @@ if __name__ == "__main__":
     parser.add_argument('--gpu', '-gpu', type=int, default=0, help="Choose the GPU to work on")
     parser.add_argument('--model','-m',type=str, default = "ae",help="Model type: ae or vqvae")
     parser.add_argument('--condition','-cd',type=str, default="b", help='Condition: b (balanced), u (unbalanced), nt (no-T)')
+    parser.add_argument('--runeval','-re',type=str, default="re", help='re, r or e')
     args = parser.parse_args()
 
     # set device number
@@ -262,6 +265,7 @@ if __name__ == "__main__":
 
     ts = args.timestamp # this timestamp does not contain run number
     rn = args.runnumber
+    runeval = args.runeval
     train_name = "C_0D"
     if not PU.path_exist(os.path.join(model_save_, f"{train_name}-{ts}-{rn}")):
         raise Exception(f"Training {train_name}-{ts}-{rn} does not exist! ")
@@ -273,4 +277,4 @@ if __name__ == "__main__":
     valid_full_guide_path = os.path.join(src_, "guide_validation.csv")
     mk(this_model_condition_dir)
 
-    main(train_name, ts, args.runnumber, args.model, model_save_dir, this_model_condition_dir, guide_dir, valid_full_guide_path)
+    main(train_name, ts, args.runnumber, args.model, model_save_dir, this_model_condition_dir, guide_dir, valid_full_guide_path, runeval)

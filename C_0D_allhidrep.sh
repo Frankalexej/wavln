@@ -18,6 +18,8 @@ cs=('u')
 # Generate a 10-digit random number
 ts='0412203108'
 echo "Timestamp: $ts"
+re='e'
+echo "Runeval: $re"
 
 for m in "${!ms[@]}"; do
     for r in ${runs[m]}; do
@@ -25,7 +27,7 @@ for m in "${!ms[@]}"; do
             # Randomly select a GPU between 0 and 8
             gpu=$((RANDOM % 9))
             # Run the Python script with the current combination of arguments in the background
-            python C_0D_allhidrep.py -ts "$ts" -rn "$r" -m "${ms[m]}" -cd "$c" -gpu "$gpu" &
+            python C_0D_allhidrep.py -ts "$ts" -rn "$r" -m "${ms[m]}" -cd "$c" -gpu "$gpu" -re "$re"&
         done
     done
 done
