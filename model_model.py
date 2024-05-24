@@ -409,6 +409,63 @@ class WIDAEV2(Module):
         cat_ze = torch.cat([ze, word_emb], -1)
         zq = self.combine_layer(cat_ze) 
         return ze, zq   # !!! Check the use of ze and zq in later stages. Don't mix!!!
+    
+
+############################ Multitask Learning (20240524) ############################
+class CTCDecoderV2(Module): 
+    """
+    注意：decoder is only for classification for CTC pred.
+    No LSTM is used here, but attention is used here as well.  
+    """
+    def __init__(self, size_list, num_layers=1, dropout=0.5):
+        # size_list = [13, 64, 16, 3]: similar to encoder, just layer 0 different
+        super(CTCDecoderV2, self).__init__()
+        self.attention = ScaledDotProductAttention(q_in=size_list["hid"], kv_in=size_list["hid"], qk_out=size_list["hid"], v_out=size_list["hid"])
+        self.lin = nn.Linear(size_list["hid"], size_list["class"])
+        self.softmax = nn.LogSoftmax(dim=-1)
+        # vars
+        self.num_layers = num_layers
+        self.size_list = size_list
+
+    def forward(self, hid_r, in_mask):
+        outputs, attention_weights = self.attention(hid_r, hid_r, hid_r, in_mask.unsqueeze(1))
+        outputs = self.lin(outputs)
+        outputs = self.softmax(outputs)
+        return outputs, attention_weights
+    
+class AEPPV1(Module):
+    # Autoencoder + phoneme prediction
+    # WIDAEV1 also returns ze and zq, just to make it consistent with VQVAE
+    # This is just a normal autoencoder, but with the same structure as VQVAE
+    def __init__(self, enc_size_list, dec_size_list, ctc_decoder_size_list, num_layers=1, dropout=0.5):
+        super(AEPPV1, self).__init__()
+
+        self.encoder = VQEncoderV1(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        self.ae_decoder = VQDecoderV1(size_list=dec_size_list, num_layers=num_layers, dropout=dropout)
+        # phoneme prediction decoder, this one is not auto-regressive, therefore we can use bidirectional
+        # LSTM to enhance performance. 
+        self.pp_decoder = CTCDecoderV2(size_list=ctc_decoder_size_list)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.ae_decoder.inits(batch_size=batch_size, device=self.device)
+
+        ze = self.encoder(inputs, input_lens)
+        # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
+        zq = ze
+        dec_in = ze
+        ae_dec_out, ae_attn_w = self.ae_decoder(dec_in, in_mask, init_in, dec_hid)
+        pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
+        # return follows: dec_out, attn_w, z
+        # TODO: tomorrow just write the trining loop. 
+        return (ae_dec_out, pp_dec_out), (ae_attn_w, pp_attn_w), (ze, zq)
+    
+    def encode(self, inputs, input_lens, in_mask, word_info): 
+        ze = self.encoder(inputs, input_lens)
+        zq = ze
+        return ze, zq   # !!! Check the use of ze and zq in later stages. Don't mix!!!
 
 ############################ CTC Predictor [20240223] ############################
 class CTCEncoderV1(Module): 
