@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import argparse
 # import summary
-from model_model import WIDAEV1, WIDAEV2
+from model_model import AEPPV1
 from model_dataset import DS_Tools
 # this is used for CTC pred
 from model_dataset import WordDatasetPhoneseq as TrainDataset
@@ -88,12 +88,20 @@ def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, s
                         normalizer=Normalizer.norm_mvn, 
                         denormalizer=DeNormalizer.norm_mvn)
     
-    mymap = WordDictionary(os.path.join(src_, "unique_words_list.dict"))
+    # Load TokenMap to map the phoneme to the index
+    with open(os.path.join(src_, "no-stress-seg.dict"), "rb") as file:
+        # Load the object from the file
+        mylist = pickle.load(file)
+        mylist = ["BLANK"] + mylist
+
+    # Now you can use the loaded object
+    mymap = TokenMap(mylist)
 
     ds = dataset(rec_dir, 
                         integrated,  
                         mapper=mymap, 
-                        transform=mytrans)
+                        transform=mytrans, 
+                        ground_truth_path=os.path.join(src_, f"{load}-phoneseq.gt"))
     
     use_len = int(select * len(ds))
     remain_len = len(ds) - use_len
@@ -227,32 +235,29 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
     train_guide_path = os.path.join(src_, "guide_train.csv")
     valid_guide_path = os.path.join(src_, "guide_validation.csv")
 
-    mapper = WordDictionary(os.path.join(src_, "unique_words_list.dict"))
-    embedding_dim = mapper.token_num()
+    # Load TokenMap to map the phoneme to the index
+    with open(os.path.join(src_, "no-stress-seg.dict"), "rb") as file:
+        # Load the object from the file
+        mylist = pickle.load(file)
+        mylist = ["BLANK"] + mylist
+
+    # Now you can use the loaded object
+    mymap = TokenMap(mylist)
+    class_dim = mymap.token_num()
+    ctc_size_list = {'hid': INTER_DIM_2, 'class': class_dim}
 
     # Initialize Model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
-    if model_type == "ae":
-        model = WIDAEV1(enc_size_list=ENC_SIZE_LIST, 
+    ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
+    model_loss = AlphaCombineLoss(masked_loss, ctc_loss, alpha=1.0)
+    if model_type == "mtl":
+        model = AEPPV1(enc_size_list=ENC_SIZE_LIST, 
                    dec_size_list=DEC_SIZE_LIST, 
-                   embedding_dim=embedding_dim, 
+                   ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
-    elif model_type == "vqvae":
-        model = WIDAEV1(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
-                   embedding_dim=embedding_dim, 
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-    elif model_type == "aefixemb":
-        model = WIDAEV2(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
-                   embedding_dim=embedding_dim, 
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-    else:
-        model = WIDAEV1(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
-                   embedding_dim=embedding_dim, 
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    else: 
+        raise Exception("Model type not supported! ")
 
     model.to(device)
     initialize_model(model)
@@ -262,7 +267,6 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
     with open(model_txt_path, "w") as f:
         f.write(model_str)
         f.write("\n")
-        # f.write(str(summary(model, input_size=(128, 1, 64, 21))))
 
     # Load Data
     guide_path = os.path.join(hyper_dir, "guides")
@@ -270,6 +274,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                                      word_rec_dir, train_guide_path, load="train", select=0.3, sampled=False)
     valid_loader = load_data_general(TrainDataset, 
                                      word_rec_dir, valid_guide_path, load="valid", select=0.3, sampled=False)
+    # TODO: this is not yet modified 
     onlyST_valid_loader = load_data_phenomenon(TestDataset, 
                                                phone_rec_dir, guide_path, load="valid", select="both", sampled=True, word_guide_=valid_guide_path)
 
@@ -285,28 +290,37 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
         train_cumulative_l_embedding = 0.
         train_cumulative_l_commitment = 0.
         train_num = len(train_loader.dataset)    # train_loader
-        for idx, (x, x_lens, word) in enumerate(train_loader):
+        for idx, (x, x_lens, y_preds, y_preds_lens) in enumerate(train_loader):
             current_batch_size = x.shape[0]
             # y_lens should be the same as x_lens
             optimizer.zero_grad()
             x_mask = generate_mask_from_lengths_mat(x_lens, device=device)
-            y = x
+            y_recon = x
             x = x.to(device)
-            y = y.to(device)
-            word = torch.tensor(word, dtype=torch.long).to(device)
+            y_recon = y_recon.to(device)
+            y_preds = y_preds.to(device)
+            y_preds = y_preds.long()
 
-            x_hat, attn_w, (ze, zq) = model(x, x_lens, x_mask, word)
+            (x_hat_recon, attn_w_recon), (y_hat_preds, attn_w_preds), (ze, zq) = model(x, x_lens, x_mask)
+            y_hat_preds = y_hat_preds.permute(1, 0, 2)
 
-            l_reconstruct = masked_loss.get_loss(x_hat, y, x_mask)
+            l_alpha, (l_reconstruct, l_prediction) = model_loss.get_loss(x_hat_recon, y_recon, 
+                                                                         y_hat_preds, y_preds, 
+                                                                         x_lens, y_preds_lens, 
+                                                                         x_mask)
             if model_type == "vqvae":
-                l_embedding = masked_loss.get_loss(ze.detach(), zq, x_mask)
-                l_commitment = masked_loss.get_loss(ze, zq.detach(), x_mask)
-                loss = l_reconstruct + \
+                l_embedding = model_loss.get_loss(ze.detach(), zq, x_mask)
+                l_commitment = model_loss.get_loss(ze, zq.detach(), x_mask)
+                loss = l_alpha + \
                     l_w_embedding * l_embedding + l_w_commitment * l_commitment
-            else:
+            elif model_type == "mtl":
+                l_embedding = l_prediction
+                l_commitment = l_prediction
+                loss = l_alpha
+            else: 
                 l_embedding = torch.tensor(0)
                 l_commitment = torch.tensor(0)
-                loss = l_reconstruct
+                loss = l_alpha
 
             loss.backward()
             optimizer.step()
@@ -336,27 +350,36 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
         valid_cumulative_l_embedding = 0.
         valid_cumulative_l_commitment = 0.
         valid_num = len(valid_loader.dataset)
-        for idx, (x, x_lens, word) in enumerate(valid_loader):
+        for idx, (x, x_lens, y_preds, y_preds_lens) in enumerate(valid_loader):
             current_batch_size = x.shape[0]
             x_mask = generate_mask_from_lengths_mat(x_lens, device=device)
 
-            y = x
+            y_recon = x
             x = x.to(device)
-            y = y.to(device)
-            word = torch.tensor(word, dtype=torch.long).to(device)
+            y_recon = y_recon.to(device)
+            y_preds = y_preds.to(device)
+            y_preds = y_preds.long()
 
-            x_hat, attn_w, (ze, zq) = model(x, x_lens, x_mask, word)
+            (x_hat_recon, attn_w_recon), (y_hat_preds, attn_w_preds), (ze, zq) = model(x, x_lens, x_mask)
+            y_hat_preds = y_hat_preds.permute(1, 0, 2)
 
-            l_reconstruct = masked_loss.get_loss(x_hat, y, x_mask)
+            l_alpha, (l_reconstruct, l_prediction) = model_loss.get_loss(x_hat_recon, y_recon, 
+                                                                         y_hat_preds, y_preds, 
+                                                                         x_lens, y_preds_lens, 
+                                                                         x_mask)
             if model_type == "vqvae":
-                l_embedding = masked_loss.get_loss(ze.detach(), zq, x_mask)
-                l_commitment = masked_loss.get_loss(ze, zq.detach(), x_mask)
-                loss = l_reconstruct + \
+                l_embedding = model_loss.get_loss(ze.detach(), zq, x_mask)
+                l_commitment = model_loss.get_loss(ze, zq.detach(), x_mask)
+                loss = l_alpha + \
                     l_w_embedding * l_embedding + l_w_commitment * l_commitment
-            else:
+            elif model_type == "mtl":
+                l_embedding = l_prediction
+                l_commitment = l_prediction
+                loss = l_alpha
+            else: 
                 l_embedding = torch.tensor(0)
                 l_commitment = torch.tensor(0)
-                loss = l_reconstruct
+                loss = l_alpha
 
             valid_loss += loss.item() * current_batch_size
             valid_cumulative_l_reconstruct += l_reconstruct.item() * current_batch_size
@@ -369,6 +392,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
         valid_embedding_losses.append(valid_cumulative_l_embedding / valid_num)
         valid_commitment_losses.append(valid_cumulative_l_commitment / valid_num)
 
+        # TODO: @20240525 2111 BELOW NOT MODIFIED
         # Valid (ST)
         model.eval()
         onlyST_valid_loss = 0.
@@ -451,7 +475,7 @@ if __name__ == "__main__":
 
     ## Hyper-preparations
     ts = args.timestamp
-    train_name = "C_0D"
+    train_name = "C_0E"
     model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}")
     print(f"{train_name}-{ts}")
     mk(model_save_dir) 
