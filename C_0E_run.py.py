@@ -18,7 +18,8 @@ import argparse
 # import summary
 from model_model import WIDAEV1, WIDAEV2
 from model_dataset import DS_Tools
-from model_dataset import WordDatasetWord as TrainDataset
+# this is used for CTC pred
+from model_dataset import WordDatasetPhoneseq as TrainDataset
 from model_dataset import TargetVowelDatasetWord as TestDataset
 from model_dataset import Normalizer, DeNormalizer, TokenMap, WordDictionary
 from model_dataset import MelSpecTransformDB as TheTransform
