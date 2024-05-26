@@ -648,7 +648,7 @@ class TargetVowelDataset(Dataset):
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
         return xx_pad, x_lens, pt, sn
     
-class TargetVowelDatasetWord(Dataset):
+class TargetVowelDatasetWord(Dataset): 
     # Target means the phenomenon-target, that is, e.g. /th/ or /st/. 
     # This dataset additionally returns the word. 
     # Let's use the select field to pass in the word list.
