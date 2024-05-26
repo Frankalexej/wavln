@@ -319,6 +319,8 @@ class WordDatasetPhoneseq(WordDataset):
         
             with open(ground_truth_path, 'wb') as file:
                 pickle.dump(self.ground_truth_set, file)
+
+        assert len(self.dataset) == len(self.ground_truth_set)
     
     def __len__(self):
         return len(self.dataset)
@@ -1061,7 +1063,8 @@ class TargetVowelDatasetPhoneseq(Dataset):
             assert sample_rate_S == sample_rate_T == sample_rate_V
 
             data = torch.cat([S_data, T_data, V_data], dim=1)
-            phoneseq = [self.mapper.encode(segment) for segment in ['S', self.stop_name[idx], self.vowel_name[idx]]]
+            phoneseq = torch.tensor([self.mapper.encode(segment) for segment in ['S', self.stop_name[idx], self.vowel_name[idx]]], 
+                                    dtype=torch.long)
         else: 
             # "T"
             # NOTE: in this way we equate STV and #TV conditions and they are now directly comparable. 
@@ -1080,7 +1083,8 @@ class TargetVowelDatasetPhoneseq(Dataset):
             assert sample_rate_Sil == sample_rate_T == sample_rate_V
 
             data = torch.cat([Sil_data, T_data, V_data], dim=1)
-            phoneseq = [self.mapper.encode(segment) for segment in ['SIL', self.stop_name[idx], self.vowel_name[idx]]]
+            phoneseq = torch.tensor([self.mapper.encode(segment) for segment in ['SIL', self.stop_name[idx], self.vowel_name[idx]]], 
+                                    dtype=torch.long)
 
         if self.transform:
             data = self.transform(data)

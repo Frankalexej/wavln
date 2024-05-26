@@ -462,10 +462,10 @@ class AEPPV1(Module):
         # TODO: tomorrow just write the trining loop. 
         return (ae_dec_out, pp_dec_out), (ae_attn_w, pp_attn_w), (ze, zq)
     
-    def encode(self, inputs, input_lens, in_mask, word_info): 
+    def encode(self, inputs, input_lens, in_mask): 
         ze = self.encoder(inputs, input_lens)
         zq = ze
-        return ze, zq   # !!! Check the use of ze and zq in later stages. Don't mix!!!
+        return ze, zq
 
 ############################ CTC Predictor [20240223] ############################
 class CTCEncoderV1(Module): 

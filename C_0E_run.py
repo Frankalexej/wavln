@@ -81,7 +81,7 @@ def generate_separation(T_path, ST_path, target_path):
 def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, sampled=True):
     # for general, path is easy, let's just load it
     integrated = pd.read_csv(target_path)
-    integrated = integrated.sample(frac=1).reset_index(drop=True)
+    # integrated = integrated.sample(frac=1).reset_index(drop=True)
 
     mytrans = TheTransform(sample_rate=REC_SAMPLE_RATE, 
                         n_fft=N_FFT, n_mels=N_MELS, 
@@ -259,7 +259,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
     ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
-    model_loss = AlphaCombineLoss(masked_loss, ctc_loss, alpha=1.0)
+    model_loss = AlphaCombineLoss(masked_loss, ctc_loss, alpha=0.2)
     if model_type == "mtl":
         model = AEPPV1(enc_size_list=ENC_SIZE_LIST, 
                    dec_size_list=DEC_SIZE_LIST, 
@@ -309,7 +309,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
             y_preds = y_preds.to(device)
             y_preds = y_preds.long()
 
-            (x_hat_recon, attn_w_recon), (y_hat_preds, attn_w_preds), (ze, zq) = model(x, x_lens, x_mask)
+            (x_hat_recon, y_hat_preds), (attn_w_recon, attn_w_preds), (ze, zq) = model(x, x_lens, x_mask)
             y_hat_preds = y_hat_preds.permute(1, 0, 2)
 
             l_alpha, (l_reconstruct, l_prediction) = model_loss.get_loss(x_hat_recon, y_recon, 
@@ -368,7 +368,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
             y_preds = y_preds.to(device)
             y_preds = y_preds.long()
 
-            (x_hat_recon, attn_w_recon), (y_hat_preds, attn_w_preds), (ze, zq) = model(x, x_lens, x_mask)
+            (x_hat_recon, y_hat_preds), (attn_w_recon, attn_w_preds), (ze, zq) = model(x, x_lens, x_mask)
             y_hat_preds = y_hat_preds.permute(1, 0, 2)
 
             l_alpha, (l_reconstruct, l_prediction) = model_loss.get_loss(x_hat_recon, y_recon, 
@@ -417,7 +417,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
             y_preds = y_preds.to(device)
             y_preds = y_preds.long()
 
-            (x_hat_recon, attn_w_recon), (y_hat_preds, attn_w_preds), (ze, zq) = model(x, x_lens, x_mask)
+            (x_hat_recon, y_hat_preds), (attn_w_recon, attn_w_preds), (ze, zq) = model(x, x_lens, x_mask)
             y_hat_preds = y_hat_preds.permute(1, 0, 2)
 
             l_alpha, (l_reconstruct, l_prediction) = model_loss.get_loss(x_hat_recon, y_recon, 
@@ -493,11 +493,11 @@ if __name__ == "__main__":
     ts = args.timestamp
     train_name = "C_0E"
     model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}")
-    print(f"{train_name}-{ts}")
     mk(model_save_dir) 
 
     if args.dataprepare: 
         # data prepare
+        print(f"{train_name}-{ts}-DataPrepare")
         guide_path = os.path.join(model_save_dir, "guides")
         mk(guide_path)
         generate_separation(os.path.join(src_, "phi-T-guide.csv"), 
@@ -505,5 +505,6 @@ if __name__ == "__main__":
                             guide_path)
 
     else: 
+        print(f"{train_name}-{ts}")
         torch.cuda.set_device(args.gpu)
         run_once(model_save_dir, model_type=args.model, condition=args.condition)
