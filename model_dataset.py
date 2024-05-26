@@ -966,7 +966,137 @@ class TargetVowelDatasetBoundaryWord(Dataset):
 
 
 
+#######################################################################################################
+################################### TargetVowelDataset for Phoneseq ###################################
+# Defs
+class SilenceSampler_for_TV: 
+    def __init__(self): 
+        # mean and std fixed calculated from ST dataset. 
+        mean = 0.09068133728311471
+        std = 0.03271727752124411
 
+        self.sigma = np.sqrt(np.log(1 + (std/mean)**2))
+        self.mu = np.log(mean) - 0.5 * self.sigma**2
+    
+    def sample(self, size): 
+        samples = np.random.lognormal(mean=self.mu, sigma=self.sigma, size=size)
+        return samples
+    
+
+class WhiteNoiseGen: 
+    def __init__(self, sample_rate, amplitude_scale):
+        self.sr = sample_rate
+        self.amplitude_scale = amplitude_scale
+    
+    def generate(self, duration): 
+        num_samples = int(duration * self.sr)
+        noise = torch.randn(num_samples) * self.amplitude_scale
+        noise = noise.unsqueeze(0)
+        return noise, self.sr
+
+
+class TargetVowelDatasetPhoneseq(Dataset): 
+    # Target means the phenomenon-target, that is, e.g. /th/ or /st/. 
+    # This dataset additionally returns the phone seq. 
+    # NOTE: for TV condition we add silence as # in the place of S
+    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
+        # guide_file = pd.read_csv(guide_)
+        if isinstance(guide_, str):
+            guide_file = pd.read_csv(guide_)
+        elif isinstance(guide_, pd.DataFrame):
+            guide_file = guide_
+        else:
+            raise Exception("Guide neither to read or to be used directly")
+        
+        pre_path_col = guide_file["pre_path"]
+        stop_path_col = guide_file["stop_path"]
+        vowel_path_col = guide_file["vowel_path"]
+
+        phi_type_col = guide_file["phi_type"]
+        stop_name_col = guide_file["stop"]
+        vowel_name_col = guide_file["vowel"]
+
+        # generate random length silence for TV condition
+        self.silence_duration = SilenceSampler_for_TV().sample(len(stop_name_col))
+        
+        self.guide_file = guide_file
+        self.dataset = stop_path_col.tolist()
+        self.pre_path = pre_path_col.tolist()
+        self.vowel_path = vowel_path_col.tolist()
+        self.phi_type = phi_type_col.tolist()
+        self.stop_name = stop_name_col.tolist()
+        self.vowel_name = vowel_name_col.tolist()
+        self.src_dir = src_dir
+        self.transform = transform
+
+        self.mapper = mapper
+        self.noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=0.01)
+        # should not be used unless for derived classes that use ground truth. 
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        
+        if self.phi_type[idx] == "ST": 
+            # read two and concat
+            S_name = os.path.join(
+                self.src_dir, 
+                self.pre_path[idx]
+            )
+            T_name = os.path.join(
+                self.src_dir, 
+                self.dataset[idx]
+            )
+            V_name = os.path.join(
+                self.src_dir, 
+                self.vowel_path[idx]
+            )
+
+            S_data, sample_rate_S = torchaudio.load(S_name, normalize=True)
+            T_data, sample_rate_T = torchaudio.load(T_name, normalize=True)
+            V_data, sample_rate_V = torchaudio.load(V_name, normalize=True)
+            assert sample_rate_S == sample_rate_T == sample_rate_V
+
+            data = torch.cat([S_data, T_data, V_data], dim=1)
+            phoneseq = [self.mapper.encode(segment) for segment in ['S', self.stop_name[idx], self.vowel_name[idx]]]
+        else: 
+            # "T"
+            # NOTE: in this way we equate STV and #TV conditions and they are now directly comparable. 
+            Sil_duration = self.silence_duration[idx]
+            T_name = os.path.join(
+                self.src_dir, 
+                self.dataset[idx]
+            )
+            V_name = os.path.join(
+                self.src_dir, 
+                self.vowel_path[idx]
+            )
+            Sil_data, sample_rate_Sil = self.noise_gen.generate(Sil_duration)
+            T_data, sample_rate_T = torchaudio.load(T_name, normalize=True)
+            V_data, sample_rate_V = torchaudio.load(V_name, normalize=True)
+            assert sample_rate_Sil == sample_rate_T == sample_rate_V
+
+            data = torch.cat([Sil_data, T_data, V_data], dim=1)
+            phoneseq = [self.mapper.encode(segment) for segment in ['SIL', self.stop_name[idx], self.vowel_name[idx]]]
+
+        if self.transform:
+            data = self.transform(data)
+        
+        return data, self.phi_type[idx], self.stop_name[idx], phoneseq
+
+    @staticmethod
+    def collate_fn(data):
+        # only working for one data at the moment
+        batch_first = True
+        xx, phi_type, stop_name, phoneseq = zip(*data)
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        phoneseq_lens = [len(x) for x in phoneseq]
+        phoneseq_pad = pad_sequence(phoneseq, batch_first=batch_first, padding_value=0)
+        return (xx_pad, phoneseq_pad), (x_lens, phoneseq_lens), phi_type, stop_name
 
 
 

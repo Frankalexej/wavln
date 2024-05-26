@@ -20,7 +20,7 @@ from model_model import AEPPV1
 from model_dataset import DS_Tools
 # this is used for CTC pred
 from model_dataset import WordDatasetPhoneseq as TrainDataset
-from model_dataset import TargetVowelDatasetWord as TestDataset
+from model_dataset import TargetVowelDatasetPhoneseq as TestDataset
 from model_dataset import Normalizer, DeNormalizer, TokenMap, WordDictionary
 from model_dataset import MelSpecTransformDB as TheTransform
 from paths import *
@@ -93,6 +93,7 @@ def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, s
         # Load the object from the file
         mylist = pickle.load(file)
         mylist = ["BLANK"] + mylist
+        mylist = mylist + ["SIL"]
 
     # Now you can use the loaded object
     mymap = TokenMap(mylist)
@@ -140,11 +141,18 @@ def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="bo
                         normalizer=Normalizer.norm_mvn, 
                         denormalizer=DeNormalizer.norm_mvn)
     
-    mymap = WordDictionary(os.path.join(src_, "unique_words_list.dict"))
+    # Load TokenMap to map the phoneme to the index
+    with open(os.path.join(src_, "no-stress-seg.dict"), "rb") as file:
+        # Load the object from the file
+        mylist = pickle.load(file)
+        mylist = ["BLANK"] + mylist
+        mylist = mylist + ["SIL"]
+
+    # Now you can use the loaded object
+    mymap = TokenMap(mylist)
 
     ds = dataset(rec_dir, 
                         integrated, 
-                        select=word_guide, 
                         mapper=mymap,
                         transform=mytrans)
 
@@ -240,6 +248,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
         # Load the object from the file
         mylist = pickle.load(file)
         mylist = ["BLANK"] + mylist
+        mylist = mylist + ["SIL"]   # this is to fit STV vs #TV
 
     # Now you can use the loaded object
     mymap = TokenMap(mylist)
@@ -274,7 +283,6 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                                      word_rec_dir, train_guide_path, load="train", select=0.3, sampled=False)
     valid_loader = load_data_general(TrainDataset, 
                                      word_rec_dir, valid_guide_path, load="valid", select=0.3, sampled=False)
-    # TODO: this is not yet modified 
     onlyST_valid_loader = load_data_phenomenon(TestDataset, 
                                                phone_rec_dir, guide_path, load="valid", select="both", sampled=True, word_guide_=valid_guide_path)
 
@@ -392,7 +400,6 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
         valid_embedding_losses.append(valid_cumulative_l_embedding / valid_num)
         valid_commitment_losses.append(valid_cumulative_l_commitment / valid_num)
 
-        # TODO: @20240525 2111 BELOW NOT MODIFIED
         # Valid (ST)
         model.eval()
         onlyST_valid_loss = 0.
@@ -400,27 +407,36 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
         onlyST_valid_cumulative_l_embedding = 0.
         onlyST_valid_cumulative_l_commitment = 0.
         onlyST_valid_num = len(onlyST_valid_loader.dataset)
-        for idx, (x, x_lens, pt, sn, word) in enumerate(onlyST_valid_loader):
+        for idx, ((x, y_preds), (x_lens, y_preds_lens), pt, sn) in enumerate(onlyST_valid_loader):
             current_batch_size = x.shape[0]
             x_mask = generate_mask_from_lengths_mat(x_lens, device=device)
 
-            y = x
+            y_recon = x
             x = x.to(device)
-            y = y.to(device)
-            word = torch.tensor(word, dtype=torch.long).to(device)
+            y_recon = y_recon.to(device)
+            y_preds = y_preds.to(device)
+            y_preds = y_preds.long()
 
-            x_hat, attn_w, (ze, zq) = model(x, x_lens, x_mask, word)
+            (x_hat_recon, attn_w_recon), (y_hat_preds, attn_w_preds), (ze, zq) = model(x, x_lens, x_mask)
+            y_hat_preds = y_hat_preds.permute(1, 0, 2)
 
-            l_reconstruct = masked_loss.get_loss(x_hat, y, x_mask)
+            l_alpha, (l_reconstruct, l_prediction) = model_loss.get_loss(x_hat_recon, y_recon, 
+                                                                         y_hat_preds, y_preds, 
+                                                                         x_lens, y_preds_lens, 
+                                                                         x_mask)
             if model_type == "vqvae":
-                l_embedding = masked_loss.get_loss(ze.detach(), zq, x_mask)
-                l_commitment = masked_loss.get_loss(ze, zq.detach(), x_mask)
-                loss = l_reconstruct + \
+                l_embedding = model_loss.get_loss(ze.detach(), zq, x_mask)
+                l_commitment = model_loss.get_loss(ze, zq.detach(), x_mask)
+                loss = l_alpha + \
                     l_w_embedding * l_embedding + l_w_commitment * l_commitment
-            else:
+            elif model_type == "mtl":
+                l_embedding = l_prediction
+                l_commitment = l_prediction
+                loss = l_alpha
+            else: 
                 l_embedding = torch.tensor(0)
                 l_commitment = torch.tensor(0)
-                loss = l_reconstruct
+                loss = l_alpha
 
             onlyST_valid_loss += loss.item() * current_batch_size
             onlyST_valid_cumulative_l_reconstruct += l_reconstruct.item() * current_batch_size
