@@ -15,8 +15,8 @@ ms=('mtl')
 cs=('u')
 
 # Generate a 10-digit random number
-# ts=$(date +"%m%d%H%M%S")
-ts='0526172101'
+ts=$(date +"%m%d%H%M%S")
+# ts='0526172101'
 echo "Timestamp: $ts"
 
 # Loop from 1 to 10, incrementing by 1

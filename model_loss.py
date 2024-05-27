@@ -36,6 +36,17 @@ class AlphaCombineLoss:
 
         return reconstruction_loss + prediction_loss_term, (reconstruction_loss, prediction_loss)
     
+class PseudoAlphaCombineLoss_Pred:
+    def __init__(self, recon_loss, pred_loss, alpha=0.1):
+        self.recon_loss = recon_loss
+        self.pred_loss = pred_loss
+        self.alpha = alpha
+    
+    def get_loss(self, y_hat_recon, y_recon, y_hat_pred, y_pred, x_lens, y_pred_lens, mask): 
+        prediction_loss = self.pred_loss(y_hat_pred, y_pred, x_lens, y_pred_lens)
+
+        return prediction_loss, (0, prediction_loss)
+    
 class MaskedFlatLoss: 
     # This used for CrossEntropyLoss, which needs (B, C, L) and (B, L) as input and will give
     # (B, L) as output. Therefore masking can simply be appied with mask being of shape (B, L)

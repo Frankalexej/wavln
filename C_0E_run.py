@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import argparse
 # import summary
-from model_model import AEPPV1
+from model_model import AEPPV1, AEPPV2
 from model_dataset import DS_Tools
 # this is used for CTC pred
 from model_dataset import WordDatasetPhoneseq as TrainDataset
@@ -257,11 +257,21 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
 
     # Initialize Model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
-    ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
-    model_loss = AlphaCombineLoss(masked_loss, ctc_loss, alpha=0.2)
+
     if model_type == "mtl":
+        masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
+        ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
+        model_loss = AlphaCombineLoss(masked_loss, ctc_loss, alpha=0.2)
+
         model = AEPPV1(enc_size_list=ENC_SIZE_LIST, 
+                   dec_size_list=DEC_SIZE_LIST, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "pp": 
+        masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
+        ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
+        model_loss = PseudoAlphaCombineLoss_Pred(masked_loss, ctc_loss, alpha=0.2)
+        model = AEPPV2(enc_size_list=ENC_SIZE_LIST, 
                    dec_size_list=DEC_SIZE_LIST, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
