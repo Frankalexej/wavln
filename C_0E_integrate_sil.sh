@@ -11,7 +11,7 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=('mtl-phi')
+ms=('mtl')
 cs=('u')
 
 # Generate a 10-digit random number

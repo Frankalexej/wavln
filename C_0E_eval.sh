@@ -11,15 +11,16 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=('mtl-phi')
+ms=('mtl')
 cs=('u')
-
+is=(1 3)
 # Generate a 10-digit random number
 ts='0527172800'
 echo "Timestamp: $ts"
 
 # Loop from 1 to 10, incrementing by 1
-for (( i=1; i<=5; i++ )); do
+# for (( i=1; i<=5; i++ )); do
+for i in "${is[@]}"; do
     # Loop over each combination of arguments
     for m in "${ms[@]}"; do
         for c in "${cs[@]}"; do

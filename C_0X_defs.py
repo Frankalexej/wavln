@@ -99,7 +99,7 @@ def get_in_phone_attn(attn, starts, ends, total):
 def interpolate_traj(current, n_steps=100): 
     current_steps = np.linspace(0, 1, num=len(current))
     target_steps = np.linspace(0, 1, num=n_steps)
-    interp_func = interp1d(current_steps, current, kind='linear')
+    interp_func = interp1d(current_steps, current, kind='linear', fill_value="extrapolate")
     return interp_func(target_steps)
 
 def cutHid(hid, cutstart, cutend, start_offset=0, end_offset=1): 

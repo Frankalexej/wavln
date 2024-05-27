@@ -12,13 +12,13 @@ generate_random_number() {
 
 # Arrays of options for each argument
 # ms=('mtl')
-ms=('pp')
-runs=("1")
+ms=('mtl')
+runs=("1 2 3 4 5")
 cs=('u')
 
 # Generate a 10-digit random number
 # ts='0526172101'
-ts='0527123053'
+ts='0527172800'
 echo "Timestamp: $ts"
 re='re'
 echo "Runeval: $re"
