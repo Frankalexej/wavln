@@ -11,24 +11,22 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=('mtl')
+ms=('mtl-phi')
 cs=('u')
 
 # Generate a 10-digit random number
-# ts=$(date +"%m%d%H%M%S")
 ts='0527172800'
 echo "Timestamp: $ts"
 
 # Loop from 1 to 10, incrementing by 1
 for (( i=1; i<=5; i++ )); do
     # Loop over each combination of arguments
-    python C_0E_run.py -ts "$ts-$i" -dp
     for m in "${ms[@]}"; do
         for c in "${cs[@]}"; do
             # Randomly select a GPU between 0 and 8
             gpu=$((RANDOM % 9))
             # Run the Python script with the current combination of arguments in the background
-            python C_0E_run.py -ts "$ts-$i" -m "$m" -cd "$c" -gpu "$gpu" &
+            python C_0E_eval.py -ts "$ts" -rn "$i" -m "$m" -cd "$c" -gpu "$gpu" &
         done
     done
 done

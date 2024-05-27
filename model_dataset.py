@@ -344,7 +344,8 @@ class WordDatasetPhoneseq(WordDataset):
         y_lens = [len(x) for x in yy]
         yy_pad = pad_sequence(yy, batch_first=batch_first, padding_value=0)
         # yy_cat = torch.cat(yy)
-        return xx_pad, x_lens, yy_pad, y_lens
+        # NOTE: this is to be consistent with TargetVowel Dataset
+        return (xx_pad, yy_pad), (x_lens, y_lens), None, None
     
     @staticmethod
     def collate_fn_yNoPad(data):
@@ -357,7 +358,7 @@ class WordDatasetPhoneseq(WordDataset):
         y_lens = [len(x) for x in yy]
         # yy_pad = pad_sequence(yy, batch_first=batch_first, padding_value=0)
         # yy_cat = torch.cat(yy)
-        return xx_pad, x_lens, yy, y_lens
+        return (xx_pad, yy), (x_lens, y_lens), None, None
 
 class WordDatasetBoundary(WordDataset):
     """
@@ -1033,7 +1034,6 @@ class TargetVowelDatasetPhoneseq(Dataset):
 
         self.mapper = mapper
         self.noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=0.01)
-        # should not be used unless for derived classes that use ground truth. 
     
     def __len__(self):
         return len(self.dataset)
@@ -1104,7 +1104,115 @@ class TargetVowelDatasetPhoneseq(Dataset):
 
 
 
+class TargetVowelDatasetBoundaryPhoneseq(Dataset): 
+    # this mixes T and ST. 
+    # Target means the phenomenon-target, that is, e.g. /th/ or /st/. 
+    # NOTE: for TV condition we add silence as # in the place of S
+    # NOTE: this version does not generate random silence here, because for evaluation 
+    # NOTE: silence can be generated outside. 
+    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None):
+        # guide_file = pd.read_csv(guide_)
+        if isinstance(guide_, str):
+            guide_file = pd.read_csv(guide_)
+        elif isinstance(guide_, pd.DataFrame):
+            guide_file = guide_
+        else:
+            raise Exception("Guide neither to read or to be used directly")
+        
+        guide_file["first_sep_frame"] = guide_file.apply(lambda x: time_to_frame(x['stop_startTime'] - x['pre_startTime']), axis=1)
+        guide_file["second_sep_frame"] = guide_file.apply(lambda x: time_to_frame(x['vowel_startTime'] - x['pre_startTime']), axis=1)
+        
+        pre_path_col = guide_file["pre_path"]
+        stop_path_col = guide_file["stop_path"]
+        vowel_path_col = guide_file["vowel_path"]
+        phi_type_col = guide_file["phi_type"]
+        stop_name_col = guide_file["stop"]
+        vowel_name_col = guide_file["vowel"]
+        first_sep_frame_col = guide_file["first_sep_frame"]
+        second_sep_frame_col = guide_file["second_sep_frame"]
+        
+        # generate random length silence for TV condition
+        self.silence_duration = (guide_file['stop_startTime'] - guide_file['pre_startTime']).tolist()
 
+        self.guide_file = guide_file
+        self.dataset = stop_path_col.tolist()
+        self.pre_path = pre_path_col.tolist()
+        self.vowel_path = vowel_path_col.tolist()
+        self.phi_type = phi_type_col.tolist()
+        self.stop_name = stop_name_col.tolist()
+        self.vowel_name = vowel_name_col.tolist()
+        self.first_sep_frame = first_sep_frame_col.tolist()
+        self.second_sep_frame = second_sep_frame_col.tolist()
+        self.src_dir = src_dir
+        self.transform = transform
+
+        self.mapper = mapper
+        self.noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=0.01)
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        if self.phi_type[idx] == "ST": 
+            # read two and concat
+            S_name = os.path.join(
+                self.src_dir, 
+                self.pre_path[idx]
+            )
+            T_name = os.path.join(
+                self.src_dir, 
+                self.dataset[idx]
+            )
+            V_name = os.path.join(
+                self.src_dir, 
+                self.vowel_path[idx]
+            )
+
+            S_data, sample_rate_S = torchaudio.load(S_name, normalize=True)
+            T_data, sample_rate_T = torchaudio.load(T_name, normalize=True)
+            V_data, sample_rate_V = torchaudio.load(V_name, normalize=True)
+            assert sample_rate_S == sample_rate_T == sample_rate_V
+
+            data = torch.cat([S_data, T_data, V_data], dim=1)
+            phoneseq = torch.tensor([self.mapper.encode(segment) for segment in ['S', self.stop_name[idx], self.vowel_name[idx]]], 
+                                    dtype=torch.long)
+        else: 
+            # "T"
+            # NOTE: in this way we equate STV and #TV conditions and they are now directly comparable. 
+            Sil_duration = self.silence_duration[idx]
+            T_name = os.path.join(
+                self.src_dir, 
+                self.dataset[idx]
+            )
+            V_name = os.path.join(
+                self.src_dir, 
+                self.vowel_path[idx]
+            )
+            Sil_data, sample_rate_Sil = self.noise_gen.generate(Sil_duration)
+            T_data, sample_rate_T = torchaudio.load(T_name, normalize=True)
+            V_data, sample_rate_V = torchaudio.load(V_name, normalize=True)
+            assert sample_rate_Sil == sample_rate_T == sample_rate_V
+
+            data = torch.cat([Sil_data, T_data, V_data], dim=1)
+            phoneseq = torch.tensor([self.mapper.encode(segment) for segment in ['SIL', self.stop_name[idx], self.vowel_name[idx]]], 
+                                    dtype=torch.long)
+
+        if self.transform:
+            data = self.transform(data)
+        
+        return data, self.phi_type[idx], self.stop_name[idx], self.vowel_name[idx], self.first_sep_frame[idx], self.second_sep_frame[idx], phoneseq
+
+    @staticmethod
+    def collate_fn(data):
+        # only working for one data at the moment
+        batch_first = True
+        xx, pt, sn, vn, sf1, sf2, phoneseq = zip(*data)
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        return xx_pad, x_lens, pt, sn, vn, sf1, sf2, phoneseq
 
 
 

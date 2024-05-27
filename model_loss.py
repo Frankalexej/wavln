@@ -45,7 +45,7 @@ class PseudoAlphaCombineLoss_Pred:
     def get_loss(self, y_hat_recon, y_recon, y_hat_pred, y_pred, x_lens, y_pred_lens, mask): 
         prediction_loss = self.pred_loss(y_hat_pred, y_pred, x_lens, y_pred_lens)
 
-        return prediction_loss, (0, prediction_loss)
+        return prediction_loss, (torch.tensor(0), prediction_loss)
     
 class MaskedFlatLoss: 
     # This used for CrossEntropyLoss, which needs (B, C, L) and (B, L) as input and will give

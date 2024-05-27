@@ -78,7 +78,7 @@ def generate_separation(T_path, ST_path, target_path):
     valid_sampled_t.to_csv(os.path.join(target_path, "T-valid-sampled.csv"), index=False)
     return 
 
-def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, sampled=True):
+def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, sampled=True, batch_size=1):
     # for general, path is easy, let's just load it
     integrated = pd.read_csv(target_path)
     # integrated = integrated.sample(frac=1).reset_index(drop=True)
@@ -109,10 +109,10 @@ def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, s
     use_ds, remain_ds = random_split(ds, [use_len, remain_len])
 
     use_shuffle = True if load == "train" else False
-    loader = DataLoader(use_ds, batch_size=BATCH_SIZE, shuffle=use_shuffle, num_workers=LOADER_WORKER, collate_fn=dataset.collate_fn)
+    loader = DataLoader(use_ds, batch_size=batch_size, shuffle=use_shuffle, num_workers=LOADER_WORKER, collate_fn=dataset.collate_fn)
     return loader
 
-def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="both", sampled=True, word_guide_=None):
+def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="both", sampled=True, batch_size=1):
     if sampled: 
         sample_suffix = "-sampled"
     else:
@@ -130,11 +130,6 @@ def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="bo
         raise ValueError("select must be either both, T or ST")
 
     integrated = integrated.sample(frac=1).reset_index(drop=True)
-
-    if word_guide_ is not None: 
-        word_guide = pd.read_csv(word_guide_)
-    else: 
-        word_guide = pd.read_csv(os.path.join(src_, "guide_valid.csv"))
 
     mytrans = TheTransform(sample_rate=REC_SAMPLE_RATE, 
                         n_fft=N_FFT, n_mels=N_MELS, 
@@ -157,7 +152,7 @@ def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="bo
                         transform=mytrans)
 
     use_shuffle = True if load == "train" else False
-    loader = DataLoader(ds, batch_size=BATCH_SIZE, shuffle=use_shuffle, num_workers=LOADER_WORKER, collate_fn=dataset.collate_fn)
+    loader = DataLoader(ds, batch_size=batch_size, shuffle=use_shuffle, num_workers=LOADER_WORKER, collate_fn=dataset.collate_fn)
     return loader
 
 
@@ -259,6 +254,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     if model_type == "mtl":
+        batch_size = 512
         masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
         ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
         model_loss = AlphaCombineLoss(masked_loss, ctc_loss, alpha=0.2)
@@ -267,7 +263,17 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                    dec_size_list=DEC_SIZE_LIST, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
+        
+        # Load Data
+        guide_path = os.path.join(hyper_dir, "guides")
+        train_loader = load_data_general(TrainDataset, 
+                                        word_rec_dir, train_guide_path, load="train", select=0.15, sampled=False, batch_size=batch_size)
+        valid_loader = load_data_general(TrainDataset, 
+                                        word_rec_dir, valid_guide_path, load="valid", select=0.15, sampled=False, batch_size=batch_size)
+        onlyST_valid_loader = load_data_phenomenon(TestDataset, 
+                                                phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
     elif model_type == "pp": 
+        batch_size = 512
         masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
         ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
         model_loss = PseudoAlphaCombineLoss_Pred(masked_loss, ctc_loss, alpha=0.2)
@@ -275,6 +281,35 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                    dec_size_list=DEC_SIZE_LIST, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
+        # Load Data
+        guide_path = os.path.join(hyper_dir, "guides")
+        train_loader = load_data_general(TrainDataset, 
+                                        word_rec_dir, train_guide_path, load="train", select=0.3, sampled=False, batch_size=batch_size)
+        valid_loader = load_data_general(TrainDataset, 
+                                        word_rec_dir, valid_guide_path, load="valid", select=0.3, sampled=False, batch_size=batch_size)
+        onlyST_valid_loader = load_data_phenomenon(TestDataset, 
+                                                phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
+        
+    elif model_type == "mtl-phi": 
+        batch_size = 32
+        # NOTE: mtl-phi is just training on phenomenon dataset and test on that as well. 
+        masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
+        ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
+        model_loss = AlphaCombineLoss(masked_loss, ctc_loss, alpha=0.2)
+
+        model = AEPPV1(enc_size_list=ENC_SIZE_LIST, 
+                   dec_size_list=DEC_SIZE_LIST, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+        
+        # Load Data
+        guide_path = os.path.join(hyper_dir, "guides")
+        train_loader = load_data_phenomenon(TestDataset, 
+                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size)
+        valid_loader = load_data_phenomenon(TestDataset, 
+                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
+        onlyST_valid_loader = load_data_phenomenon(TestDataset, 
+                                                phone_rec_dir, guide_path, load="valid", select="ST", sampled=True, batch_size=batch_size)
     else: 
         raise Exception("Model type not supported! ")
 
@@ -286,15 +321,6 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
     with open(model_txt_path, "w") as f:
         f.write(model_str)
         f.write("\n")
-
-    # Load Data
-    guide_path = os.path.join(hyper_dir, "guides")
-    train_loader = load_data_general(TrainDataset, 
-                                     word_rec_dir, train_guide_path, load="train", select=0.3, sampled=False)
-    valid_loader = load_data_general(TrainDataset, 
-                                     word_rec_dir, valid_guide_path, load="valid", select=0.3, sampled=False)
-    onlyST_valid_loader = load_data_phenomenon(TestDataset, 
-                                               phone_rec_dir, guide_path, load="valid", select="both", sampled=True, word_guide_=valid_guide_path)
 
     num_epochs = 100
     l_w_embedding = 1
@@ -308,7 +334,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
         train_cumulative_l_embedding = 0.
         train_cumulative_l_commitment = 0.
         train_num = len(train_loader.dataset)    # train_loader
-        for idx, (x, x_lens, y_preds, y_preds_lens) in enumerate(train_loader):
+        for idx, ((x, y_preds), (x_lens, y_preds_lens), pt, sn) in enumerate(train_loader):
             current_batch_size = x.shape[0]
             # y_lens should be the same as x_lens
             optimizer.zero_grad()
@@ -326,19 +352,8 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                                                                          y_hat_preds, y_preds, 
                                                                          x_lens, y_preds_lens, 
                                                                          x_mask)
-            if model_type == "vqvae":
-                l_embedding = model_loss.get_loss(ze.detach(), zq, x_mask)
-                l_commitment = model_loss.get_loss(ze, zq.detach(), x_mask)
-                loss = l_alpha + \
-                    l_w_embedding * l_embedding + l_w_commitment * l_commitment
-            elif model_type == "mtl":
-                l_embedding = l_prediction
-                l_commitment = l_prediction
-                loss = l_alpha
-            else: 
-                l_embedding = torch.tensor(0)
-                l_commitment = torch.tensor(0)
-                loss = l_alpha
+            
+            loss, l_reconstruct, l_embedding, l_commitment = l_alpha, l_reconstruct, l_prediction, l_prediction
 
             loss.backward()
             optimizer.step()
@@ -368,7 +383,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
         valid_cumulative_l_embedding = 0.
         valid_cumulative_l_commitment = 0.
         valid_num = len(valid_loader.dataset)
-        for idx, (x, x_lens, y_preds, y_preds_lens) in enumerate(valid_loader):
+        for idx, ((x, y_preds), (x_lens, y_preds_lens), pt, sn) in enumerate(valid_loader):
             current_batch_size = x.shape[0]
             x_mask = generate_mask_from_lengths_mat(x_lens, device=device)
 
@@ -385,19 +400,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                                                                          y_hat_preds, y_preds, 
                                                                          x_lens, y_preds_lens, 
                                                                          x_mask)
-            if model_type == "vqvae":
-                l_embedding = model_loss.get_loss(ze.detach(), zq, x_mask)
-                l_commitment = model_loss.get_loss(ze, zq.detach(), x_mask)
-                loss = l_alpha + \
-                    l_w_embedding * l_embedding + l_w_commitment * l_commitment
-            elif model_type == "mtl":
-                l_embedding = l_prediction
-                l_commitment = l_prediction
-                loss = l_alpha
-            else: 
-                l_embedding = torch.tensor(0)
-                l_commitment = torch.tensor(0)
-                loss = l_alpha
+            loss, l_reconstruct, l_embedding, l_commitment = l_alpha, l_reconstruct, l_prediction, l_prediction
 
             valid_loss += loss.item() * current_batch_size
             valid_cumulative_l_reconstruct += l_reconstruct.item() * current_batch_size
@@ -434,19 +437,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                                                                          y_hat_preds, y_preds, 
                                                                          x_lens, y_preds_lens, 
                                                                          x_mask)
-            if model_type == "vqvae":
-                l_embedding = model_loss.get_loss(ze.detach(), zq, x_mask)
-                l_commitment = model_loss.get_loss(ze, zq.detach(), x_mask)
-                loss = l_alpha + \
-                    l_w_embedding * l_embedding + l_w_commitment * l_commitment
-            elif model_type == "mtl":
-                l_embedding = l_prediction
-                l_commitment = l_prediction
-                loss = l_alpha
-            else: 
-                l_embedding = torch.tensor(0)
-                l_commitment = torch.tensor(0)
-                loss = l_alpha
+            loss, l_reconstruct, l_embedding, l_commitment = l_alpha, l_reconstruct, l_prediction, l_prediction
 
             onlyST_valid_loss += loss.item() * current_batch_size
             onlyST_valid_cumulative_l_reconstruct += l_reconstruct.item() * current_batch_size

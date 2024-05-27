@@ -2,7 +2,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 import pickle
 from model_dataset import TokenMap
-from model_model import AEPPV1
+from model_model import AEPPV1, AEPPV2
 
 from model_dataset import WordDatasetPath as ThisDataset
 from C_0X_defs import *
@@ -203,6 +203,11 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
     
     if model_type == "mtl":
         model = AEPPV1(enc_size_list=ENC_SIZE_LIST, 
+                   dec_size_list=DEC_SIZE_LIST, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "pp":
+        model = AEPPV2(enc_size_list=ENC_SIZE_LIST, 
                    dec_size_list=DEC_SIZE_LIST, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)

@@ -459,7 +459,6 @@ class AEPPV1(Module):
         ae_dec_out, ae_attn_w = self.ae_decoder(dec_in, in_mask, init_in, dec_hid)
         pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
         # return follows: dec_out, attn_w, z
-        # TODO: tomorrow just write the trining loop. 
         return (ae_dec_out, pp_dec_out), (ae_attn_w, pp_attn_w), (ze, zq)
     
     def encode(self, inputs, input_lens, in_mask): 
@@ -495,7 +494,7 @@ class AEPPV2(Module):
         pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
         # return follows: dec_out, attn_w, z
         # TODO: tomorrow just write the trining loop. 
-        return (None, pp_dec_out), (None, pp_attn_w), (ze, zq)
+        return (pp_dec_out, pp_dec_out), (pp_attn_w, pp_attn_w), (ze, zq)
     
     def encode(self, inputs, input_lens, in_mask): 
         ze = self.encoder(inputs, input_lens)

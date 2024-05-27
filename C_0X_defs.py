@@ -270,11 +270,11 @@ def plot_attention_trajectory(phi_type, all_attn, all_sepframes1, all_sepframes2
 
 def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, save_path): 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 8))
-    legend_names = ['S-to-P', 'P-to-S', 'P-to-V', 'V-to-P']
+    legend_namess = [['S-to-P', 'P-to-S', 'P-to-V', 'V-to-P'], ['#-to-P', 'P-to-#', 'P-to-V', 'V-to-P']]
     colors = ['b', 'g', 'red', 'orange']
     n_steps = 100
 
-    for (selector, ax) in zip(["ST", "T"], [ax1, ax2]):
+    for (selector, ax, legend_names) in zip(["ST", "T"], [ax1, ax2], legend_namess):
         selected_tuples = [(sf1, sf2, attn) for pt, sf1, sf2, attn in zip(all_phi_type,  
                                                           all_sepframes1, 
                                                           all_sepframes2, 
@@ -331,6 +331,55 @@ def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, a
                 ax.fill_between(range(n_steps), lower, upper, alpha=0.2, color=c)
 
         elif selector == "T": 
+            s_to_t_traj = []
+            t_to_s_traj = []
+            t_to_a_traj = []
+            a_to_t_traj = []
+            for i in range(len(selected_attns)): 
+                this_attn = selected_attns[i]
+                this_sep_frame1 = selected_sf1s[i]
+                this_sep_frame2 = selected_sf2s[i]
+
+                blocks = extract_attention_blocks_ST(this_attn, this_sep_frame1, this_sep_frame2)
+
+                s_to_t_interp = interpolate_traj(blocks['s_to_t'], n_steps)
+                t_to_s_interp = interpolate_traj(blocks['t_to_s'], n_steps)
+                t_to_a_interp = interpolate_traj(blocks['t_to_a'], n_steps)
+                a_to_t_interp = interpolate_traj(blocks['a_to_t'], n_steps)
+                s_to_t_traj.append(s_to_t_interp)
+                t_to_s_traj.append(t_to_s_interp)
+                t_to_a_traj.append(t_to_a_interp)
+                a_to_t_traj.append(a_to_t_interp)
+
+            # Convert list of arrays into 2D NumPy arrays for easier manipulation
+            group1_array = np.array(s_to_t_traj)
+            group2_array = np.array(t_to_s_traj)
+            group3_array = np.array(t_to_a_traj)
+            group4_array = np.array(a_to_t_traj)
+
+            # Calculate the mean trajectory for each group
+            means = np.array([np.mean(group1_array, axis=0), 
+                            np.mean(group2_array, axis=0), 
+                            np.mean(group3_array, axis=0), 
+                            np.mean(group4_array, axis=0)])
+
+            # Calculate the SEM for each step in both groups
+            sems = np.array([sem(group1_array, axis=0),
+                            sem(group2_array, axis=0),
+                            sem(group3_array, axis=0),
+                            sem(group4_array, axis=0)])
+
+            # Calculate the 95% CI for both groups
+            ci_95s = 1.96 * sems
+
+            # Upper and lower bounds of the 95% CI for both groups
+            upper_bounds = means + ci_95s
+            lower_bounds = means - ci_95s
+
+            for mean, upper, lower, label, c in zip(means, upper_bounds, lower_bounds, legend_names, colors):
+                ax.plot(mean, label=label, color=c)
+                ax.fill_between(range(n_steps), lower, upper, alpha=0.2, color=c)
+        else: 
             t_to_a_traj = []
             a_to_t_traj = []
             for i in range(len(selected_attns)): 
