@@ -533,7 +533,6 @@ class AEPPV3(Module):
     def forward(self, inputs, input_lens, in_mask):
         # inputs : batch_size * time_steps * in_size
         batch_size = inputs.size(0)
-        dec_hid, init_in = self.ae_decoder.inits(batch_size=batch_size, device=self.device)
         ze = self.encoder(inputs, input_lens)
         # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
         zq = ze
