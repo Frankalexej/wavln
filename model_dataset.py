@@ -1038,7 +1038,8 @@ class TargetVowelDatasetPhoneseq(Dataset):
         self.transform = transform
 
         self.mapper = mapper
-        self.noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=0.01)
+        noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=0.01)
+        self.noise_set = noise_gen.generate_samples(np.array(self.silence_duration))
     
     def __len__(self):
         return len(self.dataset)
@@ -1082,10 +1083,10 @@ class TargetVowelDatasetPhoneseq(Dataset):
                 self.src_dir, 
                 self.vowel_path[idx]
             )
-            Sil_data, sample_rate_Sil = self.noise_gen.generate(Sil_duration)
+            Sil_data = self.noise_set[idx]
             T_data, sample_rate_T = torchaudio.load(T_name, normalize=True)
             V_data, sample_rate_V = torchaudio.load(V_name, normalize=True)
-            assert sample_rate_Sil == sample_rate_T == sample_rate_V
+            assert sample_rate_T == sample_rate_V
 
             data = torch.cat([Sil_data, T_data, V_data], dim=1)
             phoneseq = torch.tensor([self.mapper.encode(segment) for segment in ['SIL', self.stop_name[idx], self.vowel_name[idx]]], 

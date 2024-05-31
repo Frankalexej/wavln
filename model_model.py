@@ -433,6 +433,24 @@ class CTCDecoderV2(Module):
         outputs = self.softmax(outputs)
         return outputs, attention_weights
     
+class LinAttnDecoder(Module): 
+    """
+    NOTE: General purpose Linear + Attention Decoder. 
+    """
+    def __init__(self, size_list, num_layers=1, dropout=0.5):
+        # size_list = [13, 64, 16, 3]: similar to encoder, just layer 0 different
+        super(LinAttnDecoder, self).__init__()
+        self.attention = ScaledDotProductAttention(q_in=size_list["in"], kv_in=size_list["in"], qk_out=size_list["in"], v_out=size_list["in"])
+        self.lin = nn.Linear(size_list["in"], size_list["out"])
+        # vars
+        self.num_layers = num_layers
+        self.size_list = size_list
+
+    def forward(self, hid_r, in_mask):
+        outputs, attention_weights = self.attention(hid_r, hid_r, hid_r, in_mask.unsqueeze(1))
+        outputs = self.lin(outputs)
+        return outputs, attention_weights
+    
 class AEPPV1(Module):
     # Autoencoder + phoneme prediction
     # WIDAEV1 also returns ze and zq, just to make it consistent with VQVAE
@@ -495,6 +513,35 @@ class AEPPV2(Module):
         # return follows: dec_out, attn_w, z
         # TODO: tomorrow just write the trining loop. 
         return (pp_dec_out, pp_dec_out), (pp_attn_w, pp_attn_w), (ze, zq)
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        ze = self.encoder(inputs, input_lens)
+        zq = ze
+        return ze, zq
+    
+class AEPPV3(Module):
+    # Reconstruction + phoneme prediction
+    # Reconstruction uses the same linear + attention structure as PP. 
+    def __init__(self, enc_size_list, dec_size_list, ctc_decoder_size_list, num_layers=1, dropout=0.5):
+        super(AEPPV3, self).__init__()
+
+        self.encoder = VQEncoderV1(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        self.ae_decoder = LinAttnDecoder(size_list={"in": dec_size_list[3], "out": dec_size_list[0]}, num_layers=num_layers, dropout=dropout)
+        self.pp_decoder = CTCDecoderV2(size_list=ctc_decoder_size_list)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.ae_decoder.inits(batch_size=batch_size, device=self.device)
+        ze = self.encoder(inputs, input_lens)
+        # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
+        zq = ze
+        dec_in = ze
+        ae_dec_out, ae_attn_w = self.ae_decoder(dec_in, in_mask)
+        pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
+        # return follows: dec_out, attn_w, z
+        return (ae_dec_out, pp_dec_out), (ae_attn_w, pp_attn_w), (ze, zq)
     
     def encode(self, inputs, input_lens, in_mask): 
         ze = self.encoder(inputs, input_lens)
