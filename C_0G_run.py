@@ -6,6 +6,9 @@ decoding.
 
 For the current trial, we train with linear-attention decoder, 
 just like that for pp. 
+
+Results show that the same structure as pp is not working. 
+My guess is that the model is not able to 
 """
 ######################### Libs #########################
 import torch
