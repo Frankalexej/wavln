@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import argparse
 # import summary
-from model_model import AEPPV1, AEPPV2, AEPPV3
+from model_model import AEPPV1, AEPPV2, AEPPV3, AEPPV4
 from model_dataset import DS_Tools
 # this is used for CTC pred
 from model_dataset import WordDatasetPhoneseq as TrainDataset
@@ -321,6 +321,25 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
         model_loss = AlphaCombineLoss(masked_loss, ctc_loss, alpha=0.2)
 
         model = AEPPV3(enc_size_list=ENC_SIZE_LIST, 
+                   dec_size_list=DEC_SIZE_LIST, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+        
+        # Load Data
+        guide_path = os.path.join(hyper_dir, "guides")
+        train_loader = load_data_general(TrainDataset, 
+                                        word_rec_dir, train_guide_path, load="train", select=0.3, sampled=False, batch_size=batch_size)
+        valid_loader = load_data_general(TrainDataset, 
+                                        word_rec_dir, valid_guide_path, load="valid", select=0.3, sampled=False, batch_size=batch_size)
+        onlyST_valid_loader = load_data_phenomenon(TestDataset, 
+                                                phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
+    elif model_type == "recon100":
+        batch_size = 512
+        masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
+        ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
+        model_loss = PseudoAlphaCombineLoss_Recon(masked_loss, ctc_loss, alpha=0.2)
+
+        model = AEPPV4(enc_size_list=ENC_SIZE_LIST, 
                    dec_size_list=DEC_SIZE_LIST, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)

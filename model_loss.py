@@ -35,6 +35,18 @@ class AlphaCombineLoss:
         prediction_loss_term = self.alpha * prediction_loss
 
         return reconstruction_loss + prediction_loss_term, (reconstruction_loss, prediction_loss)
+
+class PseudoAlphaCombineLoss_Recon:
+    def __init__(self, recon_loss, pred_loss, alpha=0.1):
+        self.recon_loss = recon_loss
+        self.pred_loss = pred_loss
+        self.alpha = alpha
+    
+    def get_loss(self, y_hat_recon, y_recon, y_hat_pred, y_pred, x_lens, y_pred_lens, mask): 
+        reconstruction_loss = self.recon_loss.get_loss(y_hat_recon, y_recon, mask)
+
+        return reconstruction_loss, (reconstruction_loss, torch.tensor(0))
+
     
 class PseudoAlphaCombineLoss_Pred:
     def __init__(self, recon_loss, pred_loss, alpha=0.1):
