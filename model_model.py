@@ -547,6 +547,125 @@ class AEPPV3(Module):
         zq = ze
         return ze, zq
 
+
+
+
+################################ Chung's AE Replication ################################
+class AEEncoderV1(Module): 
+    """
+    Linear + Bidirectional LSTM
+    """
+    def __init__(self, size_list, num_layers=1, dropout=0.5):
+        super(AEEncoderV1, self).__init__()
+        # self.lin_1 = LinearPack(in_dim=size_list[0], out_dim=size_list[3])
+        self.lin_1 = nn.Linear(size_list["in"], size_list["out_lin1"])
+        self.rnn = nn.LSTM(input_size=size_list["out_lin1"], hidden_size=size_list["out_rnn"], 
+                           num_layers=num_layers, batch_first=True, 
+                           dropout=dropout, bidirectional=True)
+        self.lin_2 = nn.Linear(size_list["out_rnn"] * 2, size_list["out_lin2"])
+
+        self.act = nn.ReLU()
+
+    def forward(self, inputs, inputs_lens):
+        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+        enc_x = self.act(enc_x)
+        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+        enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
+        enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+        enc_x = self.lin_2(enc_x)   # this merges the bidirectional into one.
+        return enc_x
+    
+    def encode(self, inputs, inputs_lens): 
+        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+        enc_x = self.act(enc_x)
+        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+        enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
+        enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+        enc_x = self.lin_2(enc_x)   # this merges the bidirectional into one.
+        return enc_x
+    
+class AEDecoderV1(Module): 
+    """
+    注意：decoder是自回归的，因而无需bidirectional
+    """
+    def __init__(self, size_list, num_layers=1, dropout=0.5):
+        # size_list = [13, 64, 16, 3]: similar to encoder, just layer 0 different
+        super(AEDecoderV1, self).__init__()
+        self.lin_1 = nn.Linear(size_list["in"], size_list["out_lin1"])
+        self.rnn = nn.LSTM(input_size=size_list["out_lin1"], hidden_size=size_list["out_rnn"], 
+                           num_layers=num_layers, batch_first=True, 
+                           dropout=dropout, bidirectional=False)
+        self.lin_2 = nn.Linear(size_list["out_rnn"], size_list["out_lin2"])
+        # self.attention = ScaledDotProductAttention(q_in=size_list[3], kv_in=size_list[3], qk_out=size_list[3], v_out=size_list[3])
+        self.act = nn.ReLU()
+
+        # vars
+        self.num_layers = num_layers
+        self.size_list = size_list
+
+    def inits(self, batch_size, device): 
+        h0 = torch.zeros((self.num_layers, batch_size, self.size_list["out_rnn"]), dtype=torch.float, device=device, requires_grad=False)
+        c0 = torch.zeros((self.num_layers, batch_size, self.size_list["out_rnn"]), dtype=torch.float, device=device, requires_grad=False)
+        hidden = (h0, c0)
+        dec_in_token = torch.zeros((batch_size, 1, self.size_list["in"]), dtype=torch.float, device=device, requires_grad=False)
+        return hidden, dec_in_token
+
+    def forward(self, hid_r, in_mask, init_in, hidden):
+        # Attention decoder
+        length = hid_r.size(1) # get length
+
+        dec_in_token = init_in
+
+        outputs = []
+        attention_weights = []
+        for t in range(length):
+            dec_x = self.lin_1(dec_in_token)
+            dec_x = self.act(dec_x)
+            dec_x, hidden = self.rnn(dec_x, hidden)
+            # dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+            dec_x = self.lin_2(dec_x)
+            outputs.append(dec_x)
+            # attention_weights.append(attention_weight)
+            # Use the current output as the next input token
+            dec_in_token = dec_x
+
+        outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        # attention_weights = torch.stack(attention_weights, dim=1)
+        outputs = outputs.squeeze(2)
+        # attention_weights = attention_weights.squeeze(2)
+        attention_weights = None
+        return outputs, attention_weights
+
+
+class AE_Chung(Module):
+    # Reconstruction + phoneme prediction
+    # Reconstruction uses the same linear + attention structure as PP. 
+    def __init__(self, enc_size_list, dec_size_list, ctc_decoder_size_list, num_layers=1, dropout=0.5):
+        super(AE_Chung, self).__init__()
+
+        self.encoder = AEEncoderV1(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        self.ae_decoder = LinAttnDecoder(size_list={"in": dec_size_list[3], "out": dec_size_list[0]}, num_layers=num_layers, dropout=dropout)
+        # self.pp_decoder = CTCDecoderV2(size_list=ctc_decoder_size_list)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        ze = self.encoder(inputs, input_lens)
+        # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
+        zq = ze
+        dec_in = ze
+        ae_dec_out, ae_attn_w = self.ae_decoder(dec_in, in_mask)
+        # pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
+        pp_dec_out, pp_attn_w = ae_dec_out, ae_attn_w
+        # return follows: dec_out, attn_w, z
+        return (ae_dec_out, pp_dec_out), (ae_attn_w, pp_attn_w), (ze, zq)
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        ze = self.encoder(inputs, input_lens)
+        zq = ze
+        return ze, zq
+
 ############################ CTC Predictor [20240223] ############################
 class CTCEncoderV1(Module): 
     """
