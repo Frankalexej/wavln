@@ -4,6 +4,9 @@ to 100, according to Chung et al., 2016.
 
 However, since they did not include any attention mechanism, 
 we only do replication here, but later, we will anyway add it in. 
+
+經仔細思考，直接使用Chung et al.的模型不可取，因爲需要剋服批運算和每個
+詞不同邊界的問題。所以先使用原來的模型，只改變hidden representation的維度。
 """
 ######################### Libs #########################
 import torch
@@ -35,11 +38,11 @@ INPUT_DIM = 64
 OUTPUT_DIM = 64 
 INTER_DIM_0 = 32
 INTER_DIM_1 = 16
-INTER_DIM_2 = 8
+INTER_DIM_2 = 100
 ENC_SIZE_LIST = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
 DEC_SIZE_LIST = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
 DROPOUT = 0.5
-NUM_LAYERS = 2
+NUM_LAYERS = 1
 EMBEDDING_DIM = 128
 REC_SAMPLE_RATE = 16000
 N_FFT = 400
@@ -512,7 +515,7 @@ if __name__ == "__main__":
 
     ## Hyper-preparations
     ts = args.timestamp
-    train_name = "C_0G"
+    train_name = "C_0H"
     model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}")
     mk(model_save_dir) 
 

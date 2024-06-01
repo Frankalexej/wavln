@@ -547,7 +547,38 @@ class AEPPV3(Module):
         zq = ze
         return ze, zq
 
+class AEPPV4(Module):
+    # Autoencoder + phoneme prediction
+    # WIDAEV1 also returns ze and zq, just to make it consistent with VQVAE
+    # This is just a normal autoencoder, but with the same structure as VQVAE
+    def __init__(self, enc_size_list, dec_size_list, ctc_decoder_size_list, num_layers=1, dropout=0.5):
+        super(AEPPV4, self).__init__()
 
+        self.encoder = VQEncoderV1(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        self.ae_decoder = VQDecoderV1(size_list=dec_size_list, num_layers=num_layers, dropout=dropout)
+        # phoneme prediction decoder, this one is not auto-regressive, therefore we can use bidirectional
+        # LSTM to enhance performance. 
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.ae_decoder.inits(batch_size=batch_size, device=self.device)
+
+        ze = self.encoder(inputs, input_lens)
+        # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
+        zq = ze
+        dec_in = ze
+        ae_dec_out, ae_attn_w = self.ae_decoder(dec_in, in_mask, init_in, dec_hid)
+        # pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
+        pp_dec_out, pp_attn_w = ae_dec_out, ae_attn_w
+        # return follows: dec_out, attn_w, z
+        return (ae_dec_out, pp_dec_out), (ae_attn_w, pp_attn_w), (ze, zq)
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        ze = self.encoder(inputs, input_lens)
+        zq = ze
+        return ze, zq
 
 
 ################################ Chung's AE Replication ################################
