@@ -8,6 +8,24 @@ from model_dataset import WordDatasetPath as ThisDataset
 from C_0X_defs import *
 # from C_0D_run import load_data_general
 
+EPOCHS = 10
+BATCH_SIZE = 1
+INPUT_DIM = 64
+OUTPUT_DIM = 64
+INTER_DIM_0 = 32
+INTER_DIM_1 = 16
+INTER_DIM_2 = 100
+ENC_SIZE_LIST = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
+DEC_SIZE_LIST = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
+DROPOUT = 0.5
+NUM_LAYERS = 2
+EMBEDDING_DIM = 128
+REC_SAMPLE_RATE = 16000
+N_FFT = 400
+N_MELS = 64
+LOADER_WORKER = 16
+
+
 def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, sampled=True, batch_size=BATCH_SIZE):
     # for general, path is easy, let's just load it
     integrated = pd.read_csv(target_path)
@@ -84,7 +102,7 @@ def get_toplot(data, name_dict, df, selector, max_counts=500, offsets=(0, 1)):
     cutstarts = selected_df["startFrame"]
     cutends = selected_df["endFrame"]
 
-    hid_sel = np.empty((0, 8))
+    hid_sel = np.empty((0, INTER_DIM_2))
     tag_sel = []
     for (item, start, end, tag) in zip(selected_items, cutstarts, cutends, selected_df["segment_nostress"]): 
         hid = cutHid(item, start, end, offsets[0], offsets[1])
@@ -177,23 +195,6 @@ def evaluate_hidrep_one_epoch(hidreps, guide_file, name_dict, evaluation_pairs, 
 
 
 def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_, run_eval="re"): 
-    EPOCHS = 10
-    BATCH_SIZE = 1
-    INPUT_DIM = 64
-    OUTPUT_DIM = 64
-    INTER_DIM_0 = 32
-    INTER_DIM_1 = 16
-    INTER_DIM_2 = 100
-    ENC_SIZE_LIST = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
-    DEC_SIZE_LIST = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
-    DROPOUT = 0.5
-    NUM_LAYERS = 2
-    EMBEDDING_DIM = 128
-    REC_SAMPLE_RATE = 16000
-    N_FFT = 400
-    N_MELS = 64
-    LOADER_WORKER = 16
-
     # Dirs
     rec_dir = train_cut_phone_
     # Check model path

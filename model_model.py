@@ -229,6 +229,81 @@ class VQDecoderV1(Module):
         attention_weights = attention_weights.squeeze(2)
         return outputs, attention_weights
 
+class EncoderV1(Module): 
+    """
+    Linear * 1 + Unidirectional LSTM
+    """
+    def __init__(self, size_list, num_layers=1, dropout=0.5):
+        super(EncoderV1, self).__init__()
+        # self.lin_1 = LinearPack(in_dim=size_list[0], out_dim=size_list[3])
+        self.lin_1 = nn.Linear(size_list["in"], size_list["lin1"])
+        self.rnn = nn.LSTM(input_size=size_list["lin1"], hidden_size=size_list["hid"], 
+                           num_layers=num_layers, batch_first=True, 
+                           dropout=dropout, bidirectional=False)
+        # self.lin_2 = nn.Linear(size_list[3] * 2, size_list[3])
+        self.act = nn.ReLU()
+
+    def forward(self, inputs, inputs_lens):
+        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+        enc_x = self.act(enc_x)
+        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+        enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
+        enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+        return enc_x, (hn, cn)
+    
+    def encode(self, inputs, inputs_lens): 
+        return self.forward(inputs, inputs_lens)
+
+class DecoderV2(nn.Module):
+    def __init__(self, size_list, num_layers=1, dropout=0.5):
+        super(DecoderV2, self).__init__()
+        self.lin_1 = nn.Linear(size_list["in"], size_list["lin1"])
+        self.rnn = nn.LSTM(input_size=size_list["lin1"], hidden_size=size_list["hid"], 
+                            num_layers=num_layers, batch_first=True, 
+                            dropout=dropout, bidirectional=False)
+        self.attention = ScaledDotProductAttention(q_in=size_list["hid"], kv_in=size_list["hid"], qk_out=size_list["hid"], v_out=size_list["hid"])
+        self.lin_2 = nn.Linear(size_list["hid"], size_list["in"])
+        self.act = nn.ReLU()
+
+        # vars
+        self.num_layers = num_layers
+        self.size_list = size_list
+
+    def inits(self, batch_size, device): 
+        h0 = torch.zeros((self.num_layers, batch_size, self.size_list["hid"]), dtype=torch.float, device=device, requires_grad=False)
+        c0 = torch.zeros((self.num_layers, batch_size, self.size_list["hid"]), dtype=torch.float, device=device, requires_grad=False)
+        hidden = (h0, c0)
+        dec_in_token = torch.zeros((batch_size, 1, self.size_list["in"]), dtype=torch.float, device=device, requires_grad=False)
+        return hidden, dec_in_token
+
+    def forward(self, hid_r, in_mask, init_in, hidden):
+        batch_size, max_length, _ = hid_r.size()
+        dec_in_token = init_in
+        outputs = []
+        attention_weights = []
+
+        for i in range(max_length): 
+            dec_out_token, hidden, attention_weight = self.forward_step(dec_in_token, hidden, hid_r, in_mask)
+            outputs.append(dec_out_token)
+            attention_weights.append(attention_weight)
+            dec_in_token = dec_out_token.detach()
+
+        outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        attention_weights = torch.stack(attention_weights, dim=1)
+        outputs = outputs.squeeze(2)
+        attention_weights = attention_weights.squeeze(2)
+        return outputs, attention_weights
+
+    def forward_step(self, input_item, hidden, encoder_outputs, encoder_mask):
+        output = self.lin_1(input_item)
+        output = self.act(output)
+        output, hidden = self.rnn(output, hidden)
+        output, attention_weight = self.attention(output, encoder_outputs, 
+                                                  encoder_outputs, encoder_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+        output = self.lin_2(output)
+        return output, hidden, attention_weight
+    
+
 class VQVAEV1(Module):
     # RL + RAL(Init)
     def __init__(self, enc_size_list, dec_size_list, embedding_dim, num_layers=1, dropout=0.5):
@@ -570,6 +645,37 @@ class AEPPV4(Module):
         zq = ze
         dec_in = ze
         ae_dec_out, ae_attn_w = self.ae_decoder(dec_in, in_mask, init_in, dec_hid)
+        # pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
+        pp_dec_out, pp_attn_w = ae_dec_out, ae_attn_w
+        # return follows: dec_out, attn_w, z
+        return (ae_dec_out, pp_dec_out), (ae_attn_w, pp_attn_w), (ze, zq)
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        ze = self.encoder(inputs, input_lens)
+        zq = ze
+        return ze, zq
+    
+class AEPPV5(Module):
+    # Only Recon
+    # use encoder hidden as decoder hidden. 
+    def __init__(self, enc_size_list, dec_size_list, ctc_decoder_size_list, num_layers=1, dropout=0.5):
+        super(AEPPV5, self).__init__()
+
+        self.encoder = EncoderV1(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        self.ae_decoder = DecoderV2(size_list=dec_size_list, num_layers=num_layers, dropout=dropout)
+        # phoneme prediction decoder, this one is not auto-regressive, therefore we can use bidirectional
+        # LSTM to enhance performance. 
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.ae_decoder.inits(batch_size=batch_size, device=self.device)
+
+        ze, enc_hid = self.encoder(inputs, input_lens)
+        zq = ze
+        dec_in = ze
+        ae_dec_out, ae_attn_w = self.ae_decoder(dec_in, in_mask, init_in, enc_hid)  # use enc_hid instead of zero hid
         # pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
         pp_dec_out, pp_attn_w = ae_dec_out, ae_attn_w
         # return follows: dec_out, attn_w, z

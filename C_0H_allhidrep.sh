@@ -20,7 +20,7 @@ cs=('u')
 # ts='0526172101'
 ts='0601222227'
 echo "Timestamp: $ts"
-re='re'
+re='e'
 echo "Runeval: $re"
 
 for m in "${!ms[@]}"; do
