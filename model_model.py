@@ -283,7 +283,7 @@ class DecoderV2(nn.Module):
         attention_weights = []
 
         for i in range(max_length): 
-            dec_out_token, hidden, attention_weight = self.forward_step(dec_in_token, hidden, hid_r, in_mask)
+            dec_out_token, hidden, attention_weight, _ = self.forward_step(dec_in_token, hidden, hid_r, in_mask)
             outputs.append(dec_out_token)
             attention_weights.append(attention_weight)
             dec_in_token = dec_out_token.detach()
@@ -293,6 +293,28 @@ class DecoderV2(nn.Module):
         outputs = outputs.squeeze(2)
         attention_weights = attention_weights.squeeze(2)
         return outputs, attention_weights
+    
+    def attn_forward(self, hid_r, in_mask, init_in, hidden):
+        batch_size, max_length, _ = hid_r.size()
+        dec_in_token = init_in
+        outputs = []
+        attention_weights = []
+        attention_outs = []
+
+        for i in range(max_length): 
+            dec_out_token, hidden, attention_weight, attn_out = self.forward_step(dec_in_token, hidden, hid_r, in_mask)
+            outputs.append(dec_out_token)
+            attention_weights.append(attention_weight)
+            attention_outs.append(attn_out)
+            dec_in_token = dec_out_token.detach()
+
+        outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        attention_weights = torch.stack(attention_weights, dim=1)
+        attention_outs = torch.stack(attention_outs, dim=1)
+        outputs = outputs.squeeze(2)
+        attention_weights = attention_weights.squeeze(2)
+        attention_outs = attention_outs.squeeze(2)
+        return outputs, attention_weights, attention_outs
 
     def forward_step(self, input_item, hidden, encoder_outputs, encoder_mask):
         output = self.lin_1(input_item)
@@ -300,8 +322,9 @@ class DecoderV2(nn.Module):
         output, hidden = self.rnn(output, hidden)
         output, attention_weight = self.attention(output, encoder_outputs, 
                                                   encoder_outputs, encoder_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+        attn_out = output
         output = self.lin_2(output)
-        return output, hidden, attention_weight
+        return output, hidden, attention_weight, attn_out
     
 
 class VQVAEV1(Module):
@@ -682,10 +705,18 @@ class AEPPV5(Module):
         return (ae_dec_out, pp_dec_out), (ae_attn_w, pp_attn_w), (ze, zq)
     
     def encode(self, inputs, input_lens, in_mask): 
-        ze = self.encoder(inputs, input_lens)
+        ze, enc_hid = self.encoder(inputs, input_lens)
         zq = ze
         return ze, zq
-
+    
+    def attn_encode(self, inputs, input_lens, in_mask): 
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.ae_decoder.inits(batch_size=batch_size, device=self.device)
+        ze, enc_hid = self.encoder(inputs, input_lens)
+        zq = ze
+        dec_in = ze
+        ae_dec_out, ae_attn_w, attn_z = self.ae_decoder.attn_forward(dec_in, in_mask, init_in, enc_hid)  # use enc_hid instead of zero hid
+        return (ze, zq, attn_z), ae_dec_out, ae_attn_w
 
 ################################ Chung's AE Replication ################################
 class AEEncoderV1(Module): 
