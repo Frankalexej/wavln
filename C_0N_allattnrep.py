@@ -74,7 +74,7 @@ def cutHid(hid, cutstart, cutend, start_offset=0, end_offset=1):
     # hid is (L, H)
     return hid[selstart:selend, :]
 
-def get_toplot(data, name_dict, df, selector, max_counts=500, offsets=(0, 1), hiddim=8): 
+def get_toplot(data, name_dict, df, selector, max_counts=500, offsets=(0, 1), hiddim=8, take_average=False): 
     selected_df = pd.DataFrame(columns=df.columns)
     for item in selector:
         # Filter the DataFrame for the current item
@@ -101,9 +101,14 @@ def get_toplot(data, name_dict, df, selector, max_counts=500, offsets=(0, 1), hi
     tag_sel = []
     for (item, start, end, tag) in zip(selected_items, cutstarts, cutends, selected_df["segment_nostress"]): 
         hid = cutHid(item, start, end, offsets[0], offsets[1])
-        hidlen = hid.shape[0]
-        hid_sel = np.concatenate((hid_sel, hid), axis=0)
-        tag_sel += [tag] * hidlen
+        if take_average: 
+            hid = np.mean(hid, axis=0, keepdims=True)
+            hid_sel = np.concatenate((hid_sel, hid), axis=0)
+            tag_sel += [tag]
+        else: 
+            hidlen = hid.shape[0]
+            hid_sel = np.concatenate((hid_sel, hid), axis=0)
+            tag_sel += [tag] * hidlen
     return hid_sel, np.array(tag_sel)
 ######################## Full Hidrep Evaluation End of Definition ########################
 
@@ -174,20 +179,21 @@ def evaluate_hidrep_one_epoch(hidreps, guide_file, name_dict, evaluation_items, 
                             df=guide_file, 
                             selector=evaluation_items, 
                             max_counts=500, 
-                            offsets=(0.4, 0.6), 
-                            hiddim=hiddim)
+                            offsets=(0.3, 0.7), 
+                            hiddim=hiddim, 
+                            take_average=True)
     
     # Normalize
     hidreps_norm, tags_norm = postproc_standardize(hidreps, tags)
     # NOTE: By now the data is "selected" and balanced, so we won't do any selection, just find out all that belong to the target. 
     sil_scores = []
-    ABX_errors = []
+    # ABX_errors = []
 
     example_pair = evaluation_pairs[0]
     sel_hidreps, sel_tags = filter_data_by_tags(hidreps_norm, tags_norm, example_pair)
     sil_scores.append(silhouette_score(sel_hidreps, sel_tags))
-    group_a, group_b = filter_data_by_tags_to_list(hidreps_norm, tags_norm, example_pair) # becuase it is pair, so just a and b. 
-    ABX_errors.append(unsym_abx_error(group_a, group_b, distance=euclidean_distance))
+    # group_a, group_b = filter_data_by_tags_to_list(hidreps_norm, tags_norm, example_pair) # becuase it is pair, so just a and b. 
+    # ABX_errors.append(unsym_abx_error(group_a, group_b, distance=euclidean_distance))
 
     pca = PCA(n_components=2)  # Reduce to 2 dimensions
     pca_result = pca.fit_transform(sel_hidreps)  # Make sure to convert from PyTorch tensor to NumPy array if necessary
@@ -203,9 +209,33 @@ def evaluate_hidrep_one_epoch(hidreps, guide_file, name_dict, evaluation_items, 
     for pair in evaluation_pairs[1:]: 
         sel_hidreps, sel_tags = filter_data_by_tags(hidreps_norm, tags_norm, pair)
         sil_scores.append(silhouette_score(sel_hidreps, sel_tags))
+        # group_a, group_b = filter_data_by_tags_to_list(hidreps_norm, tags_norm, pair) # becuase it is pair, so just a and b. 
+        # ABX_errors.append(unsym_abx_error(group_a, group_b, distance=euclidean_distance))
+    return sil_scores
+
+
+def evaluate_hidrep_one_epoch_ABX(hidreps, guide_file, name_dict, evaluation_items, evaluation_pairs, example_save_path, phoneme_map, hiddim=8): 
+    # NOTE: In fact, these two can go together, why we separate them is because ABX test takes much time, we need to select only very few examples. 
+    hidreps, tags = get_toplot(data=hidreps, 
+                            name_dict=name_dict, 
+                            df=guide_file, 
+                            selector=evaluation_items, 
+                            max_counts=30, 
+                            offsets=(0.3, 0.7), 
+                            hiddim=hiddim, 
+                            take_average=True)
+    
+    # Normalize
+    hidreps_norm, tags_norm = postproc_standardize(hidreps, tags)
+    # NOTE: By now the data is "selected" and balanced, so we won't do any selection, just find out all that belong to the target. 
+    ABX_errors = []
+    
+    for pair in evaluation_pairs: 
+        sel_hidreps, sel_tags = filter_data_by_tags(hidreps_norm, tags_norm, pair)
         group_a, group_b = filter_data_by_tags_to_list(hidreps_norm, tags_norm, pair) # becuase it is pair, so just a and b. 
         ABX_errors.append(unsym_abx_error(group_a, group_b, distance=euclidean_distance))
-    return sil_scores, ABX_errors
+    return ABX_errors
+
 
 def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_, run_eval="re", check_range=(0, 100)): 
     # Analyse model settings
@@ -274,6 +304,9 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
     v_pair_list = list(combinations(all_v, 2))
     c_pair_list = list(combinations(all_c, 2))
 
+    cv_list = all_v + all_c
+    cv_pair_list = v_pair_list + c_pair_list
+
     if run_eval == "re" or run_eval == "e":
         # Evaluate hidrep
         for epoch in range(check_start, check_end): 
@@ -284,16 +317,21 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
             for zs in ["z" + str(i) for i in range(num_layers)] + ["attn_z"]: 
                 hidreps = reshandler.res[zs]
                 example_save_path = os.path.join(res_save_dir, f"{zs}-ex-{epoch}.png")
-                for cv_tag, cv_list, cv_pair_list in zip(["v", "c"], [all_v, all_c], [v_pair_list, c_pair_list]): 
-                    sil_scores, abx_err = evaluate_hidrep_one_epoch(hidreps, filtered_df, name_dict, 
-                                                                    cv_list, cv_pair_list, 
-                                                                    example_save_path, mymap, hiddim=hiddim)
-                    sil_score_path = os.path.join(res_save_dir, f"{zs}_{cv_tag}_sil_scores_{epoch}.pk")
-                    abx_err_path = os.path.join(res_save_dir, f"{zs}_{cv_tag}_abx_err_{epoch}.pk")
-                    with open(sil_score_path, "wb") as file: 
-                        pickle.dump(sil_scores, file)
-                    with open(abx_err_path, "wb") as file: 
-                        pickle.dump(abx_err, file)
+                # NOTE: 不要區分vowel和consonant，直接用所有的，否則歸一化會有問題
+                sil_scores = evaluate_hidrep_one_epoch(hidreps, filtered_df, name_dict, 
+                                                                cv_list, cv_pair_list, 
+                                                                example_save_path, mymap, hiddim=hiddim)
+                print(f"Silhouette scores for {zs} @ {epoch}: {sil_scores} done! ")
+                abx_errs = evaluate_hidrep_one_epoch_ABX(hidreps, filtered_df, name_dict, 
+                                                                cv_list, cv_pair_list, 
+                                                                example_save_path, mymap, hiddim=hiddim)
+                print(f"ABX errors for {zs} @ {epoch}: {abx_errs} done! ")
+                sil_score_path = os.path.join(res_save_dir, f"{zs}_sil_scores_{epoch}.pk")
+                abx_err_path = os.path.join(res_save_dir, f"{zs}_abx_err_{epoch}.pk")
+                with open(sil_score_path, "wb") as file: 
+                    pickle.dump(sil_scores, file)
+                with open(abx_err_path, "wb") as file: 
+                    pickle.dump(abx_errs, file)
     return 
 
 if __name__ == "__main__":
