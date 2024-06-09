@@ -1092,8 +1092,8 @@ class TargetVowelDatasetPhoneseq(Dataset):
             assert sample_rate_T == sample_rate_V
 
             data = torch.cat([Sil_data, T_data, V_data], dim=1)
-            phoneseq = torch.tensor([self.mapper.encode(segment) for segment in ['SIL', self.stop_name[idx] + self.plosive_suffix, self.vowel_name[idx]]], 
-                                    dtype=torch.long)
+            phoneseq = torch.tensor([self.mapper.encode(segment) for segment in [self.stop_name[idx] + self.plosive_suffix, self.vowel_name[idx]]], 
+                                    dtype=torch.long)   # 'SIL', 
 
         if self.transform:
             data = self.transform(data)
@@ -1209,8 +1209,8 @@ class TargetVowelDatasetBoundaryPhoneseq(Dataset):
             assert sample_rate_T == sample_rate_V
 
             data = torch.cat([Sil_data, T_data, V_data], dim=1)
-            phoneseq = torch.tensor([self.mapper.encode(segment) for segment in ['SIL', self.stop_name[idx] + self.plosive_suffix, self.vowel_name[idx]]], 
-                                    dtype=torch.long)
+            phoneseq = torch.tensor([self.mapper.encode(segment) for segment in [self.stop_name[idx] + self.plosive_suffix, self.vowel_name[idx]]], 
+                                    dtype=torch.long)   # 'SIL', 
 
         if self.transform:
             data = self.transform(data)

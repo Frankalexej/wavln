@@ -63,7 +63,7 @@ INTER_DIM_2 = 8
 ENC_SIZE_LIST = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
 DEC_SIZE_LIST = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
 DROPOUT = 0.5
-NUM_LAYERS = 3
+NUM_LAYERS = 2
 EMBEDDING_DIM = 128
 REC_SAMPLE_RATE = 16000
 N_FFT = 400
@@ -97,6 +97,9 @@ def load_dict(path=None):
         mylist = ["BLANK", "SIL"] + mylist
         mylist = mylist + ["S"]
         mylist = mylist + ["Ph", "Th", "Kh"]
+
+        with open(os.path.join(src_, "phi-seg.dict"), "wb") as file:
+            pickle.dump(mylist, file)
     return mylist
 
 def random_sample_by_speaker(tg, stg, valid_proportion=0.2): 
@@ -141,7 +144,7 @@ def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, s
                         normalizer=Normalizer.norm_mvn, 
                         denormalizer=DeNormalizer.norm_mvn)
     
-    mylist = load_dict()
+    mylist = load_dict(os.path.join(src_, "phi-seg.dict"))
     mymap = TokenMap(mylist)
 
     ds = dataset(rec_dir, 
@@ -183,7 +186,7 @@ def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="bo
                         normalizer=Normalizer.norm_mvn, 
                         denormalizer=DeNormalizer.norm_mvn)
     
-    mylist = load_dict()
+    mylist = load_dict(os.path.join(src_, "phi-seg.dict"))
     mymap = TokenMap(mylist)
 
     ds = dataset(rec_dir, 
@@ -279,7 +282,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
     train_guide_path = os.path.join(src_, "guide_train.csv")
     valid_guide_path = os.path.join(src_, "guide_validation.csv")
 
-    mylist = load_dict()
+    mylist = load_dict(os.path.join(src_, "phi-seg.dict"))
     mymap = TokenMap(mylist)
     class_dim = mymap.token_num()
     ctc_size_list = {'hid': INTER_DIM_2, 'class': class_dim}
@@ -359,7 +362,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
         train_loader = load_data_phenomenon(TestDataset, 
                                             phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size)
         valid_loader = load_data_phenomenon(TestDataset, 
-                                            phone_rec_dir, guide_path, load="valid", select="both", sampled=False, batch_size=batch_size)
+                                            phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
         onlyST_valid_loader = load_data_phenomenon(TestDataset, 
                                                 phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
     else: 
@@ -541,7 +544,7 @@ if __name__ == "__main__":
 
     ## Hyper-preparations
     ts = args.timestamp
-    train_name = "C_0P"
+    train_name = "C_0Q"
     model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}")
     mk(model_save_dir)
 
