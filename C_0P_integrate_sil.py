@@ -160,7 +160,7 @@ if __name__ == "__main__":
         stop_list = {"z1": [], "z2": [], "z3": []}
         print(f"Processing {model_type} in run {run_number}...")
 
-        for epoch in range(0, 100):     
+        for epoch in range(0, 50):     
             this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
             hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
                                  file_prefix=f"all-{epoch}")
