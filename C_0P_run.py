@@ -326,8 +326,8 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
         masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
         ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
         model_loss = PseudoAlphaCombineLoss_Pred(masked_loss, ctc_loss, alpha=0.2)
-        model = AEPPV7(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
+        model = AEPPV7(enc_size_list={"in": INPUT_DIM, "rnn_in": INTER_DIM_2, "rnn_out": INTER_DIM_2}, 
+                   dec_size_list={"in": INPUT_DIM, "rnn_in": INTER_DIM_2, "rnn_out": INTER_DIM_2}, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
         # Load Data

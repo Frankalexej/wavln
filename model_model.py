@@ -311,7 +311,7 @@ class EncoderV3(Module):
             # TODO: currently we don't support changing dimensions. 
             # NOTE: now rnn_in === rnn_out
             self.rnns.append(nn.LSTM(input_size=size_list["rnn_in"], hidden_size=size_list["rnn_out"], 
-                                     batch_first=True, bidirectional=False))
+                                     batch_first=True, bidirectional=True))
             self.mergers.append(nn.Linear(size_list["rnn_out"] * 2, size_list["rnn_in"]))
         self.act = nn.LeakyReLU()
         self.dropout = nn.Dropout(p=dropout)
