@@ -1,7 +1,7 @@
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-from model_model import AEPPV1, AEPPV2
+from model_model import AEPPV1, AEPPV2, AEPPV4
 
 from model_dataset import TargetVowelDatasetBoundaryPhoneseq as ThisDataset
 from model_dataset import SilenceSampler_for_TV
@@ -91,9 +91,9 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     all_sepframes1 = []
     all_sepframes2 = []
     all_attn = []
-    all_attn_pp = []
+    # all_attn_pp = []
     all_recon = []
-    all_pp = []
+    # all_pp = []
     all_ori = []
     all_phi_type = []
 
@@ -109,18 +109,18 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
         ze = ze.cpu().detach().numpy().squeeze()
         zq = zq.cpu().detach().numpy().squeeze()
         attn_w_recon = attn_w_recon.cpu().detach().numpy().squeeze()
-        attn_w_preds = attn_w_preds.cpu().detach().numpy().squeeze()
+        # attn_w_preds = attn_w_preds.cpu().detach().numpy().squeeze()
         
         recon_x = x_hat_recon.cpu().detach().numpy().squeeze()
-        pp_x = y_hat_preds.cpu().detach().numpy().squeeze()
+        # pp_x = y_hat_preds.cpu().detach().numpy().squeeze()
         ori_x = x.cpu().detach().numpy().squeeze()
 
         all_ze += [ze]
         all_zq += [zq]
         all_attn += [attn_w_recon]
-        all_attn_pp += [attn_w_preds]
+        # all_attn_pp += [attn_w_preds]
         all_recon += [recon_x]
-        all_pp += [pp_x]
+        # all_pp += [pp_x]
         all_ori += [ori_x]
         all_stop_names += sn
         all_vowel_names += vn
@@ -135,9 +135,9 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     reshandler.res["sep-frame1"] = all_sepframes1
     reshandler.res["sep-frame2"] = all_sepframes2
     reshandler.res["attn"] = all_attn
-    reshandler.res["attn-pp"] = all_attn_pp
+    # reshandler.res["attn-pp"] = all_attn_pp
     reshandler.res["recon"] = all_recon
-    reshandler.res["pp"] = all_pp
+    # reshandler.res["pp"] = all_pp
     reshandler.res["ori"] = all_ori
     reshandler.res["phi-type"] = all_phi_type
     reshandler.save()
@@ -197,6 +197,11 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
                    dec_size_list=DEC_SIZE_LIST, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "recon-phi": 
+        model = AEPPV4(enc_size_list=ENC_SIZE_LIST, 
+                   dec_size_list=DEC_SIZE_LIST, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
     else: 
         raise Exception("Model type not supported! ")
 
@@ -219,7 +224,7 @@ if __name__ == "__main__":
 
     ts = args.timestamp # this timestamp does not contain run number
     rn = args.runnumber
-    train_name = "C_0E"
+    train_name = "C_0R"
     if not PU.path_exist(os.path.join(model_save_, f"{train_name}-{ts}-{rn}")):
         raise Exception(f"Training {train_name}-{ts}-{rn} does not exist! ")
     
