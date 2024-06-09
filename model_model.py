@@ -295,6 +295,52 @@ class EncoderV2(Module):
         return outs, (hn, cn)  # so obviously we are returning the last output. 
     
 
+class EncoderV3(Module): 
+    """
+    Linear + Bidirectional LSTM + Linear (merge bidirectional output)
+    注意！因爲這次是bidirectional，且用ModuleList來層曡LSTM，所以每一層都需要merge. 
+    """
+    def __init__(self, size_list, num_layers=1, dropout=0.5):
+        super(EncoderV3, self).__init__()
+        # self.lin_1 = LinearPack(in_dim=size_list[0], out_dim=size_list[3])
+        self.lin_1 = nn.Linear(size_list["in"], size_list["rnn_in"])
+
+        self.rnns = nn.ModuleList()
+        self.mergers = nn.ModuleList()
+        for i in range(num_layers): 
+            # TODO: currently we don't support changing dimensions. 
+            # NOTE: now rnn_in === rnn_out
+            self.rnns.append(nn.LSTM(input_size=size_list["rnn_in"], hidden_size=size_list["rnn_out"], 
+                                     batch_first=True, bidirectional=False))
+            self.mergers.append(nn.Linear(size_list["rnn_out"] * 2, size_list["rnn_in"]))
+        self.act = nn.LeakyReLU()
+        self.dropout = nn.Dropout(p=dropout)
+
+    def forward(self, inputs, inputs_lens):
+        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+        enc_x = self.act(enc_x)
+        for i in range(len(self.rnns)): 
+            enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+            enc_x, (hn, cn) = self.rnns[i](enc_x)  # (B, L, I1) -> (B, L, I2)
+            enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+            enc_x = self.dropout(enc_x)
+            enc_x = self.mergers[i](enc_x)
+        return enc_x, (hn, cn)  # so obviously we are returning the last output. 
+    
+    def encode(self, inputs, inputs_lens): 
+        outs = []
+        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+        enc_x = self.act(enc_x)
+        for i in range(len(self.rnns)): 
+            enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+            enc_x, (hn, cn) = self.rnns[i](enc_x)  # (B, L, I1) -> (B, L, I2)
+            enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+            enc_x = self.dropout(enc_x)
+            enc_x = self.mergers[i](enc_x)
+            outs.append(enc_x)
+        return outs, (hn, cn)  # so obviously we are returning the last output. 
+    
+
 class GoodDecoderV2(nn.Module):
     def __init__(self, size_list, num_layers=1, dropout=0.5):
         super(GoodDecoderV2, self).__init__()
@@ -869,6 +915,31 @@ class AEPPV6(Module):
         dec_in = zes[-1]
         ae_dec_out, ae_attn_w, attn_z = self.ae_decoder.attn_forward(dec_in, in_mask, init_in, enc_hid)  # use enc_hid instead of zero hid
         return (zes, zqs, attn_z), ae_dec_out, ae_attn_w
+    
+
+class AEPPV7(Module):
+    # Only PP
+    def __init__(self, enc_size_list, dec_size_list, ctc_decoder_size_list, num_layers=1, dropout=0.5):
+        super(AEPPV7, self).__init__()
+        self.encoder = EncoderV3(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        self.pp_decoder = CTCDecoderV2(size_list=ctc_decoder_size_list)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+
+        ze, enc_hid = self.encoder(inputs, input_lens)
+        # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
+        zq = ze
+        dec_in = ze
+        pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
+        return (pp_dec_out, pp_dec_out), (pp_attn_w, pp_attn_w), (ze, zq)
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        zes, enc_hid = self.encoder.encode(inputs, input_lens)
+        zqs = zes
+        return zes, zqs
 
 ################################ Chung's AE Replication ################################
 class AEEncoderV1(Module): 
