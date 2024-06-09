@@ -936,6 +936,17 @@ class AEPPV7(Module):
         pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
         return (pp_dec_out, pp_dec_out), (pp_attn_w, pp_attn_w), (ze, zq)
     
+    def fruitfulforward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+
+        zes, enc_hid = self.encoder.encode(inputs, input_lens)
+        # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
+        zqs = zes
+        dec_in = zes[-1]    # use the last LSTM layer's hidden representation
+        pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
+        return (pp_dec_out, pp_dec_out), (pp_attn_w, pp_attn_w), (zes, zqs)
+    
     def encode(self, inputs, input_lens, in_mask): 
         zes, enc_hid = self.encoder.encode(inputs, input_lens)
         zqs = zes
