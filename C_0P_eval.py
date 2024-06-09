@@ -8,6 +8,23 @@ from model_dataset import SilenceSampler_for_TV
 from C_0X_defs import *
 from C_0P_run import load_dict
 
+
+EPOCHS = 10
+BATCH_SIZE = 1
+INPUT_DIM = 64
+OUTPUT_DIM = 64
+INTER_DIM_0 = 32
+INTER_DIM_1 = 16
+INTER_DIM_2 = 8
+ENC_SIZE_LIST = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
+DEC_SIZE_LIST = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
+DROPOUT = 0.5
+NUM_LAYERS = 3
+EMBEDDING_DIM = 128
+REC_SAMPLE_RATE = 16000
+N_FFT = 400
+N_MELS = 64
+LOADER_WORKER = 16
 PLOSIVE_SUFFIX = "h"
 
 # not using that in B, but we overwrite it here
@@ -105,7 +122,6 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
         all_z1 += [z1]
         all_z2 += [z2]
         all_z3 += [z3]
-        all_attn += [attn_w_recon]
         all_attn += [attn_w_preds]
         all_pp += [pp_x]
         all_stop_names += sn
@@ -173,6 +189,11 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
     elif model_type == "mtl-phi":
         model = AEPPV1(enc_size_list=ENC_SIZE_LIST, 
                    dec_size_list=DEC_SIZE_LIST, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "pp-phi": 
+        model = AEPPV7(enc_size_list={"in": INPUT_DIM, "rnn_in": INTER_DIM_2, "rnn_out": INTER_DIM_2}, 
+                   dec_size_list={"in": INPUT_DIM, "rnn_in": INTER_DIM_2, "rnn_out": INTER_DIM_2}, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
     else: 

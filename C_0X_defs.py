@@ -418,7 +418,7 @@ def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, a
         ax.set_xlabel('Normalized Time')
         ax.set_ylabel('Summed Foreign-Attention')
         ax.set_title(f'{selector}')
-        ax.set_ylim([0, 0.75])
+        ax.set_ylim([0, 1])
         ax.legend(loc = "upper left")
         ax.grid(True)
 
