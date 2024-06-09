@@ -29,8 +29,8 @@ def filter_data_by_tags_to_list(data, tags, tag_list):
 def postproc_standardize(data, tags, outlier_ratio=0): 
     if outlier_ratio > 0: 
         # Step 1: Remove outliers
-        low_percentile = np.percentile(data, 0.5, axis=0)
-        high_percentile = np.percentile(data, 99.5, axis=0)
+        low_percentile = np.percentile(data, outlier_ratio, axis=0)
+        high_percentile = np.percentile(data, 100-outlier_ratio, axis=0)
 
         # Keep rows where all elements are within the percentiles
         mask = (data > low_percentile) & (data < high_percentile)

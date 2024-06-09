@@ -8,7 +8,6 @@ from model_dataset import WordDatasetPath as ThisDataset
 from C_0X_defs import *
 from C_0Y_evaldefs import *
 # from C_0D_run import load_data_general
-import collections
 
 EPOCHS = 10
 BATCH_SIZE = 1
@@ -16,11 +15,11 @@ INPUT_DIM = 64
 OUTPUT_DIM = 64
 INTER_DIM_0 = 32
 INTER_DIM_1 = 16
-INTER_DIM_2 = 3
+INTER_DIM_2 = 8
 ENC_SIZE_LIST = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
 DEC_SIZE_LIST = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
 DROPOUT = 0.5
-NUM_LAYERS = 3
+NUM_LAYERS = 5
 EMBEDDING_DIM = 128
 REC_SAMPLE_RATE = 16000
 N_FFT = 400
@@ -69,13 +68,19 @@ def get_included_names(loader):
     return included_names
 
 ######################## Full Hidrep Evaluation ########################
+# full_hidrep_evaluate_list = [
+#     ["AA", "UW"], 
+#     ["AA", "IY"],
+
+# ]
+
 def cutHid(hid, cutstart, cutend, start_offset=0, end_offset=1): 
     selstart = max(cutstart, math.floor(cutstart + (cutend - cutstart) * start_offset))
     selend = min(cutend, math.ceil(cutstart + (cutend - cutstart) * end_offset))
     # hid is (L, H)
     return hid[selstart:selend, :]
 
-def get_toplot(data, name_dict, df, selector, max_counts=500, offsets=(0, 1), hiddim=8, take_average=False): 
+def get_toplot(data, name_dict, df, selector, max_counts=500, offsets=(0, 1), no_empty=False, use_mean=False): 
     selected_df = pd.DataFrame(columns=df.columns)
     for item in selector:
         # Filter the DataFrame for the current item
@@ -98,21 +103,22 @@ def get_toplot(data, name_dict, df, selector, max_counts=500, offsets=(0, 1), hi
     cutstarts = selected_df["startFrame"]
     cutends = selected_df["endFrame"]
 
-    hid_sel = np.empty((0, hiddim))
+    hid_sel = np.empty((0, INTER_DIM_2))
     tag_sel = []
     for (item, start, end, tag) in zip(selected_items, cutstarts, cutends, selected_df["segment_nostress"]): 
         hid = cutHid(item, start, end, offsets[0], offsets[1])
-        hidlen = hid.shape[0]
-        # if hidlen == 0: 
-        #     continue
-        if take_average: 
+        if no_empty: 
+            if hid.shape[0] == 0: 
+                continue
+        
+        if use_mean: 
             hid = np.mean(hid, axis=0, keepdims=True)
             hid_sel = np.concatenate((hid_sel, hid), axis=0)
             tag_sel += [tag]
         else: 
+            hidlen = hid.shape[0]
             hid_sel = np.concatenate((hid_sel, hid), axis=0)
             tag_sel += [tag] * hidlen
-    # print(collections.Counter(tag_sel))
     return hid_sel, np.array(tag_sel)
 ######################## Full Hidrep Evaluation End of Definition ########################
 
@@ -137,7 +143,11 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     model.eval()
     reshandler = DictResHandler(whole_res_dir=res_save_dir, 
                                  file_prefix=f"fullattnrep-{stop_epoch}")
-    all_zs = {}
+    all_z1 = []
+    all_z2 = []
+    all_z3 = []
+    all_z4 = []
+    all_z5 = []
     all_attnz = []
     all_attnw = []
     all_name = []
@@ -151,23 +161,28 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
 
         (zes, zqs, attn_z), out, attn_w = model.attn_encode(x, x_lens, x_mask)
 
-        for z_i in range(len(zqs)): 
-            z = zqs[z_i].cpu().detach().numpy().squeeze()
-            z_key = f"z{z_i}"
-            if z_key not in all_zs.keys(): 
-                all_zs[z_key] = [z]
-            else: 
-                all_zs[z_key] += [z]
+        z1 = zqs[0].cpu().detach().numpy().squeeze()
+        z2 = zqs[1].cpu().detach().numpy().squeeze()
+        z3 = zqs[2].cpu().detach().numpy().squeeze()
+        z4 = zqs[3].cpu().detach().numpy().squeeze()
+        z5 = zqs[4].cpu().detach().numpy().squeeze()
         attn_z = attn_z.cpu().detach().numpy().squeeze()
         attn_w = attn_w.cpu().detach().numpy().squeeze()
 
+        all_z1 += [z1]
+        all_z2 += [z2]
+        all_z3 += [z3]
+        all_z4 += [z4]
+        all_z5 += [z5]
         all_attnz += [attn_z]
         all_attnw += [attn_w]
         all_name += [name]
     
-    for key in all_zs.keys(): 
-        reshandler.res[key] = all_zs[key]
-
+    reshandler.res["z1"] = all_z1
+    reshandler.res["z2"] = all_z2
+    reshandler.res["z3"] = all_z3
+    reshandler.res["z4"] = all_z4
+    reshandler.res["z5"] = all_z5
     reshandler.res["attn_z"] = all_attnz
     reshandler.res["attn_w"] = all_attnw
     reshandler.res["name"] = all_name
@@ -176,7 +191,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     print(f"Results fullhid-{stop_epoch} saved at {res_save_dir}")
     return 0
 
-def evaluate_hidrep_one_epoch(hidreps, guide_file, name_dict, evaluation_pairs, example_save_path, phoneme_map, hiddim=8): 
+def evaluate_hidrep_one_epoch(hidreps, guide_file, name_dict, evaluation_pairs, example_save_path, phoneme_map): 
     sil_scores = []
     example_pair = evaluation_pairs[0]
     X, Y = get_toplot(data=hidreps, 
@@ -184,19 +199,19 @@ def evaluate_hidrep_one_epoch(hidreps, guide_file, name_dict, evaluation_pairs, 
                     df=guide_file, 
                     selector=example_pair, 
                     max_counts=500, 
-                    hiddim=hiddim, 
                     offsets=(0.4, 0.6))
-    sil_scores.append(silhouette_score(X, Y))
-    pca = PCA(n_components=2)  # Reduce to 2 dimensions
-    pca_result = pca.fit_transform(X)  # Make sure to convert from PyTorch tensor to NumPy array if necessary
-    plt.figure(figsize=(10, 7))  # Larger figure size for better visibility
-    scatter = plt.scatter(pca_result[:, 0], pca_result[:, 1], c=np.vectorize(phoneme_map.encode)(Y), cmap='viridis', alpha=0.5)
-    plt.colorbar(scatter)
-    plt.xlabel('Principal Component 1')
-    plt.ylabel('Principal Component 2')
-    plt.title('PCA of Hidden Representations between {} and {}'.format(*example_pair))
-    plt.savefig(example_save_path)
-    plt.close()
+    if example_save_path is not None: 
+        sil_scores.append(silhouette_score(X, Y))
+        pca = PCA(n_components=2)  # Reduce to 2 dimensions
+        pca_result = pca.fit_transform(X)  # Make sure to convert from PyTorch tensor to NumPy array if necessary
+        plt.figure(figsize=(10, 7))  # Larger figure size for better visibility
+        scatter = plt.scatter(pca_result[:, 0], pca_result[:, 1], c=np.vectorize(phoneme_map.encode)(Y), cmap='viridis', alpha=0.5)
+        plt.colorbar(scatter)
+        plt.xlabel('Principal Component 1')
+        plt.ylabel('Principal Component 2')
+        plt.title('PCA of Hidden Representations between {} and {}'.format(*example_pair))
+        plt.savefig(example_save_path)
+        plt.close()
     
     for pair in evaluation_pairs[1:]: 
         X, Y = get_toplot(data=hidreps, 
@@ -204,84 +219,44 @@ def evaluate_hidrep_one_epoch(hidreps, guide_file, name_dict, evaluation_pairs, 
                             df=guide_file, 
                             selector=pair, 
                             max_counts=500, 
-                            hiddim=hiddim, 
                             offsets=(0.4, 0.6))
         sil_scores.append(silhouette_score(X, Y))
     return sil_scores
 
-# def evaluate_hidrep_one_epoch(hidreps, guide_file, name_dict, evaluation_items, evaluation_pairs, example_save_path, phoneme_map, hiddim=8): 
-#     # NOTE: we add z-score normalization before calculation
-#     hidreps, tags = get_toplot(data=hidreps, 
-#                             name_dict=name_dict, 
-#                             df=guide_file, 
-#                             selector=evaluation_items, 
-#                             max_counts=500, 
-#                             offsets=(0.4, 0.6), 
-#                             hiddim=hiddim, 
-#                             take_average=False)
-    
-#     # Normalize
-#     hidreps_norm, tags_norm = hidreps, tags
-#     # hidreps_norm, tags_norm = postproc_standardize(hidreps, tags, outlier_ratio=0.05)
-#     # NOTE: By now the data is "selected" and balanced, so we won't do any selection, just find out all that belong to the target. 
-#     sil_scores = []
-#     # ABX_errors = []
-
-#     example_pair = evaluation_pairs[0]
-#     sel_hidreps, sel_tags = filter_data_by_tags(hidreps_norm, tags_norm, example_pair)
-#     # raise Exception("Stop here")
-#     sil_scores.append(silhouette_score(sel_hidreps, sel_tags))
-#     # group_a, group_b = filter_data_by_tags_to_list(hidreps_norm, tags_norm, example_pair) # becuase it is pair, so just a and b. 
-#     # ABX_errors.append(unsym_abx_error(group_a, group_b, distance=euclidean_distance))
-
-#     pca = PCA(n_components=2)  # Reduce to 2 dimensions
-#     pca_result = pca.fit_transform(sel_hidreps)  # Make sure to convert from PyTorch tensor to NumPy array if necessary
-#     plt.figure(figsize=(10, 7))  # Larger figure size for better visibility
-#     scatter = plt.scatter(pca_result[:, 0], pca_result[:, 1], c=np.vectorize(phoneme_map.encode)(sel_tags), cmap='viridis', alpha=0.5)
-#     plt.colorbar(scatter)
-#     plt.xlabel('Principal Component 1')
-#     plt.ylabel('Principal Component 2')
-#     plt.title('PCA of Hidden Representations between {} and {}'.format(*example_pair))
-#     plt.savefig(example_save_path)
-#     plt.close()
-    
-#     for pair in evaluation_pairs[1:]: 
-#         sel_hidreps, sel_tags = filter_data_by_tags(hidreps_norm, tags_norm, pair)
-#         sil_scores.append(silhouette_score(sel_hidreps, sel_tags))
-#         # group_a, group_b = filter_data_by_tags_to_list(hidreps_norm, tags_norm, pair) # becuase it is pair, so just a and b. 
-#         # ABX_errors.append(unsym_abx_error(group_a, group_b, distance=euclidean_distance))
-#     return sil_scores
-
-
-def evaluate_hidrep_one_epoch_ABX(hidreps, guide_file, name_dict, evaluation_items, evaluation_pairs, example_save_path, phoneme_map, hiddim=8): 
-    # NOTE: In fact, these two can go together, why we separate them is because ABX test takes much time, we need to select only very few examples. 
-    hidreps, tags = get_toplot(data=hidreps, 
-                            name_dict=name_dict, 
-                            df=guide_file, 
-                            selector=evaluation_items, 
-                            max_counts=30, 
-                            offsets=(0.3, 0.7), 
-                            hiddim=hiddim, 
-                            take_average=False)
-    
+def evaluate_hidrep_one_epoch_ABX(hidreps, guide_file, name_dict, evaluation_pairs): 
     # Normalize
-    hidreps_norm, tags_norm = postproc_standardize(hidreps, tags)
+    # hidreps_norm, tags_norm = postproc_standardize(hidreps, tags)
     # NOTE: By now the data is "selected" and balanced, so we won't do any selection, just find out all that belong to the target. 
     ABX_errors = []
     
     for pair in evaluation_pairs: 
-        sel_hidreps, sel_tags = filter_data_by_tags(hidreps_norm, tags_norm, pair)
-        group_a, group_b = filter_data_by_tags_to_list(hidreps_norm, tags_norm, pair) # becuase it is pair, so just a and b. 
-        ABX_errors.append(unsym_abx_error(group_a, group_b, distance=euclidean_distance))
+        # print(pair)
+        a_hids, a_tags = get_toplot(data=hidreps, 
+                        name_dict=name_dict, 
+                        df=guide_file, 
+                        selector=[pair[0]], 
+                        max_counts=20, 
+                        offsets=(0.4, 0.6), 
+                        no_empty=True, 
+                        use_mean=True)
+        
+        b_hids, b_tags = get_toplot(data=hidreps, 
+                        name_dict=name_dict, 
+                        df=guide_file, 
+                        selector=[pair[1]], 
+                        max_counts=20, 
+                        offsets=(0.4, 0.6), 
+                        no_empty=True, 
+                        use_mean=True)
+        
+        # print(a_hids.shape, b_hids.shape)
+        # print(a_tags, b_tags)
+        # raise Exception("Stop here")
+
+        ABX_errors.append(unsym_abx_error(a_hids, b_hids, distance=euclidean_distance))
     return ABX_errors
 
-
 def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_, run_eval="re", check_range=(0, 100)): 
-    # Analyse model settings
-    run_category, hiddim, num_layers = model_type.split("-")
-    hiddim = int(hiddim)
-    num_layers = int(num_layers)
-
     # Dirs
     rec_dir = train_cut_phone_
     # Check model path
@@ -313,18 +288,48 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
                    dec_size_list=DEC_SIZE_LIST, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
-    elif run_category == "reconcus":
-        model = AEPPV6(enc_size_list={"in": INPUT_DIM, "lin1": hiddim, "rnn_in": hiddim, "rnn_out": hiddim}, 
-                   dec_size_list={"in": INPUT_DIM, "lin1": hiddim, "hid": hiddim}, 
+    elif model_type == "pp":
+        model = AEPPV2(enc_size_list=ENC_SIZE_LIST, 
+                   dec_size_list=DEC_SIZE_LIST, 
                    ctc_decoder_size_list=ctc_size_list,
-                   num_layers=num_layers, dropout=DROPOUT)
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "recon100":
+        model = AEPPV4(enc_size_list=ENC_SIZE_LIST, 
+                   dec_size_list=DEC_SIZE_LIST, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "recon8-encin":
+        model = AEPPV5(enc_size_list={"in": INPUT_DIM, "lin1": INTER_DIM_0, "hid": INTER_DIM_2}, 
+                   dec_size_list={"in": INPUT_DIM, "lin1": INTER_DIM_0, "hid": INTER_DIM_2}, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "recon100-encin":
+        model = AEPPV5(enc_size_list={"in": INPUT_DIM, "lin1": INTER_DIM_0, "hid": INTER_DIM_2}, 
+                   dec_size_list={"in": INPUT_DIM, "lin1": INTER_DIM_0, "hid": INTER_DIM_2}, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "recon100-new":
+        model = AEPPV6(enc_size_list={"in": INPUT_DIM, "lin1": INTER_DIM_2, "rnn_in": INTER_DIM_2, "rnn_out": INTER_DIM_2}, 
+                   dec_size_list={"in": INPUT_DIM, "lin1": INTER_DIM_0, "hid": INTER_DIM_2}, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "recon100-5l":
+        model = AEPPV6(enc_size_list={"in": INPUT_DIM, "lin1": INTER_DIM_2, "rnn_in": INTER_DIM_2, "rnn_out": INTER_DIM_2}, 
+                   dec_size_list={"in": INPUT_DIM, "lin1": INTER_DIM_0, "hid": INTER_DIM_2}, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=5, dropout=DROPOUT)
+    elif model_type == "recon8-5l":
+        model = AEPPV6(enc_size_list={"in": INPUT_DIM, "lin1": INTER_DIM_2, "rnn_in": INTER_DIM_2, "rnn_out": INTER_DIM_2}, 
+                   dec_size_list={"in": INPUT_DIM, "lin1": INTER_DIM_0, "hid": INTER_DIM_2}, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=5, dropout=DROPOUT)
     else: 
         raise Exception("Model type not supported! ")
 
     if run_eval == "re" or run_eval == "r":
         # Run model and save results        
         for epoch in range(check_start, check_end): 
-            print(f"Run {model_type} @ {epoch}")
+            print(f"Running for {train_name}-{ts}-{run_number}:{model_type}@{epoch}")
             run_one_epoch(model, single_loader, None, model_save_dir, epoch, res_save_dir)
 
     # Prepare guide file for hidrep evaluation        
@@ -339,41 +344,36 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
     name_dict = {token: index for index, token in enumerate(included_names)}
 
     all_v = filtered_df[filtered_df["segment_nostress"].isin(ARPABET.list_vowels())]["segment_nostress"].unique().tolist()
-    all_c = filtered_df[filtered_df["segment_nostress"].isin(ARPABET.list_consonants())]["segment_nostress"].unique().tolist()
-    v_pair_list = list(combinations(all_v, 2))
-    c_pair_list = list(combinations(all_c, 2))
-
-    # cv_list = all_v + all_c
-    # cv_pair_list = v_pair_list + c_pair_list
-
-    cv_list = all_v
-    cv_pair_list = v_pair_list
+    full_hidrep_evaluate_list = list(combinations(all_v, 2))
 
     if run_eval == "re" or run_eval == "e":
         # Evaluate hidrep
+        cross_epoch_sil_scores = []
         for epoch in range(check_start, check_end): 
-            print(f"Evaluate {model_type} @ {epoch}")
             reshandler = DictResHandler(whole_res_dir=res_save_dir, 
                                         file_prefix=f"fullattnrep-{epoch}")
             reshandler.read()
-            for zs in ["z" + str(i) for i in range(num_layers)] + ["attn_z"]: 
+            for zs in ["z1", "z2", "z3", "z4", "z5", "attn_z"]: 
                 hidreps = reshandler.res[zs]
                 example_save_path = os.path.join(res_save_dir, f"{zs}-ex-{epoch}.png")
-                # NOTE: 不要區分vowel和consonant，直接用所有的，否則歸一化會有問題
-                sil_scores = evaluate_hidrep_one_epoch(hidreps, filtered_df, name_dict, 
-                                                                cv_pair_list, 
-                                                                example_save_path, mymap, hiddim=hiddim)
-                print(f"Silhouette scores for {zs} @ {epoch} done! ")
-                # abx_errs = evaluate_hidrep_one_epoch_ABX(hidreps, filtered_df, name_dict, 
-                #                                                 cv_list, cv_pair_list, 
-                #                                                 example_save_path, mymap, hiddim=hiddim)
-                # print(f"ABX errors for {zs} @ {epoch} done! ")
+                sil_scores = evaluate_hidrep_one_epoch(hidreps, filtered_df, name_dict, full_hidrep_evaluate_list, example_save_path, mymap)
                 sil_score_path = os.path.join(res_save_dir, f"{zs}_sil_scores_{epoch}.pk")
-                abx_err_path = os.path.join(res_save_dir, f"{zs}_abx_err_{epoch}.pk")
                 with open(sil_score_path, "wb") as file: 
                     pickle.dump(sil_scores, file)
-                # with open(abx_err_path, "wb") as file: 
-                #     pickle.dump(abx_errs, file)
+            # cross_epoch_sil_scores.append(np.array(sil_scores).mean())
+
+    if run_eval == "a":
+        for epoch in range(check_start, check_end): 
+            reshandler = DictResHandler(whole_res_dir=res_save_dir, 
+                                        file_prefix=f"fullattnrep-{epoch}")
+            reshandler.read()
+            for zs in ["z1", "z2", "z3", "z4", "z5", "attn_z"]: 
+                print(f"Running for {train_name}-{ts}-{run_number}:{zs}@{epoch}")
+                hidreps = reshandler.res[zs]
+                abx_errs = evaluate_hidrep_one_epoch_ABX(hidreps, filtered_df, name_dict, full_hidrep_evaluate_list)
+                abx_errs_path = os.path.join(res_save_dir, f"{zs}_abx_errs_{epoch}.pk")
+                with open(abx_errs_path, "wb") as file: 
+                    pickle.dump(abx_errs, file)
     return 
 
 if __name__ == "__main__":
@@ -384,6 +384,8 @@ if __name__ == "__main__":
     parser.add_argument('--model','-m',type=str, default = "ae",help="Model type: ae or vqvae")
     parser.add_argument('--condition','-cd',type=str, default="b", help='Condition: b (balanced), u (unbalanced), nt (no-T)')
     parser.add_argument('--runeval','-re',type=str, default="re", help='re, r or e')
+    parser.add_argument('--epochstart','-eps',type=int, default=0, help='re, r or e')
+    parser.add_argument('--epochend','-epe',type=int, default=50, help='re, r or e')
     args = parser.parse_args()
 
     # set device number
@@ -392,7 +394,7 @@ if __name__ == "__main__":
     ts = args.timestamp # this timestamp does not contain run number
     rn = args.runnumber
     runeval = args.runeval
-    train_name = "C_0N"
+    train_name = "C_0O"
     if not PU.path_exist(os.path.join(model_save_, f"{train_name}-{ts}-{rn}")):
         raise Exception(f"Training {train_name}-{ts}-{rn} does not exist! ")
     
@@ -403,6 +405,7 @@ if __name__ == "__main__":
     valid_full_guide_path = os.path.join(src_, "guide_validation.csv")
     mk(this_model_condition_dir)
 
+    print(f"Running Epochs {args.epochstart} to {args.epochend}")
     main(train_name, ts, args.runnumber, args.model, 
          model_save_dir, this_model_condition_dir, guide_dir, 
-         valid_full_guide_path, runeval, (0, 5))
+         valid_full_guide_path, runeval, (args.epochstart, args.epochend))

@@ -12,7 +12,7 @@ generate_random_number() {
 
 # Arrays of options for each argument
 # ms=('mtl')
-ms=('recon100-5l')
+ms=('recon8-5l')
 runs=("1")
 cs=('u')
 eps=(0 5 10 15 20 25 30 35 40 45)
@@ -21,7 +21,7 @@ ep_jump=5
 
 # Generate a 10-digit random number
 # ts='0526172101'
-ts='0603232108'
+ts='0609021600'
 echo "Timestamp: $ts"
 re='a'
 echo "Runeval: $re"
@@ -33,7 +33,7 @@ for m in "${ms[@]}"; do
                 # Randomly select a GPU between 0 and 8
                 gpu=$((RANDOM % 9))
                 # Run the Python script with the current combination of arguments in the background
-                python C_0L_allattnrep.py -ts "$ts" -rn "$r" -m "$m" -cd "$c" -gpu "$gpu" -re "$re" -eps "$eps" -epe "$(($eps + $ep_jump))" &
+                python C_0O_allattnrep.py -ts "$ts" -rn "$r" -m "$m" -cd "$c" -gpu "$gpu" -re "$re" -eps "$eps" -epe "$(($eps + $ep_jump))" &
             done
         done
     done

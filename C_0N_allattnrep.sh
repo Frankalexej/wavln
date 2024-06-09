@@ -13,6 +13,8 @@ generate_random_number() {
 # Arrays of options for each argument
 # ms=('mtl')
 ms=('reconcus-4-3' 'reconcus-6-3' 'reconcus-8-3' 'reconcus-10-3' 'reconcus-12-3' 'reconcus-16-3' 'reconcus-20-3')
+# ms=('reconcus-4-3')
+# ms=('reconcus-6-3' 'reconcus-8-3' 'reconcus-10-3' 'reconcus-12-3' 'reconcus-16-3' 'reconcus-20-3')
 runs=("1")
 cs=('u')
 

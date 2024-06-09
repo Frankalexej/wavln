@@ -6,6 +6,7 @@ from model_model import AEPPV1, AEPPV2, AEPPV4, AEPPV5, AEPPV6
 
 from model_dataset import WordDatasetPath as ThisDataset
 from C_0X_defs import *
+from C_0Y_evaldefs import *
 # from C_0D_run import load_data_general
 
 EPOCHS = 10
@@ -73,13 +74,51 @@ def get_included_names(loader):
 
 # ]
 
+# def cutHid(hid, cutstart, cutend, start_offset=0, end_offset=1): 
+#     selstart = max(cutstart, int(cutstart + (cutend - cutstart) * start_offset))
+#     selend = min(cutend, int(cutstart + (cutend - cutstart) * end_offset))
+#     # hid is (L, H)
+#     return hid[selstart:selend, :]
+
+# def get_toplot(data, name_dict, df, selector, max_counts=500, offsets=(0, 1)): 
+#     selected_df = pd.DataFrame(columns=df.columns)
+#     for item in selector:
+#         # Filter the DataFrame for the current item
+#         filtered_df = df[df['segment_nostress'] == item]
+        
+#         # Check if the number of rows exceeds the maximum count
+#         if len(filtered_df) > max_counts:
+#             # Randomly sample max_counts[item] rows
+#             sampled_df = filtered_df.sample(n=max_counts, replace=False)
+#         else:
+#             sampled_df = filtered_df
+#         # Append to the selected_df
+#         selected_df = pd.concat([selected_df, sampled_df], axis=0)
+#     # selected_df = df[df["segment_nostress"].isin(cluster_groups)]
+#     selected_wuid = selected_df["wuid"].tolist()
+#     indices = [name_dict[token] for token in selected_wuid]
+#     selected_items = []
+#     for idx in indices: 
+#         selected_items.append(data[idx])
+#     cutstarts = selected_df["startFrame"]
+#     cutends = selected_df["endFrame"]
+
+#     hid_sel = np.empty((0, INTER_DIM_2))
+#     tag_sel = []
+#     for (item, start, end, tag) in zip(selected_items, cutstarts, cutends, selected_df["segment_nostress"]): 
+#         hid = cutHid(item, start, end, offsets[0], offsets[1])
+#         hidlen = hid.shape[0]
+#         hid_sel = np.concatenate((hid_sel, hid), axis=0)
+#         tag_sel += [tag] * hidlen
+#     return hid_sel, np.array(tag_sel)
+
 def cutHid(hid, cutstart, cutend, start_offset=0, end_offset=1): 
-    selstart = max(cutstart, int(cutstart + (cutend - cutstart) * start_offset))
-    selend = min(cutend, int(cutstart + (cutend - cutstart) * end_offset))
+    selstart = max(cutstart, math.floor(cutstart + (cutend - cutstart) * start_offset))
+    selend = min(cutend, math.ceil(cutstart + (cutend - cutstart) * end_offset))
     # hid is (L, H)
     return hid[selstart:selend, :]
 
-def get_toplot(data, name_dict, df, selector, max_counts=500, offsets=(0, 1)): 
+def get_toplot(data, name_dict, df, selector, max_counts=500, offsets=(0, 1), no_empty=False, use_mean=False): 
     selected_df = pd.DataFrame(columns=df.columns)
     for item in selector:
         # Filter the DataFrame for the current item
@@ -106,9 +145,18 @@ def get_toplot(data, name_dict, df, selector, max_counts=500, offsets=(0, 1)):
     tag_sel = []
     for (item, start, end, tag) in zip(selected_items, cutstarts, cutends, selected_df["segment_nostress"]): 
         hid = cutHid(item, start, end, offsets[0], offsets[1])
-        hidlen = hid.shape[0]
-        hid_sel = np.concatenate((hid_sel, hid), axis=0)
-        tag_sel += [tag] * hidlen
+        if no_empty: 
+            if hid.shape[0] == 0: 
+                continue
+        
+        if use_mean: 
+            hid = np.mean(hid, axis=0, keepdims=True)
+            hid_sel = np.concatenate((hid_sel, hid), axis=0)
+            tag_sel += [tag]
+        else: 
+            hidlen = hid.shape[0]
+            hid_sel = np.concatenate((hid_sel, hid), axis=0)
+            tag_sel += [tag] * hidlen
     return hid_sel, np.array(tag_sel)
 ######################## Full Hidrep Evaluation End of Definition ########################
 
@@ -212,7 +260,38 @@ def evaluate_hidrep_one_epoch(hidreps, guide_file, name_dict, evaluation_pairs, 
         sil_scores.append(silhouette_score(X, Y))
     return sil_scores
 
+def evaluate_hidrep_one_epoch_ABX(hidreps, guide_file, name_dict, evaluation_pairs): 
+    # Normalize
+    # hidreps_norm, tags_norm = postproc_standardize(hidreps, tags)
+    # NOTE: By now the data is "selected" and balanced, so we won't do any selection, just find out all that belong to the target. 
+    ABX_errors = []
+    
+    for pair in evaluation_pairs: 
+        # print(pair)
+        a_hids, a_tags = get_toplot(data=hidreps, 
+                        name_dict=name_dict, 
+                        df=guide_file, 
+                        selector=[pair[0]], 
+                        max_counts=20, 
+                        offsets=(0.4, 0.6), 
+                        no_empty=True, 
+                        use_mean=True)
+        
+        b_hids, b_tags = get_toplot(data=hidreps, 
+                        name_dict=name_dict, 
+                        df=guide_file, 
+                        selector=[pair[1]], 
+                        max_counts=20, 
+                        offsets=(0.4, 0.6), 
+                        no_empty=True, 
+                        use_mean=True)
+        
+        # print(a_hids.shape, b_hids.shape)
+        # print(a_tags, b_tags)
+        # raise Exception("Stop here")
 
+        ABX_errors.append(unsym_abx_error(a_hids, b_hids, distance=euclidean_distance))
+    return ABX_errors
 
 def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_, run_eval="re", check_range=(0, 100)): 
     # Dirs
@@ -313,6 +392,19 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
                 with open(sil_score_path, "wb") as file: 
                     pickle.dump(sil_scores, file)
             # cross_epoch_sil_scores.append(np.array(sil_scores).mean())
+
+    if run_eval == "a":
+        for epoch in range(check_start, check_end): 
+            reshandler = DictResHandler(whole_res_dir=res_save_dir, 
+                                        file_prefix=f"fullattnrep-{epoch}")
+            reshandler.read()
+            for zs in ["z1", "z2", "z3", "z4", "z5", "attn_z"]: 
+                print(f"Running for {train_name}-{ts}-{run_number}:{zs}@{epoch}")
+                hidreps = reshandler.res[zs]
+                abx_errs = evaluate_hidrep_one_epoch_ABX(hidreps, filtered_df, name_dict, full_hidrep_evaluate_list)
+                abx_errs_path = os.path.join(res_save_dir, f"{zs}_abx_errs_{epoch}.pk")
+                with open(abx_errs_path, "wb") as file: 
+                    pickle.dump(abx_errs, file)
     return 
 
 if __name__ == "__main__":
@@ -323,6 +415,8 @@ if __name__ == "__main__":
     parser.add_argument('--model','-m',type=str, default = "ae",help="Model type: ae or vqvae")
     parser.add_argument('--condition','-cd',type=str, default="b", help='Condition: b (balanced), u (unbalanced), nt (no-T)')
     parser.add_argument('--runeval','-re',type=str, default="re", help='re, r or e')
+    parser.add_argument('--epochstart','-eps',type=int, default=0, help='re, r or e')
+    parser.add_argument('--epochend','-epe',type=int, default=50, help='re, r or e')
     args = parser.parse_args()
 
     # set device number
@@ -342,6 +436,7 @@ if __name__ == "__main__":
     valid_full_guide_path = os.path.join(src_, "guide_validation.csv")
     mk(this_model_condition_dir)
 
+    print(f"Running Epochs {args.epochstart} to {args.epochend}")
     main(train_name, ts, args.runnumber, args.model, 
          model_save_dir, this_model_condition_dir, guide_dir, 
-         valid_full_guide_path, runeval, (0, 50))
+         valid_full_guide_path, runeval, (args.epochstart, args.epochend))
