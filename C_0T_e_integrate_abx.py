@@ -107,13 +107,15 @@ def get_toplot(hiddens, sepframes1, sepframes2, phi_types, stop_names, offsets=(
     return hid_sel, np.array(tag_sel)
 
 def plot_silhouette(silarray_1, silarray_2, save_path): 
-    n_steps = 100
     # Convert list of arrays into 2D NumPy arrays for easier manipulation
     # group1_array = np.array(silarray_1)
     # group2_array = np.array(silarray_2)
 
     group1_array = silarray_1
     group2_array = silarray_2
+
+    n_steps = group1_array.shape[1]
+    assert n_steps == group2_array.shape[1]
 
     # Calculate the mean trajectory for each group
     mean_trajectory_group1 = np.mean(group1_array, axis=0)
@@ -189,7 +191,7 @@ if __name__ == "__main__":
         stop_list = []
         print(f"Processing {model_type} in run {run_number}...")
 
-        for epoch in range(30, 35):     
+        for epoch in range(40, 60):     
             this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
             hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
                                  file_prefix=f"all-{epoch}")

@@ -2,6 +2,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from C_0X_defs import *
+from C_0Y_evaldefs import filter_data_by_tags
 
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
@@ -159,7 +160,7 @@ if __name__ == "__main__":
     asp_sil_lists = []   # silhouette score between aspirated and deaspirated plosives
     stop_sil_lists = []  # silhouette score between p, t, and k
 
-    learned_runs = [1, 2, 3, 4, 5]
+    learned_runs = [3, 4, 5]
     string_learned_runs = [str(num) for num in learned_runs]
     strseq_learned_runs = "".join(string_learned_runs)
 
@@ -211,12 +212,17 @@ if __name__ == "__main__":
                                             offsets=(0.4, 0.6), 
                                             contrast_in="stop", 
                                             merge=True)
-            color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
-            X, Y = hidr_cs, tags_cs
-            silhouette_avg = silhouette_score(X, tags_cs)
+            stop_sil_score = 0
+            for pair in [["P", "T"], ["T", "K"], ["P", "K"]]:
+                hidr_cs, tags_cs = filter_data_by_tags(hidr_cs, tags_cs, ["P", "T"])
+                color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
+                X, Y = hidr_cs, tags_cs
+                silhouette_avg = silhouette_score(X, tags_cs)
+                stop_sil_score += silhouette_avg
+            stop_sil_score /= 3
             stop_list.append(silhouette_avg)
         asp_sil_lists.append(asp_list)
         stop_sil_lists.append(stop_list)
 
-    plot_silhouette(asp_sil_lists, stop_sil_lists, os.path.join(res_save_dir, f"silhouette_TV-VS-{model_type}-{model_condition}-{strseq_learned_runs}@{args.zlevel}.png"))
+    plot_silhouette(asp_sil_lists, stop_sil_lists, os.path.join(res_save_dir, f"silhouette_TV-VS-{model_type}-{model_condition}-{strseq_learned_runs}@{args.zlevel}-PT.png"))
     print("Done.")
