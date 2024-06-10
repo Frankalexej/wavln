@@ -11,11 +11,11 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=('mtl')
+ms=('recon-phi')
 cs=('u')
 
 # Generate a 10-digit random number
-ts='0527172800'
+ts='0609231541'
 echo "Timestamp: $ts"
 
 # Loop from 1 to 10, incrementing by 1
@@ -25,7 +25,7 @@ for m in "${ms[@]}"; do
         # Randomly select a GPU between 0 and 8
         gpu=$((RANDOM % 9))
         # Run the Python script with the current combination of arguments in the background
-        python C_0E_integrate_sil.py -ts "$ts" -m "$m" -cd "$c" -gpu "$gpu" &
+        python C_0R_integrate_sil.py -ts "$ts" -m "$m" -cd "$c" -gpu "$gpu" &
     done
 done
 # Wait for all background processes to finish

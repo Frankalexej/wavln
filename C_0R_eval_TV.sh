@@ -27,7 +27,7 @@ for i in "${is[@]}"; do
             # Randomly select a GPU between 0 and 8
             gpu=$((RANDOM % 9))
             # Run the Python script with the current combination of arguments in the background
-            python C_0R_eval.py -ts "$ts" -rn "$i" -m "$m" -cd "$c" -gpu "$gpu" &
+            python C_0R_eval_TV.py -ts "$ts" -rn "$i" -m "$m" -cd "$c" -gpu "$gpu" &
         done
     done
 done

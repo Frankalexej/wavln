@@ -3,7 +3,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from model_model import AEPPV1, AEPPV2, AEPPV4
 
-from model_dataset import TargetVowelDatasetBoundaryPhoneseq as ThisDataset
+from model_dataset import TargetVowelDatasetBoundaryPhoneseqOnlyTV as ThisDataset
 from model_dataset import SilenceSampler_for_TV
 from C_0X_defs import *
 
@@ -44,7 +44,7 @@ def get_data_both(rec_dir, t_guide_path, st_guide_path, word_guide_):
 
     st_valid = pd.read_csv(st_guide_path)
     t_valid = pd.read_csv(t_guide_path)
-    t_valid["pre_startTime"] = t_valid["stop_startTime"] - SilenceSampler_for_TV().sample(len(t_valid))
+    t_valid["pre_startTime"] = t_valid['stop_startTime']
     all_valid = pd.concat([t_valid, st_valid], ignore_index=True, sort=False)
 
     # Load TokenMap to map the phoneme to the index
@@ -160,7 +160,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     plt.savefig(os.path.join(res_save_dir, f"recon-at-{stop_epoch}.png"))
     plt.close()
 
-    plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"))
+    # plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"))
     return 0
 
 def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_): 
@@ -204,7 +204,7 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
                    dec_size_list=DEC_SIZE_LIST, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
-    elif model_type == "recon-phi": 
+    elif model_type == "recon-phi" or model_type == "recon-phi-TV": 
         model = AEPPV4(enc_size_list=ENC_SIZE_LIST, 
                    dec_size_list=DEC_SIZE_LIST, 
                    ctc_decoder_size_list=ctc_size_list,
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}-{rn}", args.model, args.condition)
     guide_dir = os.path.join(model_save_, f"{train_name}-{ts}-{rn}", "guides")
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
-    this_model_condition_dir = os.path.join(res_save_dir, args.model, args.condition, f"{rn}")
+    this_model_condition_dir = os.path.join(res_save_dir, args.model, args.condition + "-TV", f"{rn}")
     valid_full_guide_path = os.path.join(src_, "guide_validation.csv")
     mk(this_model_condition_dir)
 

@@ -60,11 +60,11 @@ def get_toplot(hiddens, sepframes1, sepframes2, phi_types, stop_names, offsets=(
     cutstarts = []
     cutends = []
     for sepframe1, sepframe2, phi_type in zip(sepframes1, sepframes2, phi_types):
-        if phi_type == 'ST':
-            cutstarts.append(sepframe1)
-        else:
-            cutstarts.append(0)
-        # cutstarts.append(sepframe1)
+        # if phi_type == 'ST':
+        #     cutstarts.append(sepframe1)
+        # else:
+        #     cutstarts.append(0)
+        cutstarts.append(sepframe1)
         cutends.append(sepframe2)
 
     if contrast_in == "asp": 
@@ -149,7 +149,7 @@ if __name__ == "__main__":
 
     model_type = args.model
     model_condition = args.condition
-    model_condition_dir = os.path.join(res_save_dir, model_type, model_condition)
+    model_condition_dir = os.path.join(res_save_dir, model_type, model_condition + "-TV")
     print(model_condition_dir)
     assert PU.path_exist(model_condition_dir)
     this_save_dir = os.path.join(model_condition_dir, "integrated_results")
@@ -212,5 +212,5 @@ if __name__ == "__main__":
         asp_sil_lists.append(asp_list)
         stop_sil_lists.append(stop_list)
 
-    plot_silhouette(asp_sil_lists, stop_sil_lists, os.path.join(res_save_dir, f"silhouette-VS-{model_type}-{model_condition}-{strseq_learned_runs}.png"))
+    plot_silhouette(asp_sil_lists, stop_sil_lists, os.path.join(res_save_dir, f"silhouette_TV-VS-{model_type}-{model_condition}-{strseq_learned_runs}.png"))
     print("Done.")
