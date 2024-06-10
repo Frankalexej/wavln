@@ -3,7 +3,6 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from C_0X_defs import *
 
-
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
     if ax is None:
         _, ax = plt.subplots(1, 1)
@@ -60,11 +59,11 @@ def get_toplot(hiddens, sepframes1, sepframes2, phi_types, stop_names, offsets=(
     cutstarts = []
     cutends = []
     for sepframe1, sepframe2, phi_type in zip(sepframes1, sepframes2, phi_types):
-        if phi_type == 'ST':
-            cutstarts.append(sepframe1)
-        else:
-            cutstarts.append(0)
-        # cutstarts.append(sepframe1)
+        # if phi_type == 'ST':
+        #     cutstarts.append(sepframe1)
+        # else:
+        #     cutstarts.append(0)
+        cutstarts.append(sepframe1)
         cutends.append(sepframe2)
 
     if contrast_in == "asp": 
@@ -138,13 +137,14 @@ if __name__ == "__main__":
     parser.add_argument('--gpu', '-gpu', type=int, default=0, help="Choose the GPU to work on")
     parser.add_argument('--model','-m',type=str, default = "ae",help="Model type: ae or vqvae")
     parser.add_argument('--condition','-cd',type=str, default="b", help='Condition: b (balanced), u (unbalanced), nt (no-T)')
+    parser.add_argument('--zlevel','-zl',type=str, default="hidrep", help='hidrep / attnout')
     args = parser.parse_args()
 
     # set device number
     torch.cuda.set_device(args.gpu)
 
     ts = args.timestamp # this timestamp does not contain run number
-    train_name = "C_0R"
+    train_name = "C_0T"
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
 
     model_type = args.model
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     asp_sil_lists = []   # silhouette score between aspirated and deaspirated plosives
     stop_sil_lists = []  # silhouette score between p, t, and k
 
-    learned_runs = [1, 2, 3, 4, 5]
+    learned_runs = [1, 2, 3, 4, 5]  # 按照实际情况修改
     string_learned_runs = [str(num) for num in learned_runs]
     strseq_learned_runs = "".join(string_learned_runs)
 
@@ -167,14 +167,19 @@ if __name__ == "__main__":
         stop_list = []
         print(f"Processing {model_type} in run {run_number}...")
 
-        for epoch in range(0, 100):     
+        for epoch in range(0, 100): 
             this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
             hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
                                  file_prefix=f"all-{epoch}")
             hidrep_handler.read()
             hidrep = hidrep_handler.res
-
-            all_zq = hidrep["zq"]
+            if args.zlevel == "hidrep": 
+                all_zq = hidrep["ze"]
+            elif args.zlevel == "attnout": 
+                all_zq = hidrep["zq"]
+            else: 
+                raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
+            
             all_sepframes1 = hidrep["sep-frame1"]
             all_sepframes2 = hidrep["sep-frame2"]
             all_phi_type = hidrep["phi-type"]
@@ -212,5 +217,5 @@ if __name__ == "__main__":
         asp_sil_lists.append(asp_list)
         stop_sil_lists.append(stop_list)
 
-    plot_silhouette(asp_sil_lists, stop_sil_lists, os.path.join(res_save_dir, f"silhouette-VS-{model_type}-{model_condition}-{strseq_learned_runs}.png"))
+    plot_silhouette(asp_sil_lists, stop_sil_lists, os.path.join(res_save_dir, f"silhouette-VS-{model_type}-{model_condition}-{strseq_learned_runs}@{args.zlevel}.png"))
     print("Done.")
