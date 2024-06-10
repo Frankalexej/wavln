@@ -48,6 +48,9 @@ def plot_attention_comparison_012(all_phi_type, all_attn, all_sepframes0, all_se
                 t_to_s_interp = interpolate_traj(blocks['t_to_s'], n_steps)
                 t_to_a_interp = interpolate_traj(blocks['t_to_a'], n_steps)
                 a_to_t_interp = interpolate_traj(blocks['a_to_t'], n_steps)
+                if np.any(np.isnan(s_to_t_interp)) or np.any(np.isnan(t_to_s_interp)) or np.any(np.isnan(t_to_a_interp)) or np.any(np.isnan(a_to_t_interp)):
+                    print("ST NaN detected!")
+                    continue
                 s_to_t_traj.append(s_to_t_interp)
                 t_to_s_traj.append(t_to_s_interp)
                 t_to_a_traj.append(t_to_a_interp)
@@ -122,11 +125,13 @@ def plot_attention_comparison_012(all_phi_type, all_attn, all_sepframes0, all_se
                 this_sep_frame2 = selected_sf2s[i]
 
                 blocks = extract_attention_blocks_T012(this_attn, this_sep_frame0, this_sep_frame1, this_sep_frame2)
-
                 s_to_t_interp = interpolate_traj(blocks['s_to_t'], n_steps)
                 t_to_s_interp = interpolate_traj(blocks['t_to_s'], n_steps)
                 t_to_a_interp = interpolate_traj(blocks['t_to_a'], n_steps)
                 a_to_t_interp = interpolate_traj(blocks['a_to_t'], n_steps)
+                if np.any(np.isnan(s_to_t_interp)) or np.any(np.isnan(t_to_s_interp)) or np.any(np.isnan(t_to_a_interp)) or np.any(np.isnan(a_to_t_interp)):
+                    print("T NaN detected!")
+                    continue
                 s_to_t_traj.append(s_to_t_interp)
                 t_to_s_traj.append(t_to_s_interp)
                 t_to_a_traj.append(t_to_a_interp)
@@ -188,65 +193,6 @@ def plot_attention_comparison_012(all_phi_type, all_attn, all_sepframes0, all_se
                 # Annotate significance
                 ax.text((pos1 + pos2) / 2, y_max + 2.5*h, marker, ha='center', va='bottom', color='black', fontsize=12)
             ax.set_xticklabels(use_labels)
-            # t_to_a_traj = []
-            # a_to_t_traj = []
-            # for i in range(len(selected_attns)): 
-            #     this_attn = selected_attns[i]
-            #     this_sep_frame2 = selected_sf2s[i]
-
-            #     blocks = extract_attention_blocks_T(this_attn, this_sep_frame2)
-
-            #     t_to_a_interp = interpolate_traj(blocks['t_to_a'], n_steps)
-            #     a_to_t_interp = interpolate_traj(blocks['a_to_t'], n_steps)
-            #     t_to_a_traj.append(t_to_a_interp)
-            #     a_to_t_traj.append(a_to_t_interp)
-
-            # # Convert list of arrays into 2D NumPy arrays for easier manipulation
-            # group3_array = np.array(t_to_a_traj)
-            # group4_array = np.array(a_to_t_traj)
-
-            # target_group3 = group3_array[:, -segment_length:].flatten()
-            # target_group4 = group4_array[:, :segment_length].flatten()
-
-            # # Calculate the mean trajectory for each group
-            # means = np.array([np.mean(target_group3, axis=0), 
-            #                 np.mean(target_group4, axis=0)])
-
-            # # Calculate the SEM for each step in both groups
-            # sems = np.array([sem(target_group3, axis=0),
-            #                 sem(target_group4, axis=0)])
-
-            # # Perform statistical tests between the three specified pairs
-            # _, p_val_p2v_vs_v2p = ttest_ind(target_group3, target_group4)
-            # use_labels = legend_names[2:]
-            # use_colors = colors[2:]
-
-            # x = np.arange(len(use_labels))  # Label locations
-            # bars = ax.bar(x, means, yerr=1.96*np.array(sems), capsize=5, color=use_colors)
-
- 
-            # # Mark significance directly on the bar graph
-            # significance_threshold_1 = 0.05
-            # significance_threshold_2 = 0.01
-            # significance_threshold_3 = 0.001
-            # signif_positions_pairs = [(0, 1)]  # Pairs of positions for each comparison
-            # p_values = [p_val_p2v_vs_v2p]
-
-            # for (pos1, pos2), p_val in zip(signif_positions_pairs, p_values):
-            #     y_max = max(means[pos1] + 1.96*sems[pos1], means[pos2] + 1.96*sems[pos2])
-            #     h = y_max * 0.05  # 5% above the max for drawing the line
-            #     ax.plot([pos1, pos1, pos2, pos2], [y_max + h, y_max + 2*h, y_max + 2*h, y_max + h], lw=1.5, c='black')
-            #     if p_val < significance_threshold_3: 
-            #         marker = "***"
-            #     elif p_val < significance_threshold_2:
-            #         marker = "**"
-            #     elif p_val < significance_threshold_1:
-            #         marker = "*"
-            #     else:
-            #         marker = ""
-            #     # Annotate significance
-            #     ax.text((pos1 + pos2) / 2, y_max + 2.5*h, marker, ha='center', va='bottom', color='black', fontsize=12)
-            # ax.set_xticklabels(use_labels)
 
         ax.set_ylabel('Attention')
         ax.set_title(selector)

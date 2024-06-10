@@ -470,6 +470,8 @@ def plot_attention_trajectory_together_012(all_phi_type, all_attn, all_sepframes
     legend_namess = [['S-to-P', 'P-to-S', 'P-to-V', 'V-to-P'], ['#-to-P', 'P-to-#', 'P-to-V', 'V-to-P']]
     colors = ['b', 'g', 'red', 'orange']
     n_steps = 100
+    badcounts = {"ST": 0, "T": 0}
+    totalcounts = {"ST": 0, "T": 0}
 
     for (selector, ax, legend_names) in zip(["ST", "T"], [ax1, ax2], legend_namess):
         selected_tuples = [(sf0, sf1, sf2, attn) for pt, sf0, sf1, sf2, attn in zip(all_phi_type,  
@@ -483,6 +485,7 @@ def plot_attention_trajectory_together_012(all_phi_type, all_attn, all_sepframes
             t_to_s_traj = []
             t_to_a_traj = []
             a_to_t_traj = []
+            totalcounts["ST"] += len(selected_attns)
             for i in range(len(selected_attns)): 
                 this_attn = selected_attns[i]
                 this_sep_frame0 = selected_sf0s[i]
@@ -495,6 +498,9 @@ def plot_attention_trajectory_together_012(all_phi_type, all_attn, all_sepframes
                 t_to_s_interp = interpolate_traj(blocks['t_to_s'], n_steps)
                 t_to_a_interp = interpolate_traj(blocks['t_to_a'], n_steps)
                 a_to_t_interp = interpolate_traj(blocks['a_to_t'], n_steps)
+                if np.any(np.isnan(s_to_t_interp)) or np.any(np.isnan(t_to_s_interp)) or np.any(np.isnan(t_to_a_interp)) or np.any(np.isnan(a_to_t_interp)):
+                    badcounts['ST'] += 1
+                    continue
                 s_to_t_traj.append(s_to_t_interp)
                 t_to_s_traj.append(t_to_s_interp)
                 t_to_a_traj.append(t_to_a_interp)
@@ -534,6 +540,7 @@ def plot_attention_trajectory_together_012(all_phi_type, all_attn, all_sepframes
             t_to_s_traj = []
             t_to_a_traj = []
             a_to_t_traj = []
+            totalcounts["T"] += len(selected_attns)
             for i in range(len(selected_attns)): 
                 this_attn = selected_attns[i]
                 this_sep_frame0 = selected_sf0s[i]
@@ -546,6 +553,9 @@ def plot_attention_trajectory_together_012(all_phi_type, all_attn, all_sepframes
                 t_to_s_interp = interpolate_traj(blocks['t_to_s'], n_steps)
                 t_to_a_interp = interpolate_traj(blocks['t_to_a'], n_steps)
                 a_to_t_interp = interpolate_traj(blocks['a_to_t'], n_steps)
+                if np.any(np.isnan(s_to_t_interp)) or np.any(np.isnan(t_to_s_interp)) or np.any(np.isnan(t_to_a_interp)) or np.any(np.isnan(a_to_t_interp)):
+                    badcounts['T'] += 1
+                    continue
                 s_to_t_traj.append(s_to_t_interp)
                 t_to_s_traj.append(t_to_s_interp)
                 t_to_a_traj.append(t_to_a_interp)
@@ -623,6 +633,8 @@ def plot_attention_trajectory_together_012(all_phi_type, all_attn, all_sepframes
         ax.legend(loc = "upper left")
         ax.grid(True)
 
+    print(f"badcounts: {badcounts}")
+    print(f"totalcounts: {totalcounts}")
     fig.suptitle('Comparison of Foreign-Attention Trajectory')
     plt.tight_layout()
     plt.savefig(save_path)
