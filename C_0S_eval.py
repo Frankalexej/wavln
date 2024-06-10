@@ -7,7 +7,7 @@ from model_dataset import TargetVowelDatasetBoundaryPhoneseqBothSIL as ThisDatas
 from model_dataset import SilenceSampler_for_TV
 from C_0X_defs import *
 
-NUM_LAYERS = 3
+NUM_LAYERS = 2
 
 # not using that in B, but we overwrite it here
 def get_data(rec_dir, guide_path, word_guide_):
@@ -177,9 +177,10 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
 
     # Load data
     st_guide_path = os.path.join(guide_dir, "ST-valid.csv")
-    single_loader = get_data(rec_dir, st_guide_path, word_guide_)
+    # single_loader = get_data(rec_dir, st_guide_path, word_guide_)
     # note that we always use the balanced data to evaluate, this is because we want the evaluation to have 
     # equal contrast, instead of having huge bias. 
+    single_loader = None
     both_loader = get_data_both(rec_dir, os.path.join(guide_dir, "T-valid-sampled.csv"), st_guide_path, word_guide_)
 
     # Load TokenMap to map the phoneme to the index
