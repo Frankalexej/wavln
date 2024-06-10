@@ -3,7 +3,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from model_model import AEPPV1, AEPPV2, AEPPV4
 
-from model_dataset import TargetVowelDatasetBoundaryPhoneseq as ThisDataset
+from model_dataset import TargetVowelDatasetBoundaryPhoneseqBothSIL as ThisDataset
 from model_dataset import SilenceSampler_for_TV
 from C_0X_defs import *
 
@@ -44,10 +44,11 @@ def get_data_both(rec_dir, t_guide_path, st_guide_path, word_guide_):
 
     st_valid = pd.read_csv(st_guide_path)
     t_valid = pd.read_csv(t_guide_path)
-    # 设定silence的开始时间，对于#TV，pre_startTime记录的就是白噪音开始的时间，而sil_startTime设为与之相同，方便后续处理
-    st_valid["sil_startTime"] = st_valid["stop_startTime"] - SilenceSampler_for_TV().sample(len(st_valid))
-    t_valid["pre_startTime"] = t_valid["stop_startTime"] - SilenceSampler_for_TV().sample(len(t_valid))
-    t_valid["sil_startTime"] = t_valid["pre_startTime"]
+    # 设定silence的开始时间，对于#TV，我们依然把白噪音放在sil_startTime和pre_startTime之间，
+    # 而pre_startTime和stop_startTime之间间隔为0. 方便后续处理
+    st_valid["sil_startTime"] = st_valid["pre_startTime"] - SilenceSampler_for_TV().sample(len(st_valid))
+    t_valid["pre_startTime"] = t_valid["stop_startTime"]
+    t_valid["sil_startTime"] = t_valid["pre_startTime"] - SilenceSampler_for_TV().sample(len(t_valid))
     all_valid = pd.concat([t_valid, st_valid], ignore_index=True, sort=False)
 
     # Load TokenMap to map the phoneme to the index
@@ -93,16 +94,15 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     all_zq = []
     all_stop_names = []
     all_vowel_names = []
+    all_sepframes0 = []
     all_sepframes1 = []
     all_sepframes2 = []
     all_attn = []
-    # all_attn_pp = []
     all_recon = []
-    # all_pp = []
     all_ori = []
     all_phi_type = []
 
-    for (x, x_lens, pt, sn, vn, sf1, sf2, phoneseq) in both_loader: 
+    for (x, x_lens, pt, sn, vn, sf0, sf1, sf2, phoneseq) in both_loader: 
         # name = name[0]
 
         x_mask = generate_mask_from_lengths_mat(x_lens, device=device)
@@ -134,6 +134,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
         all_ori += [ori_x]
         all_stop_names += sn
         all_vowel_names += vn
+        all_sepframes0 += sf0
         all_sepframes1 += sf1
         all_sepframes2 += sf2
         all_phi_type += pt
@@ -142,6 +143,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     reshandler.res["zq"] = all_zq
     reshandler.res["sn"] = all_stop_names
     reshandler.res["vn"] = all_vowel_names
+    reshandler.res["sep-frame0"] = all_sepframes0
     reshandler.res["sep-frame1"] = all_sepframes1
     reshandler.res["sep-frame2"] = all_sepframes2
     reshandler.res["attn"] = all_attn
@@ -163,7 +165,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     plt.savefig(os.path.join(res_save_dir, f"recon-at-{stop_epoch}.png"))
     plt.close()
 
-    plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"))
+    plot_attention_trajectory_together_012(all_phi_type, all_attn, all_sepframes0, all_sepframes1, all_sepframes2, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"))
     return 0
 
 def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_): 
@@ -234,7 +236,7 @@ if __name__ == "__main__":
 
     ts = args.timestamp # this timestamp does not contain run number
     rn = args.runnumber
-    train_name = "C_0R"
+    train_name = "C_0S"
     if not PU.path_exist(os.path.join(model_save_, f"{train_name}-{ts}-{rn}")):
         raise Exception(f"Training {train_name}-{ts}-{rn} does not exist! ")
     
