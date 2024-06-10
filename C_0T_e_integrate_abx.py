@@ -159,13 +159,14 @@ if __name__ == "__main__":
     parser.add_argument('--gpu', '-gpu', type=int, default=0, help="Choose the GPU to work on")
     parser.add_argument('--model','-m',type=str, default = "ae",help="Model type: ae or vqvae")
     parser.add_argument('--condition','-cd',type=str, default="b", help='Condition: b (balanced), u (unbalanced), nt (no-T)')
+    parser.add_argument('--zlevel','-zl',type=str, default="hidrep", help='hidrep / attnout')
     args = parser.parse_args()
 
     # set device number
     torch.cuda.set_device(args.gpu)
 
     ts = args.timestamp # this timestamp does not contain run number
-    train_name = "C_0R"
+    train_name = "C_0T"
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
 
     model_type = args.model
@@ -188,14 +189,19 @@ if __name__ == "__main__":
         stop_list = []
         print(f"Processing {model_type} in run {run_number}...")
 
-        for epoch in range(0, 100):     
+        for epoch in range(30, 35):     
             this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
             hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
                                  file_prefix=f"all-{epoch}")
             hidrep_handler.read()
             hidrep = hidrep_handler.res
-
-            all_zq = hidrep["zq"]
+            if args.zlevel == "hidrep": 
+                all_zq = hidrep["ze"]
+            elif args.zlevel == "attnout": 
+                all_zq = hidrep["zq"]
+            else: 
+                raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
+            
             all_sepframes1 = hidrep["sep-frame1"]
             all_sepframes2 = hidrep["sep-frame2"]
             all_phi_type = hidrep["phi-type"]
@@ -214,7 +220,7 @@ if __name__ == "__main__":
             color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
 
             asp_this_epoch = []
-            for i in range(6):
+            for i in range(3):
                 hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=25) # should be 2 only
                 abx_err = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
                 asp_this_epoch.append(abx_err)
@@ -232,7 +238,7 @@ if __name__ == "__main__":
                                             merge=True)
             color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
             stop_this_epoch = []
-            for i in range(2): 
+            for i in range(1): 
                 hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=25)
                 abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
                 abx_err02 = sym_abx_error(hidrs[0], hidrs[2], distance=euclidean_distance)
@@ -250,5 +256,5 @@ if __name__ == "__main__":
     stop_arr_reshaped = stop_arr.transpose(0, 2, 1).reshape(-1, stop_arr.shape[1])
     asp_arr_reshaped = asp_arr.transpose(0, 2, 1).reshape(-1, asp_arr.shape[1])
 
-    plot_silhouette(asp_arr_reshaped, stop_arr_reshaped, os.path.join(res_save_dir, f"abx-VS-{model_type}-{model_condition}-{strseq_learned_runs}.png"))
+    plot_silhouette(asp_arr_reshaped, stop_arr_reshaped, os.path.join(res_save_dir, f"abx-VS-{model_type}-{model_condition}-{strseq_learned_runs}@{args.zlevel}.png"))
     print("Done.")

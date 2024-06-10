@@ -26,7 +26,7 @@ if __name__ == "__main__":
     ts = args.timestamp # this timestamp does not contain run number
     model_type = args.model
     model_condition = args.condition
-    train_name = "C_0R"
+    train_name = "C_0T"
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
 
     sil_dict = {}

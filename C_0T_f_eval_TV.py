@@ -1,13 +1,13 @@
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-from model_model import AEPPV1, AEPPV2, AEPPV4
+from model_model import AEPPV1, AEPPV2, AEPPV4, AEPPV8
 
 from model_dataset import TargetVowelDatasetBoundaryPhoneseqOnlyTV as ThisDataset
 from model_dataset import SilenceSampler_for_TV
 from C_0X_defs import *
 
-NUM_LAYERS = 3
+NUM_LAYERS = 2
 
 # not using that in B, but we overwrite it here
 def get_data(rec_dir, guide_path, word_guide_):
@@ -106,7 +106,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
         
         x = x.to(device)
 
-        (x_hat_recon, y_hat_preds), (attn_w_recon, attn_w_preds), (ze, zq) = model(x, x_lens, x_mask)
+        (x_hat_recon, x_hat_attnout), (attn_w_recon, attn_w_preds), (ze, zq) = model.attn_forward(x, x_lens, x_mask)
 
         ze = ze.cpu().detach().numpy().squeeze()
         zq = zq.cpu().detach().numpy().squeeze()
@@ -114,7 +114,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
         # attn_w_preds = attn_w_preds.cpu().detach().numpy().squeeze()
         
         recon_x = x_hat_recon.cpu().detach().numpy().squeeze()
-        # pp_x = y_hat_preds.cpu().detach().numpy().squeeze()
+        attnout = x_hat_attnout.cpu().detach().numpy().squeeze()
         ori_x = x.cpu().detach().numpy().squeeze()
 
 
@@ -123,7 +123,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
             continue
 
         all_ze += [ze]
-        all_zq += [zq]
+        all_zq += [attnout]
         all_attn += [attn_w_recon]
         # all_attn_pp += [attn_w_preds]
         all_recon += [recon_x]
@@ -205,7 +205,7 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
     elif model_type == "recon-phi" or model_type == "recon-phi-TV": 
-        model = AEPPV4(enc_size_list=ENC_SIZE_LIST, 
+        model = AEPPV8(enc_size_list=ENC_SIZE_LIST, 
                    dec_size_list=DEC_SIZE_LIST, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
@@ -231,7 +231,7 @@ if __name__ == "__main__":
 
     ts = args.timestamp # this timestamp does not contain run number
     rn = args.runnumber
-    train_name = "C_0R"
+    train_name = "C_0T"
     if not PU.path_exist(os.path.join(model_save_, f"{train_name}-{ts}-{rn}")):
         raise Exception(f"Training {train_name}-{ts}-{rn} does not exist! ")
     

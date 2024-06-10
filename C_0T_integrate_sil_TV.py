@@ -138,13 +138,14 @@ if __name__ == "__main__":
     parser.add_argument('--gpu', '-gpu', type=int, default=0, help="Choose the GPU to work on")
     parser.add_argument('--model','-m',type=str, default = "ae",help="Model type: ae or vqvae")
     parser.add_argument('--condition','-cd',type=str, default="b", help='Condition: b (balanced), u (unbalanced), nt (no-T)')
+    parser.add_argument('--zlevel','-zl',type=str, default="hidrep", help='hidrep / attnout')
     args = parser.parse_args()
 
     # set device number
     torch.cuda.set_device(args.gpu)
 
     ts = args.timestamp # this timestamp does not contain run number
-    train_name = "C_0R"
+    train_name = "C_0T"
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
 
     model_type = args.model
@@ -173,8 +174,13 @@ if __name__ == "__main__":
                                  file_prefix=f"all-{epoch}")
             hidrep_handler.read()
             hidrep = hidrep_handler.res
-
-            all_zq = hidrep["zq"]
+            if args.zlevel == "hidrep": 
+                all_zq = hidrep["ze"]
+            elif args.zlevel == "attnout": 
+                all_zq = hidrep["zq"]
+            else: 
+                raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
+            
             all_sepframes1 = hidrep["sep-frame1"]
             all_sepframes2 = hidrep["sep-frame2"]
             all_phi_type = hidrep["phi-type"]
@@ -212,5 +218,5 @@ if __name__ == "__main__":
         asp_sil_lists.append(asp_list)
         stop_sil_lists.append(stop_list)
 
-    plot_silhouette(asp_sil_lists, stop_sil_lists, os.path.join(res_save_dir, f"silhouette_TV-VS-{model_type}-{model_condition}-{strseq_learned_runs}.png"))
+    plot_silhouette(asp_sil_lists, stop_sil_lists, os.path.join(res_save_dir, f"silhouette_TV-VS-{model_type}-{model_condition}-{strseq_learned_runs}@{args.zlevel}.png"))
     print("Done.")
