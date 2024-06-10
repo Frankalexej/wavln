@@ -228,6 +228,90 @@ class VQDecoderV1(Module):
         outputs = outputs.squeeze(2)
         attention_weights = attention_weights.squeeze(2)
         return outputs, attention_weights
+    
+    
+class VQDecoderV2(Module): 
+    """
+    注意：decoder是自回归的，因而无需bidirectional
+    同时也输出attention_out
+    """
+    def __init__(self, size_list, num_layers=1, dropout=0.5):
+        # size_list = [13, 64, 16, 3]: similar to encoder, just layer 0 different
+        super(VQDecoderV2, self).__init__()
+        self.lin_1 = nn.Linear(size_list[0], size_list[3])
+        self.rnn = nn.LSTM(input_size=size_list[3], hidden_size=size_list[3], 
+                            num_layers=num_layers, batch_first=True, 
+                            dropout=dropout, bidirectional=False)
+        self.attention = ScaledDotProductAttention(q_in=size_list[3], kv_in=size_list[3], qk_out=size_list[3], v_out=size_list[3])
+        self.lin_2 = nn.Linear(size_list[3], size_list[0])
+
+        self.act = nn.ReLU()
+
+        # vars
+        self.num_layers = num_layers
+        self.size_list = size_list
+
+    def inits(self, batch_size, device): 
+        h0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
+        c0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
+        hidden = (h0, c0)
+        dec_in_token = torch.zeros((batch_size, 1, self.size_list[0]), dtype=torch.float, device=device, requires_grad=False)
+        return hidden, dec_in_token
+
+    def forward(self, hid_r, in_mask, init_in, hidden):
+        # Attention decoder
+        length = hid_r.size(1) # get length
+
+        dec_in_token = init_in
+
+        outputs = []
+        attention_weights = []
+        for t in range(length):
+            dec_x = self.lin_1(dec_in_token)
+            dec_x = self.act(dec_x)
+            dec_x, hidden = self.rnn(dec_x, hidden)
+            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+            dec_x = self.lin_2(dec_x)
+            # 这里不能detach，因为training中还要做backprop
+            outputs.append(dec_x)
+            attention_weights.append(attention_weight)
+            # Use the current output as the next input token
+            dec_in_token = dec_x
+
+        outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        attention_weights = torch.stack(attention_weights, dim=1)
+        outputs = outputs.squeeze(2)
+        attention_weights = attention_weights.squeeze(2)
+        return outputs, attention_weights
+    
+    def attn_forward(self, hid_r, in_mask, init_in, hidden):
+        # Attention decoder
+        length = hid_r.size(1) # get length
+
+        dec_in_token = init_in
+
+        outputs = []
+        attn_outs = []
+        attention_weights = []
+        for t in range(length):
+            dec_x = self.lin_1(dec_in_token)
+            dec_x = self.act(dec_x)
+            dec_x, hidden = self.rnn(dec_x, hidden)
+            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+            # 我的理解是：虽然如果不clone，list里面的tensor也会跟着变
+            # 但是因为这里记录的dec_x在后来都会进入网络中，网络是自带clone的，所以这里不clone也没问题
+            attn_outs.append(dec_x.clone())
+            dec_x = self.lin_2(dec_x)
+            outputs.append(dec_x.clone())
+            attention_weights.append(attention_weight.clone())
+            # Use the current output as the next input token
+            dec_in_token = dec_x
+
+        outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        attention_weights = torch.stack(attention_weights, dim=1)
+        outputs = outputs.squeeze(2)
+        attention_weights = attention_weights.squeeze(2)
+        return outputs, attn_outs, attention_weights
 
 class EncoderV1(Module): 
     """
@@ -951,6 +1035,53 @@ class AEPPV7(Module):
         zes, enc_hid = self.encoder.encode(inputs, input_lens)
         zqs = zes
         return zes, zqs
+    
+
+class AEPPV8(Module):
+    # 在4的基础上增加了attn_forward
+    def __init__(self, enc_size_list, dec_size_list, ctc_decoder_size_list, num_layers=1, dropout=0.5):
+        super(AEPPV8, self).__init__()
+
+        self.encoder = VQEncoderV1(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        self.ae_decoder = VQDecoderV2(size_list=dec_size_list, num_layers=num_layers, dropout=dropout)
+        # phoneme prediction decoder, this one is not auto-regressive, therefore we can use bidirectional
+        # LSTM to enhance performance. 
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.ae_decoder.inits(batch_size=batch_size, device=self.device)
+
+        ze = self.encoder(inputs, input_lens)
+        # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
+        zq = ze
+        dec_in = ze
+        ae_dec_out, ae_attn_w = self.ae_decoder(dec_in, in_mask, init_in, dec_hid)
+        # pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
+        pp_dec_out, pp_attn_w = ae_dec_out, ae_attn_w
+        # return follows: dec_out, attn_w, z
+        return (ae_dec_out, pp_dec_out), (ae_attn_w, pp_attn_w), (ze, zq)
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        ze = self.encoder(inputs, input_lens)
+        zq = ze
+        return ze, zq
+    
+    def attn_forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.ae_decoder.inits(batch_size=batch_size, device=self.device)
+
+        ze = self.encoder(inputs, input_lens)
+        # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
+        zq = ze
+        dec_in = ze
+        ae_dec_out, attn_out, ae_attn_w = self.ae_decoder.attn_forward(dec_in, in_mask, init_in, dec_hid)
+        # pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
+        pp_dec_out, pp_attn_w = ae_dec_out, ae_attn_w
+        # return follows: dec_out, attn_w, z
+        return (ae_dec_out, attn_out), (ae_attn_w, pp_attn_w), (ze, zq)
 
 ################################ Chung's AE Replication ################################
 class AEEncoderV1(Module): 
