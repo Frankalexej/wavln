@@ -308,8 +308,10 @@ class VQDecoderV2(Module):
             dec_in_token = dec_x
 
         outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        attn_outs = torch.stack(attn_outs, dim=1)
         attention_weights = torch.stack(attention_weights, dim=1)
         outputs = outputs.squeeze(2)
+        attn_outs = attn_outs.squeeze(2)
         attention_weights = attention_weights.squeeze(2)
         return outputs, attn_outs, attention_weights
 
