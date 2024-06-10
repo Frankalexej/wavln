@@ -13,7 +13,7 @@ generate_random_number() {
 # Arrays of options for each argument
 ms=('recon-phi')
 cs=('u')
-is=(1 2 3 4 5) # 
+is=(1 3 4 5) # 
 # Generate a 10-digit random number
 ts='0610162110'
 echo "Timestamp: $ts"
