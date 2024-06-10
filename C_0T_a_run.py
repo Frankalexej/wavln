@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import argparse
 # import summary
-from model_model import AEPPV1, AEPPV2, AEPPV4 # we use AEPPV4, it is recon only
+from model_model import AEPPV1, AEPPV2, AEPPV4, AEPPV8
 from model_dataset import DS_Tools
 # this is used for CTC pred
 from model_dataset import WordDatasetPhoneseq as TrainDataset
@@ -316,7 +316,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
         ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
         model_loss = PseudoAlphaCombineLoss_Recon(masked_loss, ctc_loss, alpha=0.2)
 
-        model = AEPPV4(enc_size_list=ENC_SIZE_LIST, 
+        model = AEPPV8(enc_size_list=ENC_SIZE_LIST, 
                    dec_size_list=DEC_SIZE_LIST, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)

@@ -231,7 +231,7 @@ if __name__ == "__main__":
 
     ts = args.timestamp # this timestamp does not contain run number
     rn = args.runnumber
-    train_name = "C_0S"
+    train_name = "C_0T"
     if not PU.path_exist(os.path.join(model_save_, f"{train_name}-{ts}-{rn}")):
         raise Exception(f"Training {train_name}-{ts}-{rn} does not exist! ")
     
