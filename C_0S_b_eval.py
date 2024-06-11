@@ -165,7 +165,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     plt.savefig(os.path.join(res_save_dir, f"recon-at-{stop_epoch}.png"))
     plt.close()
 
-    plot_attention_trajectory_together_012(all_phi_type, all_attn, all_sepframes0, all_sepframes1, all_sepframes2, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"))
+    # plot_attention_trajectory_together_012(all_phi_type, all_attn, all_sepframes0, all_sepframes1, all_sepframes2, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"))
     return 0
 
 def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_): 
@@ -213,6 +213,34 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
     elif model_type == "recon-phi": 
         model = AEPPV4(enc_size_list=ENC_SIZE_LIST, 
                    dec_size_list=DEC_SIZE_LIST, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "recon100-phi": 
+        enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, 100]
+        dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, 100]
+        model = AEPPV4(enc_size_list=enc_list, 
+                   dec_size_list=dec_list, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "recon3-phi": 
+        enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, 3]
+        dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, 3]
+        model = AEPPV4(enc_size_list=enc_list, 
+                   dec_size_list=dec_list, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "recon8-phi": 
+        enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, 8]
+        dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, 8]
+        model = AEPPV4(enc_size_list=enc_list, 
+                   dec_size_list=dec_list, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "recon32-phi": 
+        enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, 32]
+        dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, 32]
+        model = AEPPV4(enc_size_list=enc_list, 
+                   dec_size_list=dec_list, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
     else: 

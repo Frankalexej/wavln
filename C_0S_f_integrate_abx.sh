@@ -11,8 +11,8 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=('recon-phi')
-cs=('u')
+ms=('recon3-phi' 'recon8-phi' 'recon32-phi')
+cs=('u' 'b')
 zls=('hidrep')
 
 # Generate a 10-digit random number

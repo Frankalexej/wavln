@@ -11,9 +11,9 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=('recon-phi')
-cs=('u')
-is=(1) # 2 3 4 5
+ms=('recon32-phi')
+cs=('b')
+is=(2 3 4) # 2 3 4 5
 # Generate a 10-digit random number
 ts='0610132808'
 echo "Timestamp: $ts"
@@ -27,7 +27,7 @@ for i in "${is[@]}"; do
             # Randomly select a GPU between 0 and 8
             gpu=$((RANDOM % 9))
             # Run the Python script with the current combination of arguments in the background
-            python C_0S_eval.py -ts "$ts" -rn "$i" -m "$m" -cd "$c" -gpu "$gpu" &
+            python C_0S_b_eval.py -ts "$ts" -rn "$i" -m "$m" -cd "$c" -gpu "$gpu" &
         done
     done
 done

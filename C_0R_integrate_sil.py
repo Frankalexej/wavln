@@ -2,6 +2,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from C_0X_defs import *
+from C_0Y_evaldefs import filter_data_by_tags
 
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
@@ -60,11 +61,11 @@ def get_toplot(hiddens, sepframes1, sepframes2, phi_types, stop_names, offsets=(
     cutstarts = []
     cutends = []
     for sepframe1, sepframe2, phi_type in zip(sepframes1, sepframes2, phi_types):
-        if phi_type == 'ST':
-            cutstarts.append(sepframe1)
-        else:
-            cutstarts.append(0)
-        # cutstarts.append(sepframe1)
+        # if phi_type == 'ST':
+        #     cutstarts.append(sepframe1)
+        # else:
+        #     cutstarts.append(0)
+        cutstarts.append(sepframe1)
         cutends.append(sepframe2)
 
     if contrast_in == "asp": 
@@ -158,7 +159,7 @@ if __name__ == "__main__":
     asp_sil_lists = []   # silhouette score between aspirated and deaspirated plosives
     stop_sil_lists = []  # silhouette score between p, t, and k
 
-    learned_runs = [1, 2, 3, 4, 5]
+    learned_runs = [1, 4, 5]
     string_learned_runs = [str(num) for num in learned_runs]
     strseq_learned_runs = "".join(string_learned_runs)
 
@@ -187,7 +188,7 @@ if __name__ == "__main__":
                                             sepframes2=all_sepframes2,
                                             phi_types=all_phi_type,
                                             stop_names=all_stop_names,
-                                            offsets=(0.4, 0.6), 
+                                            offsets=(0, 1), 
                                             contrast_in="asp", 
                                             merge=True)
             color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
@@ -202,15 +203,20 @@ if __name__ == "__main__":
                                             sepframes2=all_sepframes2,
                                             phi_types=all_phi_type,
                                             stop_names=all_stop_names,
-                                            offsets=(0.4, 0.6), 
+                                            offsets=(0, 1), 
                                             contrast_in="stop", 
                                             merge=True)
-            color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
-            X, Y = hidr_cs, tags_cs
-            silhouette_avg = silhouette_score(X, tags_cs)
+            stop_sil_score = 0
+            for pair in [["P", "T"], ["T", "K"], ["P", "K"]]:
+                hidr_cs, tags_cs = filter_data_by_tags(hidr_cs, tags_cs, ["P", "T"])
+                color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
+                X, Y = hidr_cs, tags_cs
+                silhouette_avg = silhouette_score(X, tags_cs)
+                stop_sil_score += silhouette_avg
+            stop_sil_score /= 3
             stop_list.append(silhouette_avg)
         asp_sil_lists.append(asp_list)
         stop_sil_lists.append(stop_list)
 
-    plot_silhouette(asp_sil_lists, stop_sil_lists, os.path.join(res_save_dir, f"silhouette-VS-{model_type}-{model_condition}-{strseq_learned_runs}.png"))
+    plot_silhouette(asp_sil_lists, stop_sil_lists, os.path.join(res_save_dir, f"silhouette-VS-{model_type}-{model_condition}-{strseq_learned_runs}-PTK.png"))
     print("Done.")

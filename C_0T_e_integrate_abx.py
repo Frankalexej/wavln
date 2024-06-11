@@ -63,7 +63,7 @@ def separate_and_sample_data(data_array, tag_array, sample_size):
     data_list = []
     tag_list = []
     for tag in tags: 
-        filtered_data, filtered_tag = filter_data_by_tags(data_array, tag_array, tag)
+        filtered_data, filtered_tag = filter_data_by_tags(data_array, tag_array, [tag])
         indices = np.random.choice(len(filtered_data), size=sample_size, replace=(sample_size > len(filtered_data)))
         selected_data = filtered_data[indices]
         selected_tag = filtered_tag[indices]
@@ -191,7 +191,7 @@ if __name__ == "__main__":
         stop_list = []
         print(f"Processing {model_type} in run {run_number}...")
 
-        for epoch in range(40, 60):     
+        for epoch in range(0, 100):     
             this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
             hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
                                  file_prefix=f"all-{epoch}")
@@ -216,14 +216,14 @@ if __name__ == "__main__":
                                             sepframes2=all_sepframes2,
                                             phi_types=all_phi_type,
                                             stop_names=all_stop_names,
-                                            offsets=(0.3, 0.7), 
+                                            offsets=(0, 1), 
                                             contrast_in="asp", 
                                             merge=True)
             color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
-
+            hidr_cs, tags_cs = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
             asp_this_epoch = []
-            for i in range(3):
-                hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=25) # should be 2 only
+            for i in range(6):
+                hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=15) # should be 2 only
                 abx_err = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
                 asp_this_epoch.append(abx_err)
             asp_list.append(asp_this_epoch)
@@ -235,13 +235,14 @@ if __name__ == "__main__":
                                             sepframes2=all_sepframes2,
                                             phi_types=all_phi_type,
                                             stop_names=all_stop_names,
-                                            offsets=(0.3, 0.7), 
+                                            offsets=(0, 1), 
                                             contrast_in="stop", 
                                             merge=True)
             color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
+            hidr_cs, tags_cs = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
             stop_this_epoch = []
-            for i in range(1): 
-                hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=25)
+            for i in range(2): 
+                hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=15)
                 abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
                 abx_err02 = sym_abx_error(hidrs[0], hidrs[2], distance=euclidean_distance)
                 abx_err12 = sym_abx_error(hidrs[1], hidrs[2], distance=euclidean_distance)

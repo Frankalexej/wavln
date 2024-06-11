@@ -591,41 +591,6 @@ def plot_attention_trajectory_together_012(all_phi_type, all_attn, all_sepframes
                 ax.fill_between(range(n_steps), lower, upper, alpha=0.2, color=c)
         else: 
             raise ValueError("Invalid selector")
-            # t_to_a_traj = []
-            # a_to_t_traj = []
-            # for i in range(len(selected_attns)): 
-            #     this_attn = selected_attns[i]
-            #     this_sep_frame2 = selected_sf2s[i]
-
-            #     blocks = extract_attention_blocks_T(this_attn, this_sep_frame2)
-
-            #     t_to_a_interp = interpolate_traj(blocks['t_to_a'], n_steps)
-            #     a_to_t_interp = interpolate_traj(blocks['a_to_t'], n_steps)
-            #     t_to_a_traj.append(t_to_a_interp)
-            #     a_to_t_traj.append(a_to_t_interp)
-
-            # # Convert list of arrays into 2D NumPy arrays for easier manipulation
-            # group3_array = np.array(t_to_a_traj)
-            # group4_array = np.array(a_to_t_traj)
-
-            # # Calculate the mean trajectory for each group
-            # means = np.array([np.mean(group3_array, axis=0), 
-            #                 np.mean(group4_array, axis=0)])
-
-            # # Calculate the SEM for each step in both groups
-            # sems = np.array([sem(group3_array, axis=0),
-            #                 sem(group4_array, axis=0)])
-
-            # # Calculate the 95% CI for both groups
-            # ci_95s = 1.96 * sems
-
-            # # Upper and lower bounds of the 95% CI for both groups
-            # upper_bounds = means + ci_95s
-            # lower_bounds = means - ci_95s
-
-            # for mean, upper, lower, label, c in zip(means, upper_bounds, lower_bounds, legend_names[2:], colors[2:]):
-            #     ax.plot(mean, label=label, color=c)
-            #     ax.fill_between(range(n_steps), lower, upper, alpha=0.2, color=c)
         ax.set_xlabel('Normalized Time')
         ax.set_ylabel('Summed Foreign-Attention')
         ax.set_title(f'{selector}')

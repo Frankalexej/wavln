@@ -11,12 +11,12 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=('recon-phi')
-cs=('u')
+ms=('recon32-phi')
+cs=('u' 'b')
 
 # Generate a 10-digit random number
-ts=$(date +"%m%d%H%M%S")
-# ts='0527172800'
+# ts=$(date +"%m%d%H%M%S")
+ts='0610132808'
 echo "Timestamp: $ts"
 
 # Loop from 1 to 10, incrementing by 1
