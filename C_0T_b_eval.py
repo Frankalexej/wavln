@@ -209,6 +209,34 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
                    dec_size_list=DEC_SIZE_LIST, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "recon4-phi": 
+        enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, 4]
+        dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, 4]
+        model = AEPPV8(enc_size_list=enc_list, 
+                   dec_size_list=dec_list, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "recon8-phi": 
+        enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, 8]
+        dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, 8]
+        model = AEPPV8(enc_size_list=enc_list, 
+                   dec_size_list=dec_list, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "recon16-phi": 
+        enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, 16]
+        dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, 16]
+        model = AEPPV8(enc_size_list=enc_list, 
+                   dec_size_list=dec_list, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+    elif model_type == "recon32-phi": 
+        enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, 32]
+        dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, 32]
+        model = AEPPV8(enc_size_list=enc_list, 
+                   dec_size_list=dec_list, 
+                   ctc_decoder_size_list=ctc_size_list,
+                   num_layers=NUM_LAYERS, dropout=DROPOUT)
     else: 
         raise Exception("Model type not supported! ")
 
