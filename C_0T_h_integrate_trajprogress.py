@@ -65,19 +65,24 @@ def plot_attention_epoch_trajectory_012(all_phi_type, all_attn, all_sepframes0, 
                 else: 
                     raise ValueError("selector must be ST or T")
 
-                s_to_t_interp = interpolate_traj(blocks['s_to_t'], n_steps)
-                t_to_s_interp = interpolate_traj(blocks['t_to_s'], n_steps)
-                t_to_a_interp = interpolate_traj(blocks['t_to_a'], n_steps)
-                a_to_t_interp = interpolate_traj(blocks['a_to_t'], n_steps)
+                # s_to_t_interp = interpolate_traj(blocks['s_to_t'], n_steps)
+                # t_to_s_interp = interpolate_traj(blocks['t_to_s'], n_steps)
+                # t_to_a_interp = interpolate_traj(blocks['t_to_a'], n_steps)
+                # a_to_t_interp = interpolate_traj(blocks['a_to_t'], n_steps)
+                s_to_t_interp = blocks['s_to_t']
+                t_to_s_interp = blocks['t_to_s']
+                t_to_a_interp = blocks['t_to_a']
+                a_to_t_interp = blocks['a_to_t']
+                print(s_to_t_interp)
 
                 if np.any(np.isnan(s_to_t_interp)) or np.any(np.isnan(t_to_s_interp)) or np.any(np.isnan(t_to_a_interp)) or np.any(np.isnan(a_to_t_interp)):
                     badcounts[selector] += 1
                     # print(f"NAN at {epoch} in run {i} for {selector}")
                     continue
-                s_to_t_traj.append(s_to_t_interp)
-                t_to_s_traj.append(t_to_s_interp)
-                t_to_a_traj.append(t_to_a_interp)
-                a_to_t_traj.append(a_to_t_interp)
+                s_to_t_traj.append(s_to_t_interp[-1])
+                t_to_s_traj.append(t_to_s_interp[0])
+                t_to_a_traj.append(t_to_a_interp[-1])
+                a_to_t_traj.append(a_to_t_interp[0])
 
             # Convert list of arrays into 2D NumPy arrays for easier manipulation
             group1_array = np.array(s_to_t_traj)
@@ -85,10 +90,15 @@ def plot_attention_epoch_trajectory_012(all_phi_type, all_attn, all_sepframes0, 
             group3_array = np.array(t_to_a_traj)
             group4_array = np.array(a_to_t_traj)
 
-            target_group1 = group1_array[:, -segment_length:].flatten()
-            target_group2 = group2_array[:, :segment_length].flatten()
-            target_group3 = group3_array[:, -segment_length:].flatten()
-            target_group4 = group4_array[:, :segment_length].flatten()
+            print(group2_array)
+
+            target_group1 = group1_array.flatten()
+            target_group2 = group2_array.flatten()
+            target_group3 = group3_array.flatten()
+            target_group4 = group4_array.flatten()
+
+            print(target_group3)
+            raise Exception("stop")
 
             # Calculate the mean trajectory for each group
             means = np.array([np.mean(target_group1, axis=0), 
