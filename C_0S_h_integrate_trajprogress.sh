@@ -11,11 +11,11 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=('recon3-phi' 'recon8-phi' 'recon32-phi')
-cs=('u' 'b')
+ms=('recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi')
+cs=('u')
 
 # Generate a 10-digit random number
-ts='0610132808'
+ts='0612112603'
 echo "Timestamp: $ts"
 
 # Loop from 1 to 10, incrementing by 1

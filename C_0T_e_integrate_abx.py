@@ -72,7 +72,7 @@ def separate_and_sample_data(data_array, tag_array, sample_size):
     return data_list, tag_list
 
 # we have very limited data, so we don't need to select, just plot all
-def get_toplot(hiddens, sepframes1, sepframes2, phi_types, stop_names, offsets=(0, 1), contrast_in="asp", merge=True): 
+def get_toplot(hiddens, sepframes1, sepframes2, phi_types, stop_names, offsets=(0, 1), contrast_in="asp", merge=True, hidden_dim=8): 
     # collect the start and end frames for each phoneme
     cutstarts = []
     cutends = []
@@ -92,7 +92,7 @@ def get_toplot(hiddens, sepframes1, sepframes2, phi_types, stop_names, offsets=(
     else:
         raise ValueError("Contrast_in must be one of 'asp' or 'stop'")
     
-    hid_sel = np.empty((0, 8))
+    hid_sel = np.empty((0, hidden_dim))
     tag_sel = []
     for (item, start, end, tag) in zip(hiddens, cutstarts, cutends, tags_list): 
         hid = cutHid(item, start, end, offsets[0], offsets[1])
@@ -181,7 +181,16 @@ if __name__ == "__main__":
 
     asp_sil_lists = []   # silhouette score between aspirated and deaspirated plosives
     stop_sil_lists = []  # silhouette score between p, t, and k
-
+    if model_type == "recon4-phi": 
+        hidden_dim = 4
+    elif model_type == "recon8-phi": 
+        hidden_dim = 8
+    elif model_type == "recon16-phi": 
+        hidden_dim = 16
+    elif model_type == "recon32-phi": 
+        hidden_dim = 32
+    else: 
+        raise ValueError("Model type must be one of 'recon3-phi', 'recon8-phi', 'recon32-phi', 'recon100-phi'")
     learned_runs = [1, 2, 3, 4, 5]
     string_learned_runs = [str(num) for num in learned_runs]
     strseq_learned_runs = "".join(string_learned_runs)
@@ -218,7 +227,8 @@ if __name__ == "__main__":
                                             stop_names=all_stop_names,
                                             offsets=(0, 1), 
                                             contrast_in="asp", 
-                                            merge=True)
+                                            merge=True, 
+                                            hidden_dim=hidden_dim)
             color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
             hidr_cs, tags_cs = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
             asp_this_epoch = []
@@ -237,7 +247,8 @@ if __name__ == "__main__":
                                             stop_names=all_stop_names,
                                             offsets=(0, 1), 
                                             contrast_in="stop", 
-                                            merge=True)
+                                            merge=True, 
+                                            hidden_dim=hidden_dim)
             color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
             hidr_cs, tags_cs = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
             stop_this_epoch = []

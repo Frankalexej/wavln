@@ -11,8 +11,10 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=('recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi')
+ms=('recon8-phi')
 cs=('u')
+ses=(0)
+epochjump=100
 
 # Generate a 10-digit random number
 ts='0611193546'
@@ -22,10 +24,12 @@ echo "Timestamp: $ts"
 # Loop over each combination of arguments
 for m in "${ms[@]}"; do
     for c in "${cs[@]}"; do
-        # Randomly select a GPU between 0 and 8
-        gpu=$((RANDOM % 9))
-        # Run the Python script with the current combination of arguments in the background
-        python C_0T_c_integrate_eval.py -ts "$ts" -m "$m" -cd "$c" -gpu "$gpu" &
+        for se in "${ses[@]}"; do
+            # Randomly select a GPU between 0 and 8
+            gpu=$((RANDOM % 9))
+            # Run the Python script with the current combination of arguments in the background
+            python C_0T_c_integrate_eval.py -ts "$ts" -m "$m" -cd "$c" -gpu "$gpu" -se "$se" -ee "$(($se+$epochjump))"&
+        done
     done
 done
 

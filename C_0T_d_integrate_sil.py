@@ -2,7 +2,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from C_0X_defs import *
-from C_0Y_evaldefs import filter_data_by_tags
+from C_0Y_evaldefs import filter_data_by_tags, postproc_standardize
 
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
     if ax is None:
@@ -55,7 +55,7 @@ def cutHid(hid, cutstart, cutend, start_offset=0, end_offset=1):
     return hid[selstart:selend, :]
 
 # we have very limited data, so we don't need to select, just plot all
-def get_toplot(hiddens, sepframes1, sepframes2, phi_types, stop_names, offsets=(0, 1), contrast_in="asp", merge=False): 
+def get_toplot(hiddens, sepframes1, sepframes2, phi_types, stop_names, offsets=(0, 1), contrast_in="asp", merge=False, hidden_dim=8): 
     # collect the start and end frames for each phoneme
     cutstarts = []
     cutends = []
@@ -74,7 +74,7 @@ def get_toplot(hiddens, sepframes1, sepframes2, phi_types, stop_names, offsets=(
     else:
         raise ValueError("Contrast_in must be one of 'asp' or 'stop'")
     
-    hid_sel = np.empty((0, 8))
+    hid_sel = np.empty((0, hidden_dim))
     tag_sel = []
     for (item, start, end, tag) in zip(hiddens, cutstarts, cutends, tags_list): 
         hid = cutHid(item, start, end, offsets[0], offsets[1])
@@ -158,7 +158,16 @@ if __name__ == "__main__":
 
     asp_sil_lists = []   # silhouette score between aspirated and deaspirated plosives
     stop_sil_lists = []  # silhouette score between p, t, and k
-
+    if model_type == "recon4-phi": 
+        hidden_dim = 4
+    elif model_type == "recon8-phi": 
+        hidden_dim = 8
+    elif model_type == "recon16-phi": 
+        hidden_dim = 16
+    elif model_type == "recon32-phi": 
+        hidden_dim = 32
+    else: 
+        raise ValueError("Model type must be one of 'recon3-phi', 'recon8-phi', 'recon32-phi', 'recon100-phi'")
     learned_runs = [1, 2, 3, 4, 5]  # 按照实际情况修改
     string_learned_runs = [str(num) for num in learned_runs]
     strseq_learned_runs = "".join(string_learned_runs)
@@ -193,12 +202,13 @@ if __name__ == "__main__":
                                             sepframes2=all_sepframes2,
                                             phi_types=all_phi_type,
                                             stop_names=all_stop_names,
-                                            offsets=(0.4, 0.6), 
+                                            offsets=(0, 1), 
                                             contrast_in="asp", 
-                                            merge=True)
+                                            merge=True, 
+                                            hidden_dim=hidden_dim)
             color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
-            X, Y = hidr_cs, tags_cs
-            silhouette_avg = silhouette_score(X, tags_cs)
+            X, Y = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
+            silhouette_avg = silhouette_score(X, Y)
             asp_list.append(silhouette_avg)
 
             # Silhouette Score
@@ -208,15 +218,16 @@ if __name__ == "__main__":
                                             sepframes2=all_sepframes2,
                                             phi_types=all_phi_type,
                                             stop_names=all_stop_names,
-                                            offsets=(0.4, 0.6), 
+                                            offsets=(0, 1), 
                                             contrast_in="stop", 
-                                            merge=True)
+                                            merge=True, 
+                                            hidden_dim=hidden_dim)
+            stop_sil_score = 0
+            std_hid_r, std_tags = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
             stop_sil_score = 0
             for pair in [["P", "T"], ["T", "K"], ["P", "K"]]:
-                hidr_cs, tags_cs = filter_data_by_tags(hidr_cs, tags_cs, ["P", "T"])
-                color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
-                X, Y = hidr_cs, tags_cs
-                silhouette_avg = silhouette_score(X, tags_cs)
+                X, Y = filter_data_by_tags(std_hid_r, std_tags, ["P", "T"])
+                silhouette_avg = silhouette_score(X, Y)
                 stop_sil_score += silhouette_avg
             stop_sil_score /= 3
             stop_list.append(silhouette_avg)

@@ -17,7 +17,7 @@ def calculate_means_and_sems(values):
     """Calculates means and standard errors of the means (SEMs) for input values."""
     return np.mean(values), sem(values)
 
-def plot_attention_epoch_trajectory_012(all_phi_type, all_attn, all_sepframes0, all_sepframes1, all_sepframes2, save_path): 
+def plot_attention_epoch_trajectory(all_phi_type, all_attn, all_sepframes1, all_sepframes2, save_path): 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 8))
     legend_namess = [['S-to-P', 'P-to-S', 'P-to-V', 'V-to-P'], ['#-to-P', 'P-to-#', 'P-to-V', 'V-to-P']]
     colors = ['b', 'g', 'red', 'orange']
@@ -35,15 +35,13 @@ def plot_attention_epoch_trajectory_012(all_phi_type, all_attn, all_sepframes0, 
             # 循环每个epoch
             phi_type_epoch = all_phi_type[epoch]
             attn_epoch = all_attn[epoch]
-            sepframes0_epoch = all_sepframes0[epoch]
             sepframes1_epoch = all_sepframes1[epoch]
             sepframes2_epoch = all_sepframes2[epoch]
-            selected_tuples = [(sf0, sf1, sf2, attn) for pt, sf0, sf1, sf2, attn in zip(phi_type_epoch,  
-                                                            sepframes0_epoch, 
+            selected_tuples = [(sf1, sf2, attn) for pt, sf1, sf2, attn in zip(phi_type_epoch,  
                                                             sepframes1_epoch, 
                                                             sepframes2_epoch, 
                                                             attn_epoch) if pt == selector]
-            selected_sf0s_epoch, selected_sf1s_epoch, selected_sf2s_epoch, selected_attns_epoch = zip(*selected_tuples)
+            selected_sf1s_epoch, selected_sf2s_epoch, selected_attns_epoch = zip(*selected_tuples)
             s_to_t_traj = []
             t_to_s_traj = []
             t_to_a_traj = []
@@ -54,14 +52,14 @@ def plot_attention_epoch_trajectory_012(all_phi_type, all_attn, all_sepframes0, 
             for i in range(len(selected_attns_epoch)): 
                 # 循环每个run
                 this_attn = selected_attns_epoch[i]
-                this_sep_frame0 = selected_sf0s_epoch[i]
+                # this_sep_frame0 = selected_sf0s_epoch[i]
                 this_sep_frame1 = selected_sf1s_epoch[i]
                 this_sep_frame2 = selected_sf2s_epoch[i]
 
                 if selector == "ST": 
-                    blocks = extract_attention_blocks_ST012(this_attn, this_sep_frame0, this_sep_frame1, this_sep_frame2)
+                    blocks = extract_attention_blocks_ST(this_attn, this_sep_frame1, this_sep_frame2)
                 elif selector == "T": 
-                    blocks = extract_attention_blocks_T012(this_attn, this_sep_frame0, this_sep_frame1, this_sep_frame2)
+                    blocks = extract_attention_blocks_ST(this_attn, this_sep_frame1, this_sep_frame2)
                 else: 
                     raise ValueError("selector must be ST or T")
 
@@ -73,7 +71,6 @@ def plot_attention_epoch_trajectory_012(all_phi_type, all_attn, all_sepframes0, 
                 t_to_s_interp = blocks['t_to_s']
                 t_to_a_interp = blocks['t_to_a']
                 a_to_t_interp = blocks['a_to_t']
-                print(s_to_t_interp)
 
                 if np.any(np.isnan(s_to_t_interp)) or np.any(np.isnan(t_to_s_interp)) or np.any(np.isnan(t_to_a_interp)) or np.any(np.isnan(a_to_t_interp)):
                     badcounts[selector] += 1
@@ -90,15 +87,10 @@ def plot_attention_epoch_trajectory_012(all_phi_type, all_attn, all_sepframes0, 
             group3_array = np.array(t_to_a_traj)
             group4_array = np.array(a_to_t_traj)
 
-            print(group2_array)
-
             target_group1 = group1_array.flatten()
             target_group2 = group2_array.flatten()
             target_group3 = group3_array.flatten()
             target_group4 = group4_array.flatten()
-
-            print(target_group3)
-            raise Exception("stop")
 
             # Calculate the mean trajectory for each group
             means = np.array([np.mean(target_group1, axis=0), 
@@ -133,20 +125,22 @@ def plot_attention_epoch_trajectory_012(all_phi_type, all_attn, all_sepframes0, 
         num_epochs = 100
         for mean, upper, lower, label, c in zip(means, upper_bounds, lower_bounds, legend_names, colors):
             ax.plot(mean, label=label, color=c)
-            ax.fill_between(num_epochs, lower, upper, alpha=0.2, color=c)
-        ax.set_xlabel('Normalized Time')
+            ax.fill_between(range(len(mean)), lower, upper, alpha=0.2, color=c)
+        ax.set_xlabel('Epoch')
         ax.set_ylabel('Summed Foreign-Attention')
         ax.set_title(f'{selector}')
-        ax.set_ylim([0, 1])
-        ax.legend(loc = "upper left")
+        ax.set_ylim([0, 0.8])
+        ax.legend(loc = "upper right")
         ax.grid(True)
 
     print(f"badcounts: {badcounts}")
     print(f"totalcounts: {totalcounts}")
-    fig.suptitle('Comparison of Foreign-Attention Trajectory')
+    # fig.suptitle('Comparison of Foreign-Attention Trajectory')
     plt.tight_layout()
+    # plt.show()
     plt.savefig(save_path)
     plt.close()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='argparse')
@@ -159,7 +153,7 @@ if __name__ == "__main__":
     ts = args.timestamp
     model_type = args.model
     model_condition = args.condition
-    train_name = "C_0S"
+    train_name = "C_0T"
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
 
     sil_dict = {}
@@ -169,7 +163,7 @@ if __name__ == "__main__":
     mk(this_save_dir)
 
     every_attns = []
-    every_sepframes0 = []
+    # every_sepframes0 = []
     every_sepframes1 = []
     every_sepframes2 = []
     every_phi_types = []
@@ -180,7 +174,7 @@ if __name__ == "__main__":
 
     for epoch in range(0, 100): 
         cat_attns = []
-        cat_sepframes0 = []
+        # cat_sepframes0 = []
         cat_sepframes1 = []
         cat_sepframes2 = []
         cat_phi_types = []
@@ -191,16 +185,16 @@ if __name__ == "__main__":
             allres = read_result_at(this_model_condition_dir, epoch)
             cat_phi_types += allres["phi-type"]
             cat_attns += allres["attn"]
-            cat_sepframes0 += allres["sep-frame0"]
+            # cat_sepframes0 += allres["sep-frame0"]
             cat_sepframes1 += allres["sep-frame1"]
             cat_sepframes2 += allres["sep-frame2"]
 
         # plot_attention_comparison(cat_phi_types, cat_attns, cat_sepframes1, cat_sepframes2, os.path.join(this_save_dir, f"attncomp-at-{epoch}.png"))
         every_attns.append(cat_attns)
-        every_sepframes0.append(cat_sepframes0)
+        # every_sepframes0.append(cat_sepframes0)
         every_sepframes1.append(cat_sepframes1)
         every_sepframes2.append(cat_sepframes2)
         every_phi_types.append(cat_phi_types)    
-    plot_attention_epoch_trajectory_012(every_phi_types, every_attns, every_sepframes0, every_sepframes1, every_sepframes2, os.path.join(res_save_dir, f"attnepochtraj-at-all-{model_type}-{model_condition}-{strseq_learned_runs}-10pc.png"))
+    plot_attention_epoch_trajectory(every_phi_types, every_attns, every_sepframes1, every_sepframes2, os.path.join(res_save_dir, f"attnepochtraj-at-all-{model_type}-{model_condition}-{strseq_learned_runs}-10pc.png"))
 
     print("Done.")
