@@ -13,8 +13,8 @@ generate_random_number() {
 # Arrays of options for each argument
 ms=('recon8-phi')
 cs=('u')
-ses=(0)
-epochjump=100
+ses=(20)
+epochjump=20
 
 # Generate a 10-digit random number
 ts='0611193546'

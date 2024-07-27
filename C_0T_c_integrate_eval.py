@@ -12,7 +12,7 @@ def read_result_at(res_save_dir, epoch):
     return all_handler.res
 
 def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, save_path, title="Comparison of Foreign-Attention Trajectory"): 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 8))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 8), sharey=True)
     legend_namess = [['S-to-P', 'P-to-S', 'P-to-V', 'V-to-P'], ['#-to-P', 'P-to-#', 'P-to-V', 'V-to-P']]
     colors = ['b', 'g', 'red', 'orange']
     n_steps = 100
@@ -75,6 +75,7 @@ def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, a
             for mean, upper, lower, label, c in zip(means, upper_bounds, lower_bounds, legend_names, colors):
                 ax.plot(mean, label=label, color=c)
                 ax.fill_between(range(n_steps), lower, upper, alpha=0.2, color=c)
+                print(f"{selector}-{label}:{mean[0]}~{mean[-1]}")
 
         elif selector == "T": 
             s_to_t_traj = []
@@ -128,6 +129,7 @@ def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, a
             for mean, upper, lower, label, c in zip(means, upper_bounds, lower_bounds, legend_names, colors):
                 ax.plot(mean, label=label, color=c)
                 ax.fill_between(range(n_steps), lower, upper, alpha=0.2, color=c)
+                print(f"{selector}-{label}:{mean[0]}~{mean[-1]}")
         else: 
             t_to_a_traj = []
             a_to_t_traj = []
@@ -164,16 +166,23 @@ def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, a
             for mean, upper, lower, label, c in zip(means, upper_bounds, lower_bounds, legend_names[2:], colors[2:]):
                 ax.plot(mean, label=label, color=c)
                 ax.fill_between(range(n_steps), lower, upper, alpha=0.2, color=c)
-        ax.set_xlabel('Normalized Time')
-        ax.set_ylabel('Summed Foreign-Attention')
-        ax.set_title(f'{selector}')
+        if selector == "ST": 
+            print_selector = "sPV"
+        elif selector == "T": 
+            print_selector = "#PV"
+        else: 
+            print_selector = "!"
+
+        ax.set_xlabel('Normalized Time', fontdict={"fontsize": 24})
+        ax.set_ylabel('Summed Foreign-Attention', fontdict={"fontsize": 24})
+        ax.set_title(f'{print_selector}', fontdict={"fontsize": 24})
         ax.set_ylim([0, 1])
-        ax.legend(loc = "upper left")
+        ax.legend(loc = "upper left", fontsize=24)
         ax.grid(True)
 
-    fig.suptitle(title)
+    fig.suptitle(title, fontsize=28)
     plt.tight_layout()
-    plt.savefig(save_path)
+    plt.savefig(save_path, dpi=300)
     plt.close()
 
 
@@ -244,7 +253,7 @@ if __name__ == "__main__":
         every_sepframes1 += cat_sepframes1
         every_sepframes2 += cat_sepframes2
         every_phi_types += cat_phi_types
-    plot_attention_trajectory_together(every_phi_types, every_attns, every_sepframes1, every_sepframes2, os.path.join(res_save_dir, f"attntraj-at-all-{model_type}-{model_condition}-{strseq_learned_runs}-{startepoch}-{endepoch}.png"), 
+    plot_attention_trajectory_together(every_phi_types, every_attns, every_sepframes1, every_sepframes2, os.path.join(res_save_dir+"posterplot/", f"attntraj-at-all-{model_type}-{model_condition}-{strseq_learned_runs}-{startepoch}-{endepoch}.png"), 
                                        f"Comparison of Foreign-Attention Trajectory for Epochs {startepoch} to {endepoch}")
     # plot_attention_trajectory_together(every_phi_types, every_attns_pp, every_sepframes1, every_sepframes2, os.path.join(res_save_dir, f"attnpptraj-at-all-{model_type}-{model_condition}-{strseq_learned_runs}.png"))
 
