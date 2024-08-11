@@ -340,8 +340,8 @@ if __name__ == "__main__":
             color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
             hidr_cs, tags_cs = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
 
-            hopkins = hopkins_statistic(hidr_cs)
-
+            for trials in range(20): 
+                hopkins = hopkins_statistic(hidr_cs)
             stat_list_runs.append(hopkins)
         stat_list_epochs.append(stat_list_runs) # 把每一个epoch的结果汇总，因为最后我们要保存结果，跑起来挺费时间的
 
