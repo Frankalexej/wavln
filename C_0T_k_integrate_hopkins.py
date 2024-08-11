@@ -287,7 +287,7 @@ if __name__ == "__main__":
     assert PU.path_exist(model_condition_dir)
     this_save_dir = os.path.join(model_condition_dir, "integrated_results")
     mk(this_save_dir)
-    mk(os.path.join(res_save_dir, "elbow"))
+    mk(os.path.join(res_save_dir, "hopkins"))
 
     if model_type == "recon4-phi": 
         hidden_dim = 4
