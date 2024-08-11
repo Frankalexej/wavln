@@ -12,7 +12,7 @@ generate_random_number() {
 
 # Arrays of options for each argument
 ms=('recon8-phi')
-cs=('u')
+cs=('b')
 ses=(20)
 epochjump=20
 
