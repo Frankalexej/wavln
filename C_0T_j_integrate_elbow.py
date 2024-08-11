@@ -184,7 +184,7 @@ def plot_elbows(array, save_path, title="Elbow Method For Optimal k"):
     plt.xlabel('Number of clusters (k)')
     plt.ylabel('Sum of Squared Errors (SSE)')
     plt.title(title)
-    plt.legend()
+    # plt.legend()
     plt.grid(True)
     plt.savefig(save_path)
     plt.close()
@@ -214,6 +214,7 @@ if __name__ == "__main__":
     assert PU.path_exist(model_condition_dir)
     this_save_dir = os.path.join(model_condition_dir, "integrated_results")
     mk(this_save_dir)
+    mk(os.path.join(res_save_dir, "elbow"))
 
     if model_type == "recon4-phi": 
         hidden_dim = 4
@@ -278,8 +279,8 @@ if __name__ == "__main__":
         sse_list_epochs.append(sse_list_runs) # 把每一个epoch的结果汇总，因为最后我们要保存结果，跑起来挺费时间的
 
         # 开始对每个epoch的结果进行绘图
-        sse_arr = np.array(sse_list_epochs) # (run, k)
-        plot_elbows(sse_arr, os.path.join(res_save_dir, "elbow", f"{model_type}-{model_condition}-{strseq_learned_runs}@{epoch}.png"))
+        sse_arr = np.array(sse_list_runs) # (run, k)
+        plot_elbows(sse_arr, os.path.join(res_save_dir, "elbow", f"{model_type}-{model_condition}-{strseq_learned_runs}@{epoch}.png"), title=f"Clusters and SSE {model_type}-{model_condition}-{strseq_learned_runs}@{epoch}")
 
     sse_list_epochs = np.array(sse_list_epochs) # (epoch, run, k)
     np.save(os.path.join(res_save_dir, "elbow", f"{model_type}-{model_condition}-{strseq_learned_runs}.npy"), sse_list_epochs)
