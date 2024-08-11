@@ -192,7 +192,7 @@ def plot_elbows(array, save_path, title="Elbow Method For Optimal k"):
 
 
 if __name__ == "__main__": 
-    ts = "0610162110"
+    ts = "0611193546"
     print(f"Timestamp: {ts}")
     train_name = "C_0T"
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
@@ -278,5 +278,5 @@ if __name__ == "__main__":
         sse_arr_reshaped = sse_arr.transpose(1, 2, 0) # (epoch, k, run), because we want to merge the runs
         
         for epoch in range(sse_arr_reshaped.shape[0]): 
-            plot_elbows(sse_arr_reshaped[epoch], os.path.join(res_save_dir, f"elbow-{model_type}-{model_condition}-{strseq_learned_runs}@{epoch}.png"))
+            plot_elbows(sse_arr_reshaped[epoch], os.path.join(res_save_dir, "elbow", f"{model_type}-{model_condition}-{strseq_learned_runs}@{epoch}.png"))
         print("Done.")
