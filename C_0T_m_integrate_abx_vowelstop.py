@@ -280,7 +280,7 @@ if __name__ == "__main__":
             for i in range(6):
                 hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=15) # should be 2 only
                 abx_err = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
-                asp_list_epochs.append(abx_err)
+                asp_list_runs.append(abx_err)
 
         stop_list_epochs.append(stop_list_runs) # 把每一个epoch的结果汇总，因为最后我们要保存结果，跑起来挺费时间的
         asp_list_epochs.append(asp_list_runs)
