@@ -350,6 +350,6 @@ if __name__ == "__main__":
         # plot_elbows(sse_arr, os.path.join(res_save_dir, "elbow", f"{model_type}-{model_condition}-{strseq_learned_runs}@{epoch}.png"), title=f"Clusters and SSE {model_type}-{model_condition}-{strseq_learned_runs}@{epoch}")
 
     stat_list_epochs = np.array(stat_list_epochs) # (epoch, run)
-    plot_hopkins(stat_list_epochs, os.path.join(res_save_dir, "hopkins", f"{model_type}-{model_condition}-{strseq_learned_runs}.png"))
-    np.save(os.path.join(res_save_dir, "hopkins", f"{model_type}-{model_condition}-{strseq_learned_runs}.npy"), stat_list_epochs)
+    plot_hopkins(stat_list_epochs, os.path.join(res_save_dir, "hopkins", f"{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
+    np.save(os.path.join(res_save_dir, "hopkins", f"{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stat_list_epochs)
     print("Done.")

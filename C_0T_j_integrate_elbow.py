@@ -280,8 +280,8 @@ if __name__ == "__main__":
 
         # 开始对每个epoch的结果进行绘图
         sse_arr = np.array(sse_list_runs) # (run, k)
-        plot_elbows(sse_arr, os.path.join(res_save_dir, "elbow", f"{model_type}-{model_condition}-{strseq_learned_runs}@{epoch}.png"), title=f"Clusters and SSE {model_type}-{model_condition}-{strseq_learned_runs}@{epoch}")
+        plot_elbows(sse_arr, os.path.join(res_save_dir, "elbow", f"{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}@{epoch}.png"), title=f"Clusters and SSE {model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}@{epoch}")
 
     sse_list_epochs = np.array(sse_list_epochs) # (epoch, run, k)
-    np.save(os.path.join(res_save_dir, "elbow", f"{model_type}-{model_condition}-{strseq_learned_runs}.npy"), sse_list_epochs)
+    np.save(os.path.join(res_save_dir, "elbow", f"{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), sse_list_epochs)
     print("Done.")
