@@ -17,7 +17,8 @@ zls=('hidrep' 'attnout')
 
 # Generate a 10-digit random number
 ts='0611193546'
-echo "Timestamp: $ts"
+tn="abx-vowelstop-0.1"
+echo "Timestamp: $ts; Test: $tn"
 
 # Loop from 1 to 10, incrementing by 1
 # Loop over each combination of arguments
@@ -27,7 +28,7 @@ for m in "${ms[@]}"; do
             # Randomly select a GPU between 0 and 8
             gpu=$((RANDOM % 9))
             # Run the Python script with the current combination of arguments in the background
-            python C_0T_m_integrate_abx_vowelstop.py -ts "$ts" -m "$m" -cd "$c" -gpu "$gpu" -zl "$zl"&
+            python C_0T_m_integrate_abx_vowelstop.py -ts "$ts" -m "$m" -cd "$c" -gpu "$gpu" -zl "$zl" -tn "$tn"&
         done
     done
 done
