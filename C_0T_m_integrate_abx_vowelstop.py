@@ -100,6 +100,10 @@ def get_toplot(hiddens, sepframes1, sepframes2, phi_types, stop_names, offsets=(
             # This is to get the vowel part
             cutstarts.append(sepframe2)
             cutends.append(None)
+    elif lookat == "pre": 
+        for sepframe1, sepframe2, phi_type in zip(sepframes1, sepframes2, phi_types):
+            cutstarts.append(0)
+            cutends.append(sepframe1)
     else: 
         raise ValueError("Lookat must be one of 'stop' or 'vowel'")
     
@@ -443,6 +447,84 @@ if __name__ == "__main__":
                                                 merge=True, 
                                                 hidden_dim=hidden_dim, 
                                                 lookat="vowel")
+                color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
+                hidr_cs, tags_cs = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
+                for i in range(6):
+                    hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=15) # should be 2 only
+                    abx_err = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
+                    asp_list_runs.append(abx_err)
+
+            stop_list_epochs.append(stop_list_runs) # 把每一个epoch的结果汇总，因为最后我们要保存结果，跑起来挺费时间的
+            asp_list_epochs.append(asp_list_runs)
+
+        stop_list_epochs = np.array(stop_list_epochs)
+        asp_list_epochs = np.array(asp_list_epochs)
+        stop_list_epochs = stop_list_epochs.transpose(1, 0)
+        asp_list_epochs = asp_list_epochs.transpose(1, 0)
+        plot_silhouette(asp_list_epochs, stop_list_epochs, os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
+        np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
+        np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
+        print("Done.")
+    elif test_name == "abx-prestop": 
+        # This is to see whether the first 10% of vowel could be used to predict the stop
+        for epoch in range(0, 100): 
+            # 先循环epoch，再循环run
+            stop_list_runs = []
+            asp_list_runs = []
+            print(f"Processing {model_type} in epoch {epoch}...")
+            for run_number in learned_runs:
+                this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
+                hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
+                                    file_prefix=f"all-{epoch}")
+                hidrep_handler.read()
+                hidrep = hidrep_handler.res
+                if zlevel == "hidrep": 
+                    all_zq = hidrep["ze"]
+                elif zlevel == "attnout": 
+                    all_zq = hidrep["zq"]
+                else: 
+                    raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
+                
+                all_sepframes1 = hidrep["sep-frame1"]
+                all_sepframes2 = hidrep["sep-frame2"]
+                all_phi_type = hidrep["phi-type"]
+                all_stop_names = hidrep["sn"]
+
+                # Silhouette Score
+                cluster_groups = ["P", "T", "K"]
+                hidr_cs, tags_cs = get_toplot(hiddens=all_zq, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_stop_names,
+                                                offsets=(0.8, 1), 
+                                                contrast_in="stop", 
+                                                merge=True, 
+                                                hidden_dim=hidden_dim, 
+                                                lookat="pre")
+                color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
+                hidr_cs, tags_cs = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
+                for i in range(2): 
+                    hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=15)
+                    abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
+                    abx_err02 = sym_abx_error(hidrs[0], hidrs[2], distance=euclidean_distance)
+                    abx_err12 = sym_abx_error(hidrs[1], hidrs[2], distance=euclidean_distance)
+                    stop_list_runs.append(abx_err01)
+                    stop_list_runs.append(abx_err02)
+                    stop_list_runs.append(abx_err12)
+
+                # aspiration contrast
+                cluster_groups = ["T", "ST"]
+                hidr_cs, tags_cs = get_toplot(hiddens=all_zq, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_stop_names,
+                                                offsets=(0.8, 1), 
+                                                contrast_in="asp", 
+                                                merge=True, 
+                                                hidden_dim=hidden_dim, 
+                                                lookat="pre")
                 color_translate = {item: idx for idx, item in enumerate(cluster_groups)}
                 hidr_cs, tags_cs = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
                 for i in range(6):
