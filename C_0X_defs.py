@@ -40,22 +40,22 @@ from misc_tools import AudioCut, ARPABET
 from misc_my_utils import time_to_frame
 
 # Constants
-EPOCHS = 10
-BATCH_SIZE = 1
-INPUT_DIM = 64
-OUTPUT_DIM = 64
-INTER_DIM_0 = 32
-INTER_DIM_1 = 16
-INTER_DIM_2 = 8
-ENC_SIZE_LIST = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
-DEC_SIZE_LIST = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
-DROPOUT = 0.5
-NUM_LAYERS = 2
-EMBEDDING_DIM = 128
-REC_SAMPLE_RATE = 16000
-N_FFT = 400
-N_MELS = 64
-LOADER_WORKER = 16
+# EPOCHS = 10
+# BATCH_SIZE = 1
+# INPUT_DIM = 64
+# OUTPUT_DIM = 64
+# INTER_DIM_0 = 32
+# INTER_DIM_1 = 16
+# INTER_DIM_2 = 8
+# ENC_SIZE_LIST = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
+# DEC_SIZE_LIST = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
+# DROPOUT = 0.5
+# NUM_LAYERS = 2
+# EMBEDDING_DIM = 128
+# REC_SAMPLE_RATE = 16000
+# N_FFT = 400
+# N_MELS = 64
+# LOADER_WORKER = 16
 
 ############################################ Utils ############################################
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
