@@ -33,8 +33,8 @@ from model_loss import *
 from model_padding import generate_mask_from_lengths_mat
 
 BATCH_SIZE = 512
-INPUT_DIM = 128
-OUTPUT_DIM = 128 
+INPUT_DIM = 80
+OUTPUT_DIM = 80 
 INTER_DIM_0 = 32
 INTER_DIM_1 = 16
 INTER_DIM_2 = 8
@@ -44,8 +44,8 @@ DROPOUT = 0.5
 NUM_LAYERS = 2
 EMBEDDING_DIM = 128
 REC_SAMPLE_RATE = 16000
-N_FFT = 1024
-N_MELS = 128
+N_FFT = 400
+N_MELS = 80
 LOADER_WORKER = 32
 
 
