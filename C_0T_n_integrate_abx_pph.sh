@@ -17,7 +17,7 @@ zls=('hidrep' 'attnout') #
 
 # Generate a 10-digit random number
 ts='0611193546'
-tn="abx-pppptk-m"
+tn="abx-vowel-portion"
 echo "Timestamp: $ts; Test: $tn"
 
 # Loop from 1 to 10, incrementing by 1

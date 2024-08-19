@@ -200,6 +200,36 @@ def plot_silhouette(silarray_1, silarray_2, save_path):
     plt.savefig(save_path)
     plt.close()
 
+def plot_many(arrs, labels, save_path, plot_label_dict={"xlabel": "Epoch", "ylabel": "Value", "title": "Value Across Epochs"}): 
+    n_steps = arrs[0].shape[1]
+    mean_trajs = []
+    lower_bounds = []
+    upper_bounds = []
+    colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
+    for arr in arrs: 
+        assert arr.shape[1] == n_steps
+        mean_traj = np.mean(arr, axis=0)
+        sem_arr = sem(arr, axis=0)
+        ci_95 = 1.96 * sem_arr
+        upper_bound = mean_traj + ci_95
+        lower_bound = mean_traj - ci_95
+        mean_trajs.append(mean_traj)
+        lower_bounds.append(lower_bound)
+        upper_bounds.append(upper_bound)
+
+    # Plotting
+    plt.figure(figsize=(12, 8))
+    for idx, (mean_traj, lower_bound, upper_bound, label) in enumerate(zip(mean_trajs, lower_bounds, upper_bounds, labels)): 
+        plt.plot(mean_traj, label=label, color=colors[idx])
+        plt.fill_between(range(n_steps), lower_bound, upper_bound, color=colors[idx], alpha=0.2)
+
+    plt.xlabel(plot_label_dict["xlabel"])
+    plt.ylabel(plot_label_dict["ylabel"])
+    plt.title(plot_label_dict["title"])
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(save_path)
+    plt.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='argparse')
@@ -920,6 +950,127 @@ if __name__ == "__main__":
         stop_list_epochs = stop_list_epochs.transpose(1, 0)
         asp_list_epochs = asp_list_epochs.transpose(1, 0)
         plot_silhouette(asp_list_epochs, stop_list_epochs, os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
+        np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
+        np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
+        print("Done.")
+    elif test_name == "abx-vowel-portion": 
+        # this one evaluates the contrast between different portions of the vowel
+        for epoch in range(0, 100): 
+            # 先循环epoch，再循环run
+            stop_list_runs = []
+            asp_list_runs = []
+            print(f"Processing {model_type} in epoch {epoch}...")
+            for run_number in learned_runs:
+                this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
+                hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
+                                    file_prefix=f"all-{epoch}")
+                hidrep_handler.read()
+                hidrep = hidrep_handler.res
+                if zlevel == "hidrep": 
+                    all_zq = hidrep["ze"]
+                elif zlevel == "attnout": 
+                    all_zq = hidrep["zq"]
+                else: 
+                    raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
+                
+                all_sepframes1 = hidrep["sep-frame1"]
+                all_sepframes2 = hidrep["sep-frame2"]
+                all_phi_type = hidrep["phi-type"]
+                all_stop_names = hidrep["sn"]
+                all_vowel_names = hidrep["vn"]
+
+                # if test_name == "abx-pppptk": 
+                #     offsets = {"ST": (0, 0.2), "T": (0, 0.15)}
+                # elif test_name == "abx-pppptk-m": 
+                #     offsets = {"ST": (0.2, 0.4), "T": (0.15, 0.3)}
+                # else: 
+                #     raise ValueError("Test_name must be one of 'abx-pppptk' or 'abx-pppptk-m'")
+
+                # Select portion 1 of vowels
+                hidr_p_1, tags_p_1 = get_toplot(hiddens=all_zq, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_vowel_names,
+                                                offsets=(0.1, 0.3), 
+                                                contrast_in="vowel", 
+                                                merge=True, 
+                                                hidden_dim=hidden_dim, 
+                                                lookat="vowel", 
+                                                include_map={"AA": "1", "IY": "1", "UW": "1"})
+                # Select portion 2 of vowels
+                hidr_p_2, tags_p_2 = get_toplot(hiddens=all_zq, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_vowel_names,
+                                                offsets=(0.4, 0.6), 
+                                                contrast_in="vowel", 
+                                                merge=True, 
+                                                hidden_dim=hidden_dim, 
+                                                lookat="vowel", 
+                                                include_map={"AA": "2", "IY": "2", "UW": "2"})
+                # Select portion 3 of vowels
+                hidr_p_3, tags_p_3 = get_toplot(hiddens=all_zq,
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_vowel_names,
+                                                offsets=(0.7, 0.9),
+                                                contrast_in="vowel",
+                                                merge=True,
+                                                hidden_dim=hidden_dim,
+                                                lookat="vowel",
+                                                include_map={"AA": "3", "IY": "3", "UW": "3"})
+                # concatenate the vowel portions
+                hidr_p, tags_p = np.concatenate((hidr_p_1, hidr_p_2, hidr_p_3), axis=0), np.concatenate((tags_p_1, tags_p_2, tags_p_3), axis=0)
+                hidr_p, tags_p = postproc_standardize(hidr_p, tags_p, outlier_ratio=0.5)
+
+
+                # Select vowel type contrast
+                hidr_v, tags_v = get_toplot(hiddens=all_zq, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_vowel_names,
+                                                offsets=(0.3, 0.7), 
+                                                contrast_in="vowel", 
+                                                merge=True, 
+                                                hidden_dim=hidden_dim, 
+                                                lookat="vowel", 
+                                                include_map={"AA": "AA", "IY": "IY", "UW": "UW"})
+                hidr_v, tags_v = postproc_standardize(hidr_v, tags_v, outlier_ratio=0.5)
+
+                # ASP: VOWEL PORTION CONTRAST
+                for i in range(2): 
+                    hidrs, tagss = separate_and_sample_data(data_array=hidr_p, tag_array=tags_p, sample_size=15)
+                    abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
+                    abx_err02 = sym_abx_error(hidrs[0], hidrs[2], distance=euclidean_distance)
+                    abx_err12 = sym_abx_error(hidrs[1], hidrs[2], distance=euclidean_distance)
+                    asp_list_runs.append(abx_err01)
+                    asp_list_runs.append(abx_err02)
+                    asp_list_runs.append(abx_err12)
+
+                # STOP: VOWEL TYPE CONTRAST
+                for i in range(2): 
+                    hidrs, tagss = separate_and_sample_data(data_array=hidr_v, tag_array=tags_v, sample_size=15)
+                    abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
+                    abx_err02 = sym_abx_error(hidrs[0], hidrs[2], distance=euclidean_distance)
+                    abx_err12 = sym_abx_error(hidrs[1], hidrs[2], distance=euclidean_distance)
+                    stop_list_runs.append(abx_err01)
+                    stop_list_runs.append(abx_err02)
+                    stop_list_runs.append(abx_err12)
+
+            stop_list_epochs.append(stop_list_runs) # 把每一个epoch的结果汇总，因为最后我们要保存结果，跑起来挺费时间的
+            asp_list_epochs.append(asp_list_runs)
+
+        stop_list_epochs = np.array(stop_list_epochs)
+        asp_list_epochs = np.array(asp_list_epochs)
+        stop_list_epochs = stop_list_epochs.transpose(1, 0)
+        asp_list_epochs = asp_list_epochs.transpose(1, 0)
+        plot_many([asp_list_epochs, stop_list_epochs], ["PORTION", "TYPE"], 
+                  os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
+                  {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"})
         np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
         np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
         print("Done.")
