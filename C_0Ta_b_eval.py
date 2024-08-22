@@ -3,12 +3,26 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from model_model import AEPPV1, AEPPV2, AEPPV4, AEPPV8
 
-from model_dataset import TargetVowelDatasetBoundaryPhoneseq as ThisDataset
-from model_dataset import SilenceSampler_for_TV
 from C_0X_defs import *
-# from C_0T_a_run import *
+from model_dataset import TargetVowelDatasetBoundaryPhoneseq as ThisDataset
+from model_dataset import MelSpecTransformDB as TheTransform
+from model_dataset import SilenceSampler_for_TV
 
+BATCH_SIZE = 1
+INPUT_DIM = 64
+OUTPUT_DIM = 64 
+INTER_DIM_0 = 32
+INTER_DIM_1 = 16
+INTER_DIM_2 = 8
+ENC_SIZE_LIST = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
+DEC_SIZE_LIST = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
+DROPOUT = 0.5
 NUM_LAYERS = 2
+EMBEDDING_DIM = 128
+REC_SAMPLE_RATE = 16000
+N_FFT = 400
+N_MELS = 64
+LOADER_WORKER = 32
 
 # not using that in B, but we overwrite it here
 def get_data(rec_dir, guide_path, word_guide_):
@@ -32,7 +46,8 @@ def get_data(rec_dir, guide_path, word_guide_):
     valid_ds = ThisDataset(rec_dir, 
                         st_valid, 
                         mapper=mymap,
-                        transform=mytrans)
+                        transform=mytrans, 
+                        hop_length=N_FFT//2)
 
     valid_loader = DataLoader(valid_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=LOADER_WORKER, collate_fn=ThisDataset.collate_fn)
     return valid_loader
@@ -45,8 +60,12 @@ def get_data_both(rec_dir, t_guide_path, st_guide_path, word_guide_):
 
     st_valid = pd.read_csv(st_guide_path)
     t_valid = pd.read_csv(t_guide_path)
+    # now st also has noise, so we need to sample silence for both
+    st_valid["pre_startTime"] = st_valid["stop_startTime"] - SilenceSampler_for_TV().sample(len(st_valid))
     t_valid["pre_startTime"] = t_valid["stop_startTime"] - SilenceSampler_for_TV().sample(len(t_valid))
     all_valid = pd.concat([t_valid, st_valid], ignore_index=True, sort=False)
+    # all_valid.to_csv("all_valid.csv", index=False)
+    # raise Exception("Stop here")
 
     # Load TokenMap to map the phoneme to the index
     with open(os.path.join(src_, "no-stress-seg.dict"), "rb") as file:
@@ -61,7 +80,8 @@ def get_data_both(rec_dir, t_guide_path, st_guide_path, word_guide_):
     valid_ds = ThisDataset(rec_dir, 
                         all_valid, 
                         mapper=mymap,
-                        transform=mytrans)
+                        transform=mytrans, 
+                        hop_length=N_FFT//2)
 
     valid_loader = DataLoader(valid_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=LOADER_WORKER, collate_fn=ThisDataset.collate_fn)
     return valid_loader
@@ -161,7 +181,8 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     plt.savefig(os.path.join(res_save_dir, f"recon-at-{stop_epoch}.png"))
     plt.close()
 
-    plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"))
+    plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"), 
+                                       conditionlist=["T", "D"])
     return 0
 
 def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_): 
@@ -172,8 +193,9 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
     assert PU.path_exist(guide_dir)
 
     # Load data
-    st_guide_path = os.path.join(guide_dir, "ST-valid.csv")
-    single_loader = get_data(rec_dir, st_guide_path, word_guide_)
+    st_guide_path = os.path.join(guide_dir, "D-valid.csv")
+    # single_loader = get_data(rec_dir, st_guide_path, word_guide_)
+    single_loader = None
     # note that we always use the balanced data to evaluate, this is because we want the evaluation to have 
     # equal contrast, instead of having huge bias. 
     both_loader = get_data_both(rec_dir, os.path.join(guide_dir, "T-valid-sampled.csv"), st_guide_path, word_guide_)
@@ -260,7 +282,7 @@ if __name__ == "__main__":
 
     ts = args.timestamp # this timestamp does not contain run number
     rn = args.runnumber
-    train_name = "C_0T"
+    train_name = "C_0Ta"
     if not PU.path_exist(os.path.join(model_save_, f"{train_name}-{ts}-{rn}")):
         raise Exception(f"Training {train_name}-{ts}-{rn} does not exist! ")
     

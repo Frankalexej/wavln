@@ -1229,7 +1229,7 @@ class TargetVowelDatasetBoundaryPhoneseq(Dataset):
     # NOTE: for TV condition we add silence as # in the place of S
     # NOTE: this version does not generate random silence here, because for evaluation 
     # NOTE: silence can be generated outside. 
-    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None, plosive_suffix=""):
+    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None, plosive_suffix="", hop_length=400):
         # guide_file = pd.read_csv(guide_)
         if isinstance(guide_, str):
             guide_file = pd.read_csv(guide_)
@@ -1240,8 +1240,8 @@ class TargetVowelDatasetBoundaryPhoneseq(Dataset):
         
         self.plosive_suffix = plosive_suffix
         
-        guide_file["first_sep_frame"] = guide_file.apply(lambda x: time_to_frame(x['stop_startTime'] - x['pre_startTime']), axis=1)
-        guide_file["second_sep_frame"] = guide_file.apply(lambda x: time_to_frame(x['vowel_startTime'] - x['pre_startTime']), axis=1)
+        guide_file["first_sep_frame"] = guide_file.apply(lambda x: time_to_frame(x['stop_startTime'] - x['pre_startTime'], hop_length=hop_length), axis=1)
+        guide_file["second_sep_frame"] = guide_file.apply(lambda x: time_to_frame(x['vowel_startTime'] - x['pre_startTime'], hop_length=hop_length), axis=1)
         
         pre_path_col = guide_file["pre_path"]
         stop_path_col = guide_file["stop_path"]

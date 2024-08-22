@@ -25,7 +25,7 @@ from model_dataset import DS_Tools
 from model_dataset import WordDatasetPhoneseq as TrainDataset
 from model_dataset import TargetVowelDatasetPhoneseq as TestDataset
 from model_dataset import Normalizer, DeNormalizer, TokenMap, WordDictionary
-from model_dataset import MelSpecTransformDBAugust as TheTransform
+from model_dataset import MelSpecTransformDB as TheTransform
 from paths import *
 from misc_my_utils import *
 from misc_recorder import *
@@ -44,7 +44,7 @@ DROPOUT = 0.5
 NUM_LAYERS = 2
 EMBEDDING_DIM = 128
 REC_SAMPLE_RATE = 16000
-N_FFT = 512
+N_FFT = 400
 N_MELS = 64
 LOADER_WORKER = 32
 
@@ -75,12 +75,12 @@ def generate_separation(larger_path, smaller_path, target_path, nameset={"larger
     smaller_guide = pd.read_csv(smaller_path)
     (training_smaller, valid_smaller), (training_larger, valid_larger), (training_sampled_larger, valid_sampled_larger) = random_sample_by_speaker(larger_guide, smaller_guide)
     # note that st set is always the same, because it will not undergo any sampling, it is the minor one. 
-    training_smaller.to_csv(os.path.join(target_path, f"{nameset["smaller"]}-train.csv"), index=False)
-    valid_smaller.to_csv(os.path.join(target_path, f"{nameset["smaller"]}-valid.csv"), index=False)
-    training_larger.to_csv(os.path.join(target_path, f"{nameset["larger"]}-train.csv"), index=False)
-    valid_larger.to_csv(os.path.join(target_path, f"{nameset["larger"]}-valid.csv"), index=False)
-    training_sampled_larger.to_csv(os.path.join(target_path, f"{nameset["larger"]}-train-sampled.csv"), index=False)
-    valid_sampled_larger.to_csv(os.path.join(target_path, f"{nameset["larger"]}-valid-sampled.csv"), index=False)
+    training_smaller.to_csv(os.path.join(target_path, f"{nameset['smaller']}-train.csv"), index=False)
+    valid_smaller.to_csv(os.path.join(target_path, f"{nameset['smaller']}-valid.csv"), index=False)
+    training_larger.to_csv(os.path.join(target_path, f"{nameset['larger']}-train.csv"), index=False)
+    valid_larger.to_csv(os.path.join(target_path, f"{nameset['larger']}-valid.csv"), index=False)
+    training_sampled_larger.to_csv(os.path.join(target_path, f"{nameset['larger']}-train-sampled.csv"), index=False)
+    valid_sampled_larger.to_csv(os.path.join(target_path, f"{nameset['larger']}-valid-sampled.csv"), index=False)
     return 
 
 def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, sampled=True, batch_size=1):
@@ -124,13 +124,13 @@ def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="bo
         sample_suffix = ""
 
     if select == "both":
-        t_set = pd.read_csv(os.path.join(target_path, f"{nameset["larger"]}-{load}{sample_suffix}.csv"))
-        st_set = pd.read_csv(os.path.join(target_path, f"{nameset["smaller"]}-{load}.csv"))
+        t_set = pd.read_csv(os.path.join(target_path, f"{nameset['larger']}-{load}{sample_suffix}.csv"))
+        st_set = pd.read_csv(os.path.join(target_path, f"{nameset['smaller']}-{load}.csv"))
         integrated = pd.concat([t_set, st_set], ignore_index=True, sort=False)
-    elif select == {nameset["larger"]}:
-        integrated = pd.read_csv(os.path.join(target_path, f"{nameset["larger"]}-{load}{sample_suffix}.csv"))
-    elif select == {nameset["smaller"]}:
-        integrated = pd.read_csv(os.path.join(target_path, f"{nameset["smaller"]}-{load}.csv"))
+    elif select == {nameset['larger']}:
+        integrated = pd.read_csv(os.path.join(target_path, f"{nameset['larger']}-{load}{sample_suffix}.csv"))
+    elif select == {nameset['smaller']}:
+        integrated = pd.read_csv(os.path.join(target_path, f"{nameset['smaller']}-{load}.csv"))
     else: 
         raise ValueError("select must be either both, T or ST")
 

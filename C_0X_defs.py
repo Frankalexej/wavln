@@ -102,6 +102,9 @@ def interpolate_traj(current, n_steps=100):
     interp_func = interp1d(current_steps, current, kind='linear', fill_value="extrapolate")
     return interp_func(target_steps)
 
+def feedzeroafter(current, n_steps=100): 
+    return np.concatenate((current, np.zeros(n_steps - len(current))))
+
 def cutHid(hid, cutstart, cutend, start_offset=0, end_offset=1): 
     selstart = max(cutstart, int(cutstart + (cutend - cutstart) * start_offset))
     selend = min(cutend, int(cutstart + (cutend - cutstart) * end_offset))
@@ -268,13 +271,13 @@ def plot_attention_trajectory(phi_type, all_attn, all_sepframes1, all_sepframes2
         plt.savefig(save_path)
         plt.close()
 
-def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, save_path): 
+def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, save_path, conditionlist=["ST", "T"]): 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 8))
     legend_namess = [['S-to-P', 'P-to-S', 'P-to-V', 'V-to-P'], ['#-to-P', 'P-to-#', 'P-to-V', 'V-to-P']]
     colors = ['b', 'g', 'red', 'orange']
     n_steps = 100
 
-    for (selector, ax, legend_names) in zip(["ST", "T"], [ax1, ax2], legend_namess):
+    for (selector, ax, legend_names) in zip(conditionlist, [ax1, ax2], legend_namess):
         selected_tuples = [(sf1, sf2, attn) for pt, sf1, sf2, attn in zip(all_phi_type,  
                                                           all_sepframes1, 
                                                           all_sepframes2, 
@@ -296,6 +299,10 @@ def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, a
                 t_to_s_interp = interpolate_traj(blocks['t_to_s'], n_steps)
                 t_to_a_interp = interpolate_traj(blocks['t_to_a'], n_steps)
                 a_to_t_interp = interpolate_traj(blocks['a_to_t'], n_steps)
+                if np.any(np.isnan(s_to_t_interp)) or np.any(np.isnan(t_to_s_interp)) or np.any(np.isnan(t_to_a_interp)) or np.any(np.isnan(a_to_t_interp)): 
+                    print(f"NaN detected in interpolated list!")
+                    continue
+
                 s_to_t_traj.append(s_to_t_interp)
                 t_to_s_traj.append(t_to_s_interp)
                 t_to_a_traj.append(t_to_a_interp)
@@ -330,7 +337,7 @@ def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, a
                 ax.plot(mean, label=label, color=c)
                 ax.fill_between(range(n_steps), lower, upper, alpha=0.2, color=c)
 
-        elif selector == "T": 
+        elif selector == "T" or selector == "D": 
             s_to_t_traj = []
             t_to_s_traj = []
             t_to_a_traj = []
@@ -346,6 +353,15 @@ def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, a
                 t_to_s_interp = interpolate_traj(blocks['t_to_s'], n_steps)
                 t_to_a_interp = interpolate_traj(blocks['t_to_a'], n_steps)
                 a_to_t_interp = interpolate_traj(blocks['a_to_t'], n_steps)
+                # s_to_t_interp = feedzeroafter(blocks['s_to_t'], n_steps)
+                # t_to_s_interp = feedzeroafter(blocks['t_to_s'], n_steps)
+                # t_to_a_interp = feedzeroafter(blocks['t_to_a'], n_steps)
+                # a_to_t_interp = feedzeroafter(blocks['a_to_t'], n_steps)
+
+                if np.any(np.isnan(s_to_t_interp)) or np.any(np.isnan(t_to_s_interp)) or np.any(np.isnan(t_to_a_interp)) or np.any(np.isnan(a_to_t_interp)): 
+                    print(f"NaN detected in interpolated list!")
+                    continue
+
                 s_to_t_traj.append(s_to_t_interp)
                 t_to_s_traj.append(t_to_s_interp)
                 t_to_a_traj.append(t_to_a_interp)
@@ -380,6 +396,7 @@ def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, a
                 ax.plot(mean, label=label, color=c)
                 ax.fill_between(range(n_steps), lower, upper, alpha=0.2, color=c)
         else: 
+            raise ValueError("Invalid selector")
             t_to_a_traj = []
             a_to_t_traj = []
             for i in range(len(selected_attns)): 
