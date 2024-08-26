@@ -84,6 +84,7 @@ def generate_separation(larger_path, smaller_path, target_path, nameset={"larger
     return 
 
 def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, sampled=True, batch_size=1):
+    raise NotImplementedError("This function should not be used in this thread. ")
     # for general, path is easy, let's just load it
     integrated = pd.read_csv(target_path)
     # integrated = integrated.sample(frac=1).reset_index(drop=True)
@@ -117,7 +118,9 @@ def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, s
     loader = DataLoader(use_ds, batch_size=batch_size, shuffle=use_shuffle, num_workers=LOADER_WORKER, collate_fn=dataset.collate_fn)
     return loader
 
-def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="both", sampled=True, batch_size=1, nameset={"larger": "T", "smaller": "ST"}):
+def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="both", 
+                         sampled=True, batch_size=1, nameset={"larger": "T", "smaller": "ST"}, 
+                         noise_controls={"fixlength": False, "amplitude_scale": 0.01}):
     if sampled: 
         sample_suffix = "-sampled"
     else:
@@ -154,7 +157,8 @@ def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="bo
     ds = dataset(rec_dir, 
                         integrated, 
                         mapper=mymap,
-                        transform=mytrans)
+                        transform=mytrans, 
+                        noise_fixlength=noise_controls["fixlength"], noise_amplitude_scale=noise_controls["amplitude_scale"])
 
     use_shuffle = True if load == "train" else False
     loader = DataLoader(ds, batch_size=batch_size, shuffle=use_shuffle, num_workers=LOADER_WORKER, collate_fn=dataset.collate_fn)
@@ -214,7 +218,7 @@ def initialize_model(model):
                 nn.init.orthogonal_(param.data)
 
 
-def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", "smaller": "ST"}): 
+def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", "smaller": "ST"}, noise_controls={"fixlength": False, "amplitude_scale": 0.01}): 
     model_save_dir = os.path.join(hyper_dir, model_type, condition)
     mk(model_save_dir)
 
@@ -270,12 +274,6 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
                    dec_size_list=dec_list, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size, nameset=nameset)
-        valid_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size, nameset=nameset)
     elif model_type == "recon8-phi": 
         batch_size = 32
         # NOTE: mtl-phi is just training on phenomenon dataset and test on that as well. 
@@ -288,12 +286,6 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
                    dec_size_list=dec_list, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size, nameset=nameset)
-        valid_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size, nameset=nameset)
     elif model_type == "recon16-phi": 
         batch_size = 32
         # NOTE: mtl-phi is just training on phenomenon dataset and test on that as well. 
@@ -306,12 +298,6 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
                    dec_size_list=dec_list, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size, nameset=nameset)
-        valid_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size, nameset=nameset)
     elif model_type == "recon32-phi": 
         batch_size = 32
         # NOTE: mtl-phi is just training on phenomenon dataset and test on that as well. 
@@ -324,14 +310,17 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
                    dec_size_list=dec_list, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size, nameset=nameset)
-        valid_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size, nameset=nameset)
     else: 
         raise Exception("Model type not supported! ")
+    
+    # Load Data
+    guide_path = os.path.join(hyper_dir, "guides")
+    train_loader = load_data_phenomenon(TestDataset, 
+                                    phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size, 
+                                    nameset=nameset, noise_controls=noise_controls)
+    valid_loader = load_data_phenomenon(TestDataset, 
+                                    phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size, 
+                                    nameset=nameset, noise_controls=noise_controls)
 
     model.to(device)
     initialize_model(model)
@@ -523,8 +512,13 @@ if __name__ == "__main__":
                             os.path.join(src_, "phi-D-guide.csv"), 
                             guide_path, 
                             nameset={"larger": "T", "smaller": "D"})
+        
+        with open(os.path.join(model_save_dir, "README.note"), "w") as f: 
+            f.write("----------------RUN NOTES----------------\n")
+            f.write("Variable length noise, much smaller noise (scale = 1e-5)\n")
 
     else: 
         print(f"{train_name}-{ts}")
         torch.cuda.set_device(args.gpu)
-        run_once(model_save_dir, model_type=args.model, condition=args.condition, nameset={"larger": "T", "smaller": "D"})
+        run_once(model_save_dir, model_type=args.model, condition=args.condition, 
+                 nameset={"larger": "T", "smaller": "D"}, noise_controls={"fixlength": False, "amplitude_scale": 1e-5})

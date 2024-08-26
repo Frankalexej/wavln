@@ -973,16 +973,22 @@ class TargetVowelDatasetBoundaryWord(Dataset):
 ################################### TargetVowelDataset for Phoneseq ###################################
 # Defs
 class SilenceSampler_for_TV: 
-    def __init__(self): 
+    def __init__(self, fixlength=False): 
         # mean and std fixed calculated from ST dataset. 
         mean = 0.09068133728311471
         std = 0.03271727752124411
 
         self.sigma = np.sqrt(np.log(1 + (std/mean)**2))
         self.mu = np.log(mean) - 0.5 * self.sigma**2
+        self.mean = mean
+        self.std = std
+        self.fixlength = fixlength
     
     def sample(self, size): 
-        samples = np.random.lognormal(mean=self.mu, sigma=self.sigma, size=size)
+        if self.fixlength: 
+            samples = np.full(size, self.mean)
+        else: 
+            samples = np.random.lognormal(mean=self.mu, sigma=self.sigma, size=size)
         return samples
     
 
@@ -1007,7 +1013,9 @@ class TargetVowelDatasetPhoneseq(Dataset):
     # Target means the phenomenon-target, that is, e.g. /th/ or /st/. 
     # This dataset additionally returns the phone seq. 
     # NOTE: for TV condition we add silence as # in the place of S
-    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None, plosive_suffix=""):
+    def __init__(self, src_dir, guide_, select=[], 
+                 mapper=None, transform=None, plosive_suffix="", 
+                 noise_fixlength=False, noise_amplitude_scale=0.01):
         # guide_file = pd.read_csv(guide_)
         if isinstance(guide_, str):
             guide_file = pd.read_csv(guide_)
@@ -1028,7 +1036,7 @@ class TargetVowelDatasetPhoneseq(Dataset):
         vowel_name_col = guide_file["vowel"]
 
         # generate random length silence for TV condition
-        self.silence_duration = SilenceSampler_for_TV().sample(len(stop_name_col))
+        self.silence_duration = SilenceSampler_for_TV(fixlength=noise_fixlength).sample(len(stop_name_col))
         
         self.guide_file = guide_file
         self.dataset = stop_path_col.tolist()
@@ -1041,7 +1049,7 @@ class TargetVowelDatasetPhoneseq(Dataset):
         self.transform = transform
 
         self.mapper = mapper
-        noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=0.01)
+        noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=noise_amplitude_scale)
         self.noise_set = noise_gen.generate_samples(np.array(self.silence_duration))
     
     def __len__(self):
@@ -1229,7 +1237,8 @@ class TargetVowelDatasetBoundaryPhoneseq(Dataset):
     # NOTE: for TV condition we add silence as # in the place of S
     # NOTE: this version does not generate random silence here, because for evaluation 
     # NOTE: silence can be generated outside. 
-    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None, plosive_suffix="", hop_length=400):
+    def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None, plosive_suffix="", hop_length=400, 
+                 noise_amplitude_scale=0.01):
         # guide_file = pd.read_csv(guide_)
         if isinstance(guide_, str):
             guide_file = pd.read_csv(guide_)
@@ -1268,7 +1277,7 @@ class TargetVowelDatasetBoundaryPhoneseq(Dataset):
         self.transform = transform
 
         self.mapper = mapper
-        noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=0.01)
+        noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=noise_amplitude_scale)
         self.noise_set = noise_gen.generate_samples(np.array(self.silence_duration))
     
     def __len__(self):

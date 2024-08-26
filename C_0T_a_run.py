@@ -591,6 +591,9 @@ if __name__ == "__main__":
         generate_separation(os.path.join(src_, "phi-T-guide.csv"), 
                             os.path.join(src_, "phi-ST-guide.csv"), 
                             guide_path)
+        with open(os.path.join(model_save_dir, "README.note"), "w") as f: 
+            f.write("----------------RUN NOTES----------------\n")
+            f.write("Variable length noise, much smaller noise (scale = 1e-5)\n")
 
     else: 
         print(f"{train_name}-{ts}")
