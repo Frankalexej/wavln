@@ -3,10 +3,10 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from model_model import AEPPV1, AEPPV2, AEPPV4, AEPPV8
 
-from model_dataset import TargetVowelDatasetBoundaryPhoneseq as ThisDataset
-from model_dataset import SilenceSampler_for_TV
 from C_0X_defs import *
-# from C_0T_a_run import *
+from model_dataset import TargetVowelDatasetBoundaryPhoneseq as ThisDataset
+from model_dataset import MelSpecTransformDB as TheTransform
+from model_dataset import SilenceSampler_for_TV
 
 BATCH_SIZE = 1
 INPUT_DIM = 64
@@ -46,12 +46,14 @@ def get_data(rec_dir, guide_path, word_guide_):
     valid_ds = ThisDataset(rec_dir, 
                         st_valid, 
                         mapper=mymap,
-                        transform=mytrans)
+                        transform=mytrans, 
+                        hop_length=N_FFT//2)
 
     valid_loader = DataLoader(valid_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=LOADER_WORKER, collate_fn=ThisDataset.collate_fn)
     return valid_loader
 
-def get_data_both(rec_dir, t_guide_path, st_guide_path, word_guide_):
+def get_data_both(rec_dir, t_guide_path, st_guide_path, word_guide_, 
+                  noise_controls={"fixlength": False, "amplitude_scale": 0.01}):
     mytrans = TheTransform(sample_rate=REC_SAMPLE_RATE, 
                         n_fft=N_FFT, n_mels=N_MELS, 
                         normalizer=Normalizer.norm_mvn, 
@@ -59,8 +61,12 @@ def get_data_both(rec_dir, t_guide_path, st_guide_path, word_guide_):
 
     st_valid = pd.read_csv(st_guide_path)
     t_valid = pd.read_csv(t_guide_path)
-    t_valid["pre_startTime"] = t_valid["stop_startTime"] - SilenceSampler_for_TV().sample(len(t_valid))
+    # now st also has noise, so we need to sample silence for both
+    st_valid["pre_startTime"] = st_valid["stop_startTime"] - SilenceSampler_for_TV(fixlength=noise_controls["fixlength"]).sample(len(st_valid))
+    t_valid["pre_startTime"] = t_valid["stop_startTime"] - SilenceSampler_for_TV(fixlength=noise_controls["fixlength"]).sample(len(t_valid))
     all_valid = pd.concat([t_valid, st_valid], ignore_index=True, sort=False)
+    # all_valid.to_csv("all_valid.csv", index=False)
+    # raise Exception("Stop here")
 
     # Load TokenMap to map the phoneme to the index
     with open(os.path.join(src_, "no-stress-seg.dict"), "rb") as file:
@@ -76,7 +82,8 @@ def get_data_both(rec_dir, t_guide_path, st_guide_path, word_guide_):
                         all_valid, 
                         mapper=mymap,
                         transform=mytrans, 
-                        noise_amplitude_scale=1e-5)
+                        hop_length=N_FFT//2, 
+                        noise_amplitude_scale=noise_controls["amplitude_scale"])
 
     valid_loader = DataLoader(valid_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=LOADER_WORKER, collate_fn=ThisDataset.collate_fn)
     return valid_loader
@@ -176,10 +183,12 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     plt.savefig(os.path.join(res_save_dir, f"recon-at-{stop_epoch}.png"))
     plt.close()
 
-    plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"))
+    plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"), 
+                                       conditionlist=["tachi_T", "tachi_Ch"])
     return 0
 
-def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_): 
+def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_, 
+         noise_controls={"fixlength": False, "amplitude_scale": 0.01}): 
     # Dirs
     rec_dir = train_cut_phone_
     # Check model path
@@ -187,11 +196,14 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
     assert PU.path_exist(guide_dir)
 
     # Load data
-    st_guide_path = os.path.join(guide_dir, "ST-valid.csv")
-    single_loader = get_data(rec_dir, st_guide_path, word_guide_)
+    st_guide_path = os.path.join(guide_dir, "tachi_Ch-valid.csv")
+    # single_loader = get_data(rec_dir, st_guide_path, word_guide_)
+    single_loader = None
     # note that we always use the balanced data to evaluate, this is because we want the evaluation to have 
     # equal contrast, instead of having huge bias. 
-    both_loader = get_data_both(rec_dir, os.path.join(guide_dir, "T-valid-sampled.csv"), st_guide_path, word_guide_)
+    both_loader = get_data_both(rec_dir, os.path.join(guide_dir, "tachi_T-valid-sampled.csv"), 
+                                st_guide_path, word_guide_, 
+                                noise_controls=noise_controls)
 
     # Load TokenMap to map the phoneme to the index
     with open(os.path.join(src_, "no-stress-seg.dict"), "rb") as file:
@@ -205,27 +217,7 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
     class_dim = mymap.token_num()
     ctc_size_list = {'hid': INTER_DIM_2, 'class': class_dim}
 
-    if model_type == "mtl":
-        model = AEPPV1(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
-                   ctc_decoder_size_list=ctc_size_list,
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-    elif model_type == "pp": 
-        model = AEPPV2(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
-                   ctc_decoder_size_list=ctc_size_list,
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-    elif model_type == "mtl-phi":
-        model = AEPPV1(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
-                   ctc_decoder_size_list=ctc_size_list,
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-    elif model_type == "recon-phi": 
-        model = AEPPV8(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
-                   ctc_decoder_size_list=ctc_size_list,
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-    elif model_type == "recon4-phi": 
+    if model_type == "recon4-phi": 
         enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, 4]
         dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, 4]
         model = AEPPV8(enc_size_list=enc_list, 
@@ -275,9 +267,7 @@ if __name__ == "__main__":
 
     ts = args.timestamp # this timestamp does not contain run number
     rn = args.runnumber
-    train_name = "C_0T"
-
-    
+    train_name = "C_0Tb"
     if not PU.path_exist(os.path.join(model_save_, f"{train_name}-{ts}-{rn}")):
         raise Exception(f"Training {train_name}-{ts}-{rn} does not exist! ")
     
@@ -288,4 +278,5 @@ if __name__ == "__main__":
     valid_full_guide_path = os.path.join(src_, "guide_validation.csv")
     mk(this_model_condition_dir)
 
-    main(train_name, ts, args.runnumber, args.model, model_save_dir, this_model_condition_dir, guide_dir, valid_full_guide_path)
+    main(train_name, ts, args.runnumber, args.model, model_save_dir, this_model_condition_dir, guide_dir, valid_full_guide_path, 
+         noise_controls={"fixlength": False, "amplitude_scale": 1e-5})

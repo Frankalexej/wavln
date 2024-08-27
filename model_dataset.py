@@ -1083,6 +1083,7 @@ class TargetVowelDatasetPhoneseq(Dataset):
             phoneseq = torch.tensor([self.mapper.encode(segment) for segment in ['S', self.stop_name[idx], self.vowel_name[idx]]], 
                                     dtype=torch.long)
         else: 
+            # Here we don't need to repair, as any sequence could fit in as long as it starts woith #
             # "T"
             # NOTE: in this way we equate STV and #TV conditions and they are now directly comparable. 
             Sil_duration = self.silence_duration[idx]

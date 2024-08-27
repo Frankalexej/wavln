@@ -2,8 +2,15 @@
 R is completely the same as E, but we delete PP, and will mainly use the phenomenon dataset to train the model. 
 
 T is replicating R. But with 2 layers only. 
+
+TA is td train. The model learns on TV and DV sequences.  
+In this thread, we will make the codes more modularized and general. 
+
+Tb is TACHI experiment. Note that we still keep the # (1e-5) placeholder to make 
+the conditions more comparable among experiments. 
 """
 ######################### Libs #########################
+from tkinter.font import names
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -45,39 +52,42 @@ N_MELS = 64
 LOADER_WORKER = 32
 
 
-def random_sample_by_speaker(tg, stg, valid_proportion=0.2): 
+def random_sample_by_speaker(larger, smaller, valid_proportion=0.2): 
     # sample speakers, tg and stg use the same, because they must have the same speaker choice 
-    speakerlist = stg["speaker"].unique()
+    speakerlist = smaller["speaker"].unique()
     valid_size = int(len(speakerlist) * valid_proportion)
     sampled_indices = np.random.choice(len(speakerlist), size=valid_size, replace=False)
     valid_speakers = speakerlist[sampled_indices]
 
-    t_stg = stg[~stg["speaker"].isin(valid_speakers)]
-    v_stg = stg[stg["speaker"].isin(valid_speakers)]
+    t_smaller = smaller[~smaller["speaker"].isin(valid_speakers)]   # training set
+    v_smaller = smaller[smaller["speaker"].isin(valid_speakers)]    # validation set
 
-    t_tg = tg[~tg["speaker"].isin(valid_speakers)]
-    v_tg = tg[tg["speaker"].isin(valid_speakers)]
+    t_larger = larger[~larger["speaker"].isin(valid_speakers)]
+    v_larger = larger[larger["speaker"].isin(valid_speakers)]
 
-    t_s_tg = t_tg.sample(n=len(t_stg))
-    v_s_tg = v_tg.sample(n=len(v_stg))
+    t_s_larger = t_larger.sample(n=len(t_smaller))
+    v_s_larger = v_larger.sample(n=len(v_smaller))
 
-    return (t_stg, v_stg), (t_tg, v_tg), (t_s_tg, v_s_tg)
+    return (t_smaller, v_smaller), (t_larger, v_larger), (t_s_larger, v_s_larger)
 
 
-def generate_separation(T_path, ST_path, target_path): 
-    t_guide = pd.read_csv(T_path)
-    st_guide = pd.read_csv(ST_path)
-    (training_st, valid_st), (training_t, valid_t), (training_sampled_t, valid_sampled_t) = random_sample_by_speaker(t_guide, st_guide)
+def generate_separation(larger_path, smaller_path, target_path, nameset={"larger": "T", "smaller": "ST"}): 
+    # in fact, when we use unbalanced, it is no much difference between larger and smaller. 
+    # only when want to use balanced, we need to distinguish the order. 
+    larger_guide = pd.read_csv(larger_path)
+    smaller_guide = pd.read_csv(smaller_path)
+    (training_smaller, valid_smaller), (training_larger, valid_larger), (training_sampled_larger, valid_sampled_larger) = random_sample_by_speaker(larger_guide, smaller_guide)
     # note that st set is always the same, because it will not undergo any sampling, it is the minor one. 
-    training_st.to_csv(os.path.join(target_path, "ST-train.csv"), index=False)
-    valid_st.to_csv(os.path.join(target_path, "ST-valid.csv"), index=False)
-    training_t.to_csv(os.path.join(target_path, "T-train.csv"), index=False)
-    valid_t.to_csv(os.path.join(target_path, "T-valid.csv"), index=False)
-    training_sampled_t.to_csv(os.path.join(target_path, "T-train-sampled.csv"), index=False)
-    valid_sampled_t.to_csv(os.path.join(target_path, "T-valid-sampled.csv"), index=False)
+    training_smaller.to_csv(os.path.join(target_path, f"{nameset['smaller']}-train.csv"), index=False)
+    valid_smaller.to_csv(os.path.join(target_path, f"{nameset['smaller']}-valid.csv"), index=False)
+    training_larger.to_csv(os.path.join(target_path, f"{nameset['larger']}-train.csv"), index=False)
+    valid_larger.to_csv(os.path.join(target_path, f"{nameset['larger']}-valid.csv"), index=False)
+    training_sampled_larger.to_csv(os.path.join(target_path, f"{nameset['larger']}-train-sampled.csv"), index=False)
+    valid_sampled_larger.to_csv(os.path.join(target_path, f"{nameset['larger']}-valid-sampled.csv"), index=False)
     return 
 
 def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, sampled=True, batch_size=1):
+    raise NotImplementedError("This function should not be used in this thread. ")
     # for general, path is easy, let's just load it
     integrated = pd.read_csv(target_path)
     # integrated = integrated.sample(frac=1).reset_index(drop=True)
@@ -111,20 +121,22 @@ def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, s
     loader = DataLoader(use_ds, batch_size=batch_size, shuffle=use_shuffle, num_workers=LOADER_WORKER, collate_fn=dataset.collate_fn)
     return loader
 
-def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="both", sampled=True, batch_size=1):
+def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="both", 
+                         sampled=True, batch_size=1, nameset={"larger": "T", "smaller": "ST"}, 
+                         noise_controls={"fixlength": False, "amplitude_scale": 0.01}):
     if sampled: 
         sample_suffix = "-sampled"
     else:
         sample_suffix = ""
 
     if select == "both":
-        t_set = pd.read_csv(os.path.join(target_path, f"T-{load}{sample_suffix}.csv"))
-        st_set = pd.read_csv(os.path.join(target_path, f"ST-{load}.csv"))
+        t_set = pd.read_csv(os.path.join(target_path, f"{nameset['larger']}-{load}{sample_suffix}.csv"))
+        st_set = pd.read_csv(os.path.join(target_path, f"{nameset['smaller']}-{load}.csv"))
         integrated = pd.concat([t_set, st_set], ignore_index=True, sort=False)
-    elif select == "T":
-        integrated = pd.read_csv(os.path.join(target_path, f"T-{load}{sample_suffix}.csv"))
-    elif select == "ST":
-        integrated = pd.read_csv(os.path.join(target_path, f"ST-{load}.csv"))
+    elif select == {nameset['larger']}:
+        integrated = pd.read_csv(os.path.join(target_path, f"{nameset['larger']}-{load}{sample_suffix}.csv"))
+    elif select == {nameset['smaller']}:
+        integrated = pd.read_csv(os.path.join(target_path, f"{nameset['smaller']}-{load}.csv"))
     else: 
         raise ValueError("select must be either both, T or ST")
 
@@ -149,7 +161,7 @@ def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="bo
                         integrated, 
                         mapper=mymap,
                         transform=mytrans, 
-                        noise_amplitude_scale=1e-5)
+                        noise_fixlength=noise_controls["fixlength"], noise_amplitude_scale=noise_controls["amplitude_scale"])
 
     use_shuffle = True if load == "train" else False
     loader = DataLoader(ds, batch_size=batch_size, shuffle=use_shuffle, num_workers=LOADER_WORKER, collate_fn=dataset.collate_fn)
@@ -209,7 +221,7 @@ def initialize_model(model):
                 nn.init.orthogonal_(param.data)
 
 
-def run_once(hyper_dir, model_type="ae", condition="b"): 
+def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", "smaller": "ST"}, noise_controls={"fixlength": False, "amplitude_scale": 0.01}): 
     model_save_dir = os.path.join(hyper_dir, model_type, condition)
     mk(model_save_dir)
 
@@ -253,82 +265,7 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
     # Initialize Model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    if model_type == "mtl":
-        batch_size = 512
-        masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
-        ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
-        model_loss = AlphaCombineLoss(masked_loss, ctc_loss, alpha=0.2)
-
-        model = AEPPV1(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
-                   ctc_decoder_size_list=ctc_size_list,
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-        
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_general(TrainDataset, 
-                                        word_rec_dir, train_guide_path, load="train", select=0.15, sampled=False, batch_size=batch_size)
-        valid_loader = load_data_general(TrainDataset, 
-                                        word_rec_dir, valid_guide_path, load="valid", select=0.15, sampled=False, batch_size=batch_size)
-        onlyST_valid_loader = load_data_phenomenon(TestDataset, 
-                                                phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
-    elif model_type == "pp": 
-        batch_size = 512
-        masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
-        ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
-        model_loss = PseudoAlphaCombineLoss_Pred(masked_loss, ctc_loss, alpha=0.2)
-        model = AEPPV2(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
-                   ctc_decoder_size_list=ctc_size_list,
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_general(TrainDataset, 
-                                        word_rec_dir, train_guide_path, load="train", select=0.3, sampled=False, batch_size=batch_size)
-        valid_loader = load_data_general(TrainDataset, 
-                                        word_rec_dir, valid_guide_path, load="valid", select=0.3, sampled=False, batch_size=batch_size)
-        onlyST_valid_loader = load_data_phenomenon(TestDataset, 
-                                                phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
-        
-    elif model_type == "mtl-phi": 
-        batch_size = 32
-        # NOTE: mtl-phi is just training on phenomenon dataset and test on that as well. 
-        masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
-        ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
-        model_loss = AlphaCombineLoss(masked_loss, ctc_loss, alpha=0.2)
-
-        model = AEPPV1(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
-                   ctc_decoder_size_list=ctc_size_list,
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-        
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size)
-        valid_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
-        onlyST_valid_loader = load_data_phenomenon(TestDataset, 
-                                                phone_rec_dir, guide_path, load="valid", select="ST", sampled=True, batch_size=batch_size)
-    elif model_type == "recon-phi": 
-        batch_size = 32
-        # NOTE: mtl-phi is just training on phenomenon dataset and test on that as well. 
-        masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
-        ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
-        model_loss = PseudoAlphaCombineLoss_Recon(masked_loss, ctc_loss, alpha=0.2)
-
-        model = AEPPV8(enc_size_list=ENC_SIZE_LIST, 
-                   dec_size_list=DEC_SIZE_LIST, 
-                   ctc_decoder_size_list=ctc_size_list,
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-        
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size)
-        valid_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
-    elif model_type == "recon4-phi": 
+    if model_type == "recon4-phi": 
         batch_size = 32
         # NOTE: mtl-phi is just training on phenomenon dataset and test on that as well. 
         masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
@@ -340,12 +277,6 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                    dec_size_list=dec_list, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size)
-        valid_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
     elif model_type == "recon8-phi": 
         batch_size = 32
         # NOTE: mtl-phi is just training on phenomenon dataset and test on that as well. 
@@ -358,12 +289,6 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                    dec_size_list=dec_list, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size)
-        valid_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
     elif model_type == "recon16-phi": 
         batch_size = 32
         # NOTE: mtl-phi is just training on phenomenon dataset and test on that as well. 
@@ -376,12 +301,6 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                    dec_size_list=dec_list, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size)
-        valid_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
     elif model_type == "recon32-phi": 
         batch_size = 32
         # NOTE: mtl-phi is just training on phenomenon dataset and test on that as well. 
@@ -394,14 +313,17 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                    dec_size_list=dec_list, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size)
-        valid_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
     else: 
         raise Exception("Model type not supported! ")
+    
+    # Load Data
+    guide_path = os.path.join(hyper_dir, "guides")
+    train_loader = load_data_phenomenon(TestDataset, 
+                                    phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size, 
+                                    nameset=nameset, noise_controls=noise_controls)
+    valid_loader = load_data_phenomenon(TestDataset, 
+                                    phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size, 
+                                    nameset=nameset, noise_controls=noise_controls)
 
     model.to(device)
     initialize_model(model)
@@ -580,7 +502,7 @@ if __name__ == "__main__":
 
     ## Hyper-preparations
     ts = args.timestamp
-    train_name = "C_0T"
+    train_name = "C_0Tb"
     model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}")
     mk(model_save_dir) 
 
@@ -589,15 +511,18 @@ if __name__ == "__main__":
         print(f"{train_name}-{ts}-DataPrepare")
         guide_path = os.path.join(model_save_dir, "guides")
         mk(guide_path)
-        generate_separation(os.path.join(src_, "phi-T-guide.csv"), 
-                            os.path.join(src_, "phi-ST-guide.csv"), 
-                            guide_path)
+        generate_separation(os.path.join(src_, "phi-tachi_T-guide.csv"), 
+                            os.path.join(src_, "phi-tachi_Ch-guide.csv"), 
+                            guide_path, 
+                            nameset={"larger": "tachi_T", "smaller": "tachi_Ch"})
+        
         with open(os.path.join(model_save_dir, "README.note"), "w") as f: 
             f.write("----------------RUN NOTES----------------\n")
-            f.write("sPV/#PV Experiment\n")
+            f.write("TACHI Experiment\n")
             f.write("Variable length noise, much smaller noise (scale = 1e-5)\n")
 
     else: 
         print(f"{train_name}-{ts}")
         torch.cuda.set_device(args.gpu)
-        run_once(model_save_dir, model_type=args.model, condition=args.condition)
+        run_once(model_save_dir, model_type=args.model, condition=args.condition, 
+                 nameset={"larger": "tachi_T", "smaller": "tachi_Ch"}, noise_controls={"fixlength": False, "amplitude_scale": 1e-5})

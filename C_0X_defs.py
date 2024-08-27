@@ -337,7 +337,7 @@ def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, a
                 ax.plot(mean, label=label, color=c)
                 ax.fill_between(range(n_steps), lower, upper, alpha=0.2, color=c)
 
-        elif selector == "T" or selector == "D": 
+        elif selector in ["T", "D", "tachi_T", "tachi_Ch"]: 
             s_to_t_traj = []
             t_to_s_traj = []
             t_to_a_traj = []
