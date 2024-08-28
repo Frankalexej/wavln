@@ -78,7 +78,7 @@ def get_data_both(rec_dir, t_guide_path, st_guide_path, word_guide_):
                         mapper=mymap,
                         transform=mytrans, 
                         hop_length=N_FFT // 2, 
-                        noise_amplitude_scale=1e-5)
+                        noise_amplitude_scale=5e-4)
 
     valid_loader = DataLoader(valid_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=LOADER_WORKER, collate_fn=ThisDataset.collate_fn)
     return valid_loader

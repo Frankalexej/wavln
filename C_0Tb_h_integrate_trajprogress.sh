@@ -15,7 +15,7 @@ ms=('recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi')
 cs=('b')
 
 # Generate a 10-digit random number
-ts='0828111421'
+ts='0828180741'
 echo "Timestamp: $ts"
 
 # Loop from 1 to 10, incrementing by 1

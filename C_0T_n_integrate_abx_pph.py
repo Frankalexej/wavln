@@ -200,7 +200,7 @@ def plot_silhouette(silarray_1, silarray_2, save_path):
     plt.savefig(save_path)
     plt.close()
 
-def plot_many(arrs, labels, save_path, plot_label_dict={"xlabel": "Epoch", "ylabel": "Value", "title": "Value Across Epochs"}): 
+def plot_many(arrs, labels, save_path, plot_label_dict={"xlabel": "Epoch", "ylabel": "Value", "title": "Value Across Epochs"}, y_range=None): 
     n_steps = arrs[0].shape[1]
     mean_trajs = []
     lower_bounds = []
@@ -223,6 +223,8 @@ def plot_many(arrs, labels, save_path, plot_label_dict={"xlabel": "Epoch", "ylab
         plt.plot(mean_traj, label=label, color=colors[idx])
         plt.fill_between(range(n_steps), lower_bound, upper_bound, color=colors[idx], alpha=0.2)
 
+    if y_range is not None: 
+        plt.ylim(y_range)
     plt.xlabel(plot_label_dict["xlabel"])
     plt.ylabel(plot_label_dict["ylabel"])
     plt.title(plot_label_dict["title"])
@@ -604,6 +606,8 @@ if __name__ == "__main__":
             asp_list_runs = []
             print(f"Processing {model_type} in epoch {epoch}...")
             for run_number in learned_runs:
+                if model_type == "recon32-phi" and run_number == 5: 
+                    continue
                 this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
                 hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
                                     file_prefix=f"all-{epoch}")
@@ -775,6 +779,15 @@ if __name__ == "__main__":
         np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
         np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
         print("Done.")
+    elif test_name == "abx-pph-catch": 
+        stop_list_epochs = np.load(os.path.join(res_save_dir, "abx-pph", f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"))
+        asp_list_epochs = np.load(os.path.join(res_save_dir, "abx-pph", f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"))
+        plot_many([asp_list_epochs, stop_list_epochs], ["PPH", "PPP"], 
+                  os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
+                  {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+                  y_range=(0, 0.6))
+
+        print("Done.")
     elif test_name == "abx-pph-se": 
         # this one evaluates the copntrast between p, p(h) and (p)h. 
         # avoid information overlap even more and use the middle part
@@ -875,6 +888,8 @@ if __name__ == "__main__":
             asp_list_runs = []
             print(f"Processing {model_type} in epoch {epoch}...")
             for run_number in learned_runs:
+                if model_type == "recon32-phi" and run_number == 5: 
+                    continue
                 this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
                 hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
                                     file_prefix=f"all-{epoch}")
@@ -949,7 +964,10 @@ if __name__ == "__main__":
         asp_list_epochs = np.array(asp_list_epochs)
         stop_list_epochs = stop_list_epochs.transpose(1, 0)
         asp_list_epochs = asp_list_epochs.transpose(1, 0)
-        plot_silhouette(asp_list_epochs, stop_list_epochs, os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
+        plot_many([asp_list_epochs, stop_list_epochs], ["ASPIRATION", "POA"], 
+                  os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
+                  {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+                  y_range=(0, 0.6))
         np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
         np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
         print("Done.")

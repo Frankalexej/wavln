@@ -16,8 +16,8 @@ cs=('b') #
 zls=('hidrep' 'attnout') # 
 
 # Generate a 10-digit random number
-ts='0828111421'
-tn="abx-tctcsh"
+ts='0828180741'
+tn="abx-tctcsh-m"
 echo "Timestamp: $ts; Test: $tn"
 
 # Loop from 1 to 10, incrementing by 1
