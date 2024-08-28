@@ -1270,84 +1270,86 @@ if __name__ == "__main__":
     elif test_name in ["abx-tchtd-search"]: 
         # in this one we run a search for the best tchtd contrast position
         for search in range(0, 5): 
+            print(f"Processing {model_type} in search {search}...")
+            search_test_name = f"{test_name}/{search}"
+            mk(os.path.join(res_save_dir, search_test_name))
             offset_list = [(0.2*search, 0.2*(search+1)), (0.2*search, 0.2*(search+1))]
+            for epoch in range(0, 100): 
+                # 先循环epoch，再循环run
+                stop_list_runs = []
+                asp_list_runs = []
+                print(f"Processing {model_type} in epoch {epoch}...")
+                for run_number in learned_runs:
+                    this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
+                    hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
+                                        file_prefix=f"all-{epoch}")
+                    hidrep_handler.read()
+                    hidrep = hidrep_handler.res
+                    if zlevel == "hidrep": 
+                        all_zq = hidrep["ze"]
+                    elif zlevel == "attnout": 
+                        all_zq = hidrep["zq"]
+                    else: 
+                        raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
+                    
+                    all_sepframes1 = hidrep["sep-frame1"]
+                    all_sepframes2 = hidrep["sep-frame2"]
+                    all_phi_type = hidrep["phi-type"]
+                    all_stop_names = hidrep["sn"]
+                    all_vowel_names = hidrep["vn"]
 
-        for epoch in range(0, 100): 
-            # 先循环epoch，再循环run
-            stop_list_runs = []
-            asp_list_runs = []
-            print(f"Processing {model_type} in epoch {epoch}...")
-            for run_number in learned_runs:
-                this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
-                hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
-                                    file_prefix=f"all-{epoch}")
-                hidrep_handler.read()
-                hidrep = hidrep_handler.res
-                if zlevel == "hidrep": 
-                    all_zq = hidrep["ze"]
-                elif zlevel == "attnout": 
-                    all_zq = hidrep["zq"]
-                else: 
-                    raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
-                
-                all_sepframes1 = hidrep["sep-frame1"]
-                all_sepframes2 = hidrep["sep-frame2"]
-                all_phi_type = hidrep["phi-type"]
-                all_stop_names = hidrep["sn"]
-                all_vowel_names = hidrep["vn"]
+                    # Select T/Ch
+                    hidr_tch, tags_tch = get_toplot(hiddens=all_zq, 
+                                                    sepframes1=all_sepframes1,
+                                                    sepframes2=all_sepframes2,
+                                                    phi_types=all_phi_type,
+                                                    stop_names=all_stop_names,
+                                                    offsets=offset_list[0], 
+                                                    contrast_in="asp", 
+                                                    merge=True, 
+                                                    hidden_dim=hidden_dim, 
+                                                    lookat="stop")
+                    # Select T/D; Ch/Jh
+                    hidr_td, tags_td = get_toplot(hiddens=all_zq, 
+                                                    sepframes1=all_sepframes1,
+                                                    sepframes2=all_sepframes2,
+                                                    phi_types=all_phi_type,
+                                                    stop_names=all_stop_names,
+                                                    offsets=offset_list[1], 
+                                                    contrast_in="stop", 
+                                                    merge=True, 
+                                                    hidden_dim=hidden_dim, 
+                                                    lookat="stop")
+                    # standardize
+                    hidr_tch, tags_tch = postproc_standardize(hidr_tch, tags_tch, outlier_ratio=0.5)
+                    hidr_td, tags_td = postproc_standardize(hidr_td, tags_td, outlier_ratio=0.5)
 
-                # Select T/Ch
-                hidr_tch, tags_tch = get_toplot(hiddens=all_zq, 
-                                                sepframes1=all_sepframes1,
-                                                sepframes2=all_sepframes2,
-                                                phi_types=all_phi_type,
-                                                stop_names=all_stop_names,
-                                                offsets=offset_list[0], 
-                                                contrast_in="asp", 
-                                                merge=True, 
-                                                hidden_dim=hidden_dim, 
-                                                lookat="stop")
-                # Select T/D; Ch/Jh
-                hidr_td, tags_td = get_toplot(hiddens=all_zq, 
-                                                sepframes1=all_sepframes1,
-                                                sepframes2=all_sepframes2,
-                                                phi_types=all_phi_type,
-                                                stop_names=all_stop_names,
-                                                offsets=offset_list[1], 
-                                                contrast_in="stop", 
-                                                merge=True, 
-                                                hidden_dim=hidden_dim, 
-                                                lookat="stop")
-                # standardize
-                hidr_tch, tags_tch = postproc_standardize(hidr_tch, tags_tch, outlier_ratio=0.5)
-                hidr_td, tags_td = postproc_standardize(hidr_td, tags_td, outlier_ratio=0.5)
+                    # Now we put in aspiration the contrast between pp and h
+                    for i in range(6): 
+                        hidrs, tagss = separate_and_sample_data(data_array=hidr_tch, tag_array=tags_tch, sample_size=15, tags=["tachi_T", "tachi_Ch"])
+                        abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
+                        asp_list_runs.append(abx_err01)
 
-                # Now we put in aspiration the contrast between pp and h
-                for i in range(6): 
-                    hidrs, tagss = separate_and_sample_data(data_array=hidr_tch, tag_array=tags_tch, sample_size=15, tags=["tachi_T", "tachi_Ch"])
-                    abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
-                    asp_list_runs.append(abx_err01)
+                    # Now we put in stop the contrast between p and pp
+                    for i in range(3): 
+                        hidrs, tagss = separate_and_sample_data(data_array=hidr_td, tag_array=tags_td, sample_size=15, tags=["T", "D", "CH", "JH"])
+                        abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)  # T-D
+                        abx_err02 = sym_abx_error(hidrs[2], hidrs[3], distance=euclidean_distance)  # CH-JH
+                        # We don't compare between T and CH, because they belong to T-CH test
+                        stop_list_runs.append(abx_err01)
+                        stop_list_runs.append(abx_err02)
 
-                # Now we put in stop the contrast between p and pp
-                for i in range(3): 
-                    hidrs, tagss = separate_and_sample_data(data_array=hidr_td, tag_array=tags_td, sample_size=15, tags=["T", "D", "CH", "JH"])
-                    abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)  # T-D
-                    abx_err02 = sym_abx_error(hidrs[2], hidrs[3], distance=euclidean_distance)  # CH-JH
-                    # We don't compare between T and CH, because they belong to T-CH test
-                    stop_list_runs.append(abx_err01)
-                    stop_list_runs.append(abx_err02)
+                stop_list_epochs.append(stop_list_runs) # 把每一个epoch的结果汇总，因为最后我们要保存结果，跑起来挺费时间的
+                asp_list_epochs.append(asp_list_runs)
 
-            stop_list_epochs.append(stop_list_runs) # 把每一个epoch的结果汇总，因为最后我们要保存结果，跑起来挺费时间的
-            asp_list_epochs.append(asp_list_runs)
-
-        stop_list_epochs = np.array(stop_list_epochs)
-        asp_list_epochs = np.array(asp_list_epochs)
-        stop_list_epochs = stop_list_epochs.transpose(1, 0)
-        asp_list_epochs = asp_list_epochs.transpose(1, 0)
-        # plot_silhouette(asp_list_epochs, stop_list_epochs, os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
-        plot_many([asp_list_epochs, stop_list_epochs], ["Plosive-Affricate", "Voiceless-Voiced"], 
-                  os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
-                  {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"})
-        np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
-        np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
-        print("Done.")
+            stop_list_epochs = np.array(stop_list_epochs)
+            asp_list_epochs = np.array(asp_list_epochs)
+            stop_list_epochs = stop_list_epochs.transpose(1, 0)
+            asp_list_epochs = asp_list_epochs.transpose(1, 0)
+            # plot_silhouette(asp_list_epochs, stop_list_epochs, os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
+            plot_many([asp_list_epochs, stop_list_epochs], ["Plosive-Affricate", "Voiceless-Voiced"], 
+                    os.path.join(res_save_dir, search_test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
+                    {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"})
+            np.save(os.path.join(res_save_dir, search_test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
+            np.save(os.path.join(res_save_dir, search_test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
+            print("Done.")
