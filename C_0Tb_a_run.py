@@ -519,10 +519,10 @@ if __name__ == "__main__":
         with open(os.path.join(model_save_dir, "README.note"), "w") as f: 
             f.write("----------------RUN NOTES----------------\n")
             f.write("TACHI Experiment\n")
-            f.write("Variable length noise, much smaller noise (scale = 1e-5)\n")
+            f.write("Variable length noise, larger noise (scale = 5e-4)\n")
 
     else: 
         print(f"{train_name}-{ts}")
         torch.cuda.set_device(args.gpu)
         run_once(model_save_dir, model_type=args.model, condition=args.condition, 
-                 nameset={"larger": "tachi_T", "smaller": "tachi_Ch"}, noise_controls={"fixlength": False, "amplitude_scale": 1e-5})
+                 nameset={"larger": "tachi_T", "smaller": "tachi_Ch"}, noise_controls={"fixlength": False, "amplitude_scale": 5e-4})

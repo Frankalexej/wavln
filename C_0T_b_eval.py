@@ -26,6 +26,7 @@ LOADER_WORKER = 32
 
 # not using that in B, but we overwrite it here
 def get_data(rec_dir, guide_path, word_guide_):
+    raise NotImplementedError("This function should not be called! ")
     mytrans = TheTransform(sample_rate=REC_SAMPLE_RATE, 
                         n_fft=N_FFT, n_mels=N_MELS, 
                         normalizer=Normalizer.norm_mvn, 
@@ -76,6 +77,7 @@ def get_data_both(rec_dir, t_guide_path, st_guide_path, word_guide_):
                         all_valid, 
                         mapper=mymap,
                         transform=mytrans, 
+                        hop_length=N_FFT // 2, 
                         noise_amplitude_scale=1e-5)
 
     valid_loader = DataLoader(valid_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=LOADER_WORKER, collate_fn=ThisDataset.collate_fn)
@@ -188,7 +190,8 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
 
     # Load data
     st_guide_path = os.path.join(guide_dir, "ST-valid.csv")
-    single_loader = get_data(rec_dir, st_guide_path, word_guide_)
+    # single_loader = get_data(rec_dir, st_guide_path, word_guide_)
+    single_loader = None
     # note that we always use the balanced data to evaluate, this is because we want the evaluation to have 
     # equal contrast, instead of having huge bias. 
     both_loader = get_data_both(rec_dir, os.path.join(guide_dir, "T-valid-sampled.csv"), st_guide_path, word_guide_)

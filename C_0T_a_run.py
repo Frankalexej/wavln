@@ -149,7 +149,7 @@ def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="bo
                         integrated, 
                         mapper=mymap,
                         transform=mytrans, 
-                        noise_amplitude_scale=1e-5)
+                        noise_amplitude_scale=5e-4)
 
     use_shuffle = True if load == "train" else False
     loader = DataLoader(ds, batch_size=batch_size, shuffle=use_shuffle, num_workers=LOADER_WORKER, collate_fn=dataset.collate_fn)
@@ -595,7 +595,7 @@ if __name__ == "__main__":
         with open(os.path.join(model_save_dir, "README.note"), "w") as f: 
             f.write("----------------RUN NOTES----------------\n")
             f.write("sPV/#PV Experiment\n")
-            f.write("Variable length noise, much smaller noise (scale = 1e-5)\n")
+            f.write("Variable length noise, much smaller noise (scale = 5e-4)\n")
 
     else: 
         print(f"{train_name}-{ts}")

@@ -996,6 +996,7 @@ class WhiteNoiseGen:
     def __init__(self, sample_rate, amplitude_scale):
         self.sr = sample_rate
         self.amplitude_scale = amplitude_scale
+        print(f"WhiteNoiseGen: sample_rate={self.sr}, amplitude_scale={self.amplitude_scale}")
     
     def generate(self, duration): 
         num_samples = int(duration * self.sr)

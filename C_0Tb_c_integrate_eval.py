@@ -11,14 +11,15 @@ def read_result_at(res_save_dir, epoch):
 
     return all_handler.res
 
-def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, save_path, title="Comparison of Foreign-Attention Trajectory"): 
+def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, save_path, title="Comparison of Foreign-Attention Trajectory", 
+                                       conditionlist=["ST", "T"], selector_print_mapper={"ST": "sPV", "T": "#PV"}): 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 8), sharey=True)
-    legend_namess = [['S-to-P', 'P-to-S', 'P-to-V', 'V-to-P'], ['#-to-P', 'P-to-#', 'P-to-V', 'V-to-P']]
+    legend_namess = [['#-to-T', 'T-to-#', 'T-to-V', 'V-to-T'], ['#-to-Ch', 'Ch-to-#', 'Ch-to-V', 'V-to-Ch']]
     colors = ['b', 'g', 'red', 'orange']
     n_steps = 100
-    badcounts = {"ST": 0, "T": 0}
-    totalcounts = {"ST": 0, "T": 0}
-    for (selector, ax, legend_names) in zip(["ST", "T"], [ax1, ax2], legend_namess):
+    badcounts = {selector : 0 for selector in conditionlist}
+    totalcounts = {selector : 0 for selector in conditionlist}
+    for (selector, ax, legend_names) in zip(conditionlist, [ax1, ax2], legend_namess):
         selected_tuples = [(sf1, sf2, attn) for pt, sf1, sf2, attn in zip(all_phi_type,  
                                                           all_sepframes1, 
                                                           all_sepframes2, 
@@ -81,7 +82,7 @@ def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, a
                 ax.fill_between(range(n_steps), lower, upper, alpha=0.2, color=c)
                 print(f"{selector}-{label}:{mean[0]}~{mean[-1]}")
 
-        elif selector == "T": 
+        elif selector in ["tachi_T", "tachi_Ch"]: 
             s_to_t_traj = []
             t_to_s_traj = []
             t_to_a_traj = []
@@ -172,12 +173,8 @@ def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, a
             for mean, upper, lower, label, c in zip(means, upper_bounds, lower_bounds, legend_names[2:], colors[2:]):
                 ax.plot(mean, label=label, color=c)
                 ax.fill_between(range(n_steps), lower, upper, alpha=0.2, color=c)
-        if selector == "ST": 
-            print_selector = "sPV"
-        elif selector == "T": 
-            print_selector = "#PV"
-        else: 
-            print_selector = "!"
+
+        print_selector = selector_print_mapper[selector]
 
         ax.set_xlabel('Normalized Time', fontdict={"fontsize": 24})
         ax.set_ylabel('Summed Foreign-Attention', fontdict={"fontsize": 24})
@@ -210,7 +207,7 @@ if __name__ == "__main__":
     ts = args.timestamp # this timestamp does not contain run number
     model_type = args.model
     model_condition = args.condition
-    train_name = "C_0T"
+    train_name = "C_0Tb"
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
 
     sil_dict = {}
@@ -261,7 +258,9 @@ if __name__ == "__main__":
         every_sepframes2 += cat_sepframes2
         every_phi_types += cat_phi_types
     plot_attention_trajectory_together(every_phi_types, every_attns, every_sepframes1, every_sepframes2, os.path.join(res_save_dir, f"attntraj-at-all-{model_type}-{model_condition}-{strseq_learned_runs}-{startepoch}-{endepoch}.png"), 
-                                       f"Comparison of Foreign-Attention Trajectory for Epochs {startepoch} to {endepoch}")
+                                       f"Comparison of Foreign-Attention Trajectory for Epochs {startepoch} to {endepoch}", 
+                                       conditionlist=["tachi_T", "tachi_Ch"], 
+                                       selector_print_mapper={"tachi_T": "#TV", "tachi_Ch": "#ChV"})
     # plot_attention_trajectory_together(every_phi_types, every_attns_pp, every_sepframes1, every_sepframes2, os.path.join(res_save_dir, f"attnpptraj-at-all-{model_type}-{model_condition}-{strseq_learned_runs}.png"))
 
     print("Done.")
