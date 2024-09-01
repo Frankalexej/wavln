@@ -328,68 +328,16 @@ def run_once(hyper_dir, model_type="ae", condition="b"):
                                         phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size)
         valid_loader = load_data_phenomenon(TestDataset, 
                                         phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
-    elif model_type == "recon4-phi": 
+    elif model_type in ["recon4-phi", "recon8-phi", "recon16-phi", "recon32-phi", 
+                        "recon48-phi", "recon64-phi", "recon96-phi", "recon128-phi"]: 
+        hiddim = int(model_type.split("-")[0].replace("recon", "")) # get hidden dimension from model_type
+        # NOTE: such trainings are all on phenomenon dataset and test on that as well, therefore use smaller batch size
         batch_size = 32
-        # NOTE: mtl-phi is just training on phenomenon dataset and test on that as well. 
         masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
         ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
         model_loss = PseudoAlphaCombineLoss_Recon(masked_loss, ctc_loss, alpha=0.2)
-        enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, 4]
-        dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, 4]
-        model = AEPPV8(enc_size_list=enc_list, 
-                   dec_size_list=dec_list, 
-                   ctc_decoder_size_list=ctc_size_list,
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size)
-        valid_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
-    elif model_type == "recon8-phi": 
-        batch_size = 32
-        # NOTE: mtl-phi is just training on phenomenon dataset and test on that as well. 
-        masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
-        ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
-        model_loss = PseudoAlphaCombineLoss_Recon(masked_loss, ctc_loss, alpha=0.2)
-        enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, 8]
-        dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, 8]
-        model = AEPPV8(enc_size_list=enc_list, 
-                   dec_size_list=dec_list, 
-                   ctc_decoder_size_list=ctc_size_list,
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size)
-        valid_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
-    elif model_type == "recon16-phi": 
-        batch_size = 32
-        # NOTE: mtl-phi is just training on phenomenon dataset and test on that as well. 
-        masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
-        ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
-        model_loss = PseudoAlphaCombineLoss_Recon(masked_loss, ctc_loss, alpha=0.2)
-        enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, 16]
-        dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, 16]
-        model = AEPPV8(enc_size_list=enc_list, 
-                   dec_size_list=dec_list, 
-                   ctc_decoder_size_list=ctc_size_list,
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size)
-        valid_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size)
-    elif model_type == "recon32-phi": 
-        batch_size = 32
-        # NOTE: mtl-phi is just training on phenomenon dataset and test on that as well. 
-        masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
-        ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
-        model_loss = PseudoAlphaCombineLoss_Recon(masked_loss, ctc_loss, alpha=0.2)
-        enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, 32]
-        dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, 32]
+        enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, hiddim]
+        dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, hiddim]
         model = AEPPV8(enc_size_list=enc_list, 
                    dec_size_list=dec_list, 
                    ctc_decoder_size_list=ctc_size_list,
@@ -596,6 +544,7 @@ if __name__ == "__main__":
             f.write("----------------RUN NOTES----------------\n")
             f.write("sPV/#PV Experiment\n")
             f.write("Variable length noise, much smaller noise (scale = 5e-4)\n")
+            f.write("20240901: Run with larger dimensionalities -> no need to re-run smaller conditions, but 48, 72, 96, 128\n")
 
     else: 
         print(f"{train_name}-{ts}")
