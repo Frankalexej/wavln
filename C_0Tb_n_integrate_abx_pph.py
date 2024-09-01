@@ -1269,7 +1269,9 @@ if __name__ == "__main__":
         print("Done.")
     elif test_name in ["abx-tchtd-search"]: 
         # in this one we run a search for the best tchtd contrast position
-        for search in range(0, 5): 
+        for search in range(1, 5): 
+            stop_list_epochs = [] # list for each epoch of lists of sse for each run
+            asp_list_epochs = []
             print(f"Processing {model_type} in search {search}...")
             search_test_name = f"{test_name}/{search}"
             mk(os.path.join(res_save_dir, search_test_name))
