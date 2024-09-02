@@ -1082,6 +1082,8 @@ if __name__ == "__main__":
                     all_zq = hidrep["ze"]
                 elif zlevel == "attnout": 
                     all_zq = hidrep["zq"]
+                elif zlevel == "ori": 
+                    all_zq = hidrep["ori"]
                 else: 
                     raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
                 

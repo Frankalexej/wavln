@@ -232,15 +232,17 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
         raise Exception("Model type not supported! ")
 
     fixer_starting_epoch = 0
-    hiddim = int(model_type.split("-")[0].replace("recon", ""))
-    if hiddim == 48: 
-        fixer_starting_epoch = 45
-    elif hiddim == 96: 
-        fixer_starting_epoch = 61
-    elif hiddim == 128: 
-        fixer_starting_epoch = 79
-    else: 
-        raise Exception("Model type not supported in fixing! ")
+    if model_type == "recon128-phi":
+        fixer_starting_epoch = 87
+    # hiddim = int(model_type.split("-")[0].replace("recon", ""))
+    # if hiddim == 48: 
+    #     fixer_starting_epoch = 45
+    # elif hiddim == 96: 
+    #     fixer_starting_epoch = 61
+    # elif hiddim == 128: 
+    #     fixer_starting_epoch = 79
+    # else: 
+    #     raise Exception("Model type not supported in fixing! ")
     # sil_list = []
     for epoch in range(fixer_starting_epoch, 100): 
         run_one_epoch(model, single_loader, both_loader, model_save_dir, epoch, res_save_dir)
@@ -264,7 +266,7 @@ if __name__ == "__main__":
 
     # fixing run
     if rn == "fix": 
-        runnumbermap = {"48": 1, "96": 2, "128": 1}
+        runnumbermap = {"48": 1, "96": 2, "128": 2}
         rn = runnumbermap[model_type.split("-")[0].replace("recon", "")]
     else: 
         rn = int(rn)
