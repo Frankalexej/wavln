@@ -597,8 +597,6 @@ if __name__ == "__main__":
             asp_list_runs = []
             print(f"Processing {model_type} in epoch {epoch}...")
             for run_number in learned_runs:
-                if model_type == "recon32-phi" and run_number == 5: 
-                    continue
                 this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
                 hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
                                     file_prefix=f"all-{epoch}")
@@ -608,6 +606,8 @@ if __name__ == "__main__":
                     all_zq = hidrep["ze"]
                 elif zlevel == "attnout": 
                     all_zq = hidrep["zq"]
+                elif zlevel == "ori": 
+                    all_zq = hidrep["ori"]
                 else: 
                     raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
                 

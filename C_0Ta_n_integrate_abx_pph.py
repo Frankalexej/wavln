@@ -262,16 +262,7 @@ if __name__ == "__main__":
     the_good_saving_dir_model_condition = os.path.join(res_save_dir, test_name, model_condition, model_type)
     mk(the_good_saving_dir_model_condition)
 
-    if model_type == "recon4-phi": 
-        hidden_dim = 4
-    elif model_type == "recon8-phi": 
-        hidden_dim = 8
-    elif model_type == "recon16-phi": 
-        hidden_dim = 16
-    elif model_type == "recon32-phi": 
-        hidden_dim = 32
-    else: 
-        raise ValueError("Model type must be one of 'recon3-phi', 'recon8-phi', 'recon32-phi', 'recon100-phi'")
+    hidden_dim = int(model_type.split("-")[0].replace("recon", "")) # get hidden dimension from model_type
     learned_runs = [1, 2, 3, 4, 5]
     string_learned_runs = [str(num) for num in learned_runs]
     strseq_learned_runs = "".join(string_learned_runs)
@@ -1074,7 +1065,7 @@ if __name__ == "__main__":
         np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
         np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
         print("Done.")
-    elif test_name == "abx-pphb": 
+    elif test_name == "abx-pphb" or test_name == "abx-pphb-smallmiddle": 
         # this one evaluates the copntrast between p, p(h) and (p)h. 
         for epoch in range(0, 100): 
             # 先循环epoch，再循环run
@@ -1100,13 +1091,20 @@ if __name__ == "__main__":
                 all_stop_names = hidrep["sn"]
                 all_vowel_names = hidrep["vn"]
 
+                if test_name == "abx-pphb": 
+                    offsets = {"B": (0, 0.4), "PP": (0, 0.25), "H": (0.75, 1)}
+                elif test_name == "abx-pphb-smallmiddle": 
+                    offsets = {"B": (0.16, 0.32), "PP": (0.1, 0.2), "H": (0.8, 0.9)}
+                else: 
+                    raise ValueError("Test_name must be one of 'abx-pphb' or 'abx-pphb-smallmiddle'")
+
                 # Select ST
                 hidr_p, tags_p = get_toplot(hiddens=all_zq, 
                                                 sepframes1=all_sepframes1,
                                                 sepframes2=all_sepframes2,
                                                 phi_types=all_phi_type,
                                                 stop_names=all_vowel_names,
-                                                offsets=(0, 0.4), 
+                                                offsets=offsets["B"], 
                                                 contrast_in="asp", 
                                                 merge=True, 
                                                 hidden_dim=hidden_dim, 
@@ -1118,7 +1116,7 @@ if __name__ == "__main__":
                                                 sepframes2=all_sepframes2,
                                                 phi_types=all_phi_type,
                                                 stop_names=all_vowel_names,
-                                                offsets=(0, 0.25), 
+                                                offsets=offsets["PP"], 
                                                 contrast_in="asp", 
                                                 merge=True, 
                                                 hidden_dim=hidden_dim, 
@@ -1130,7 +1128,7 @@ if __name__ == "__main__":
                                                 sepframes2=all_sepframes2,
                                                 phi_types=all_phi_type,
                                                 stop_names=all_vowel_names,
-                                                offsets=(0.75, 1), 
+                                                offsets=offsets["H"], 
                                                 contrast_in="asp", 
                                                 merge=True, 
                                                 hidden_dim=hidden_dim, 
