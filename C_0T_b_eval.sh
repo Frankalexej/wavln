@@ -11,10 +11,10 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=('recon48-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi'
+ms=('recon64-phi' 'recon128-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi'
 # 'recon48-phi' 'recon64-phi' 'recon96-phi' 'recon128-phi'
 cs=('b')
-is=(4) # 
+is=(5) # 
 # Generate a 10-digit random number
 # ts='0611193546'
 ts='0901104956'

@@ -178,7 +178,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     plt.savefig(os.path.join(res_save_dir, f"recon-at-{stop_epoch}.png"))
     plt.close()
 
-    plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"))
+    # plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"))
     return 0
 
 def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_): 
@@ -241,7 +241,7 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
         raise Exception("Model type not supported! ")
 
     # sil_list = []
-    for epoch in range(0, 100): 
+    for epoch in range(30, 100): 
         run_one_epoch(model, single_loader, both_loader, model_save_dir, epoch, res_save_dir)
     return 
 
