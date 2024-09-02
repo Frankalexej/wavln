@@ -241,7 +241,7 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
         raise Exception("Model type not supported! ")
 
     # sil_list = []
-    for epoch in range(30, 100): 
+    for epoch in range(29, 100): 
         run_one_epoch(model, single_loader, both_loader, model_save_dir, epoch, res_save_dir)
     return 
 

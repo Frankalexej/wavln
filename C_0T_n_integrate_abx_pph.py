@@ -264,16 +264,7 @@ if __name__ == "__main__":
     the_good_saving_dir_model_condition = os.path.join(res_save_dir, test_name, model_condition, model_type)
     mk(the_good_saving_dir_model_condition)
 
-    if model_type == "recon4-phi": 
-        hidden_dim = 4
-    elif model_type == "recon8-phi": 
-        hidden_dim = 8
-    elif model_type == "recon16-phi": 
-        hidden_dim = 16
-    elif model_type == "recon32-phi": 
-        hidden_dim = 32
-    else: 
-        raise ValueError("Model type must be one of 'recon3-phi', 'recon8-phi', 'recon32-phi', 'recon100-phi'")
+    hidden_dim = int(model_type.split("-")[0].replace("recon", "")) # get hidden dimension from model_type
     learned_runs = [1, 2, 3, 4, 5]
     string_learned_runs = [str(num) for num in learned_runs]
     strseq_learned_runs = "".join(string_learned_runs)
@@ -598,7 +589,7 @@ if __name__ == "__main__":
         np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
         print("Done.")
 
-    elif test_name == "abx-pph": 
+    elif test_name == "abx-pph" or test_name == "abx-pph-smallmiddle": 
         # this one evaluates the copntrast between p, p(h) and (p)h. 
         for epoch in range(0, 100): 
             # 先循环epoch，再循环run
@@ -625,6 +616,12 @@ if __name__ == "__main__":
                 all_phi_type = hidrep["phi-type"]
                 all_stop_names = hidrep["sn"]
                 all_vowel_names = hidrep["vn"]
+                if test_name == "abx-pph": 
+                    offsets = {"P": (0, 0.4), "PP": (0, 0.25), "H": (0.75, 1)}
+                elif test_name == "abx-pph-smallmiddle": 
+                    offsets = {"P": (0.16, 0.32), "PP": (0.1, 0.2), "H": (0.8, 0.9)}
+                else: 
+                    raise ValueError("Test_name must be one of 'abx-pppptk' or 'abx-pppptk-m'")
 
                 # Select ST
                 hidr_p, tags_p = get_toplot(hiddens=all_zq, 
@@ -632,7 +629,7 @@ if __name__ == "__main__":
                                                 sepframes2=all_sepframes2,
                                                 phi_types=all_phi_type,
                                                 stop_names=all_vowel_names,
-                                                offsets=(0, 0.4), 
+                                                offsets=offsets["P"], 
                                                 contrast_in="asp", 
                                                 merge=True, 
                                                 hidden_dim=hidden_dim, 
@@ -644,7 +641,7 @@ if __name__ == "__main__":
                                                 sepframes2=all_sepframes2,
                                                 phi_types=all_phi_type,
                                                 stop_names=all_vowel_names,
-                                                offsets=(0, 0.25), 
+                                                offsets=offsets["PP"], 
                                                 contrast_in="asp", 
                                                 merge=True, 
                                                 hidden_dim=hidden_dim, 
@@ -656,7 +653,7 @@ if __name__ == "__main__":
                                                 sepframes2=all_sepframes2,
                                                 phi_types=all_phi_type,
                                                 stop_names=all_vowel_names,
-                                                offsets=(0.75, 1), 
+                                                offsets=offsets["H"], 
                                                 contrast_in="asp", 
                                                 merge=True, 
                                                 hidden_dim=hidden_dim, 
@@ -685,7 +682,11 @@ if __name__ == "__main__":
         asp_list_epochs = np.array(asp_list_epochs)
         stop_list_epochs = stop_list_epochs.transpose(1, 0)
         asp_list_epochs = asp_list_epochs.transpose(1, 0)
-        plot_silhouette(asp_list_epochs, stop_list_epochs, os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
+        # plot_silhouette(asp_list_epochs, stop_list_epochs, os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
+        plot_many([asp_list_epochs, stop_list_epochs], ["PPH", "PPP"], 
+                  os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
+                  {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+                  y_range=(0, 0.6))
         np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
         np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
         print("Done.")
@@ -888,8 +889,6 @@ if __name__ == "__main__":
             asp_list_runs = []
             print(f"Processing {model_type} in epoch {epoch}...")
             for run_number in learned_runs:
-                if model_type == "recon32-phi" and run_number == 5: 
-                    continue
                 this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
                 hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
                                     file_prefix=f"all-{epoch}")

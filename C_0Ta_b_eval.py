@@ -1,3 +1,4 @@
+from pdb import run
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -183,8 +184,9 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     plt.savefig(os.path.join(res_save_dir, f"recon-at-{stop_epoch}.png"))
     plt.close()
 
-    plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"), 
-                                       conditionlist=["T", "D"])
+    """Commented out because sometimes due to drawing problems some runs could not be plotted (I guess it's because some have zero attention)"""
+    # plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, all_sepframes2, os.path.join(res_save_dir, f"attntraj-at-{stop_epoch}.png"), 
+    #                                    conditionlist=["T", "D"])
     return 0
 
 def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_, 
@@ -229,8 +231,18 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
     else: 
         raise Exception("Model type not supported! ")
 
+    fixer_starting_epoch = 0
+    hiddim = int(model_type.split("-")[0].replace("recon", ""))
+    if hiddim == 48: 
+        fixer_starting_epoch = 45
+    elif hiddim == 96: 
+        fixer_starting_epoch = 61
+    elif hiddim == 128: 
+        fixer_starting_epoch = 79
+    else: 
+        raise Exception("Model type not supported in fixing! ")
     # sil_list = []
-    for epoch in range(0, 100): 
+    for epoch in range(fixer_starting_epoch, 100): 
         run_one_epoch(model, single_loader, both_loader, model_save_dir, epoch, res_save_dir)
     return 
 
@@ -248,6 +260,15 @@ if __name__ == "__main__":
 
     ts = args.timestamp # this timestamp does not contain run number
     rn = args.runnumber
+    model_type = args.model
+
+    # fixing run
+    if rn == "fix": 
+        runnumbermap = {"48": 1, "96": 2, "128": 1}
+        rn = runnumbermap[model_type.split("-")[0].replace("recon", "")]
+    else: 
+        rn = int(rn)
+
     train_name = "C_0Ta"
     if not PU.path_exist(os.path.join(model_save_, f"{train_name}-{ts}-{rn}")):
         raise Exception(f"Training {train_name}-{ts}-{rn} does not exist! ")
@@ -259,5 +280,5 @@ if __name__ == "__main__":
     valid_full_guide_path = os.path.join(src_, "guide_validation.csv")
     mk(this_model_condition_dir)
 
-    main(train_name, ts, args.runnumber, args.model, model_save_dir, this_model_condition_dir, guide_dir, valid_full_guide_path, 
+    main(train_name, ts, rn, model_type, model_save_dir, this_model_condition_dir, guide_dir, valid_full_guide_path, 
          noise_controls={"fixlength": False, "amplitude_scale": 5e-4})
