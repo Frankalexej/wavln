@@ -589,7 +589,8 @@ if __name__ == "__main__":
         np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
         print("Done.")
 
-    elif test_name in ["abx-pph", "abx-pph-smallmiddle", "abx-pph-smallend"]: 
+    elif test_name in ["abx-pph", "abx-pph-smallmiddle", "abx-pph-smallend", 
+                       "abx-pph-0903", "abx-pph-0903-1"]:  
         # this one evaluates the copntrast between p, p(h) and (p)h. 
         for epoch in range(0, 100): 
             # 先循环epoch，再循环run
@@ -607,6 +608,8 @@ if __name__ == "__main__":
                 elif zlevel == "attnout": 
                     all_zq = hidrep["zq"]
                 elif zlevel == "ori": 
+                    if hidden_dim != 64: 
+                        raise Exception("Warning: hidden_dim is not 64, but we are using the original representation! ")
                     all_zq = hidrep["ori"]
                 else: 
                     raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
@@ -623,8 +626,14 @@ if __name__ == "__main__":
                 elif test_name == "abx-pph-smallend": 
                     offsets = {"P": (0, 0.16), "PP": (0, 0.1), "H": (0.9, 1)}
                     # this should be very small and should hopefully anyway include similar things in both P and PP. 
+                elif test_name in ["abx-pph-0903", "abx-pph-0903-1"]: 
+                    # offsets = {"P": (0.3, 0.5), "PP": (0.15, 0.2), "H": (0.65, 0.7)}
+                    # offsets = {"P": (0.4, 0.55), "PP": (0.15, 0.2), "H": (0.75, 0.8)}
+                    offsets = {"P": (0.3, 0.45), "PP": (0.15, 0.2), "H": (0.85, 0.9)}
                 else: 
                     raise ValueError("Test_name must be one of 'abx-pppptk' or 'abx-pppptk-m'")
+                
+                merge_one_vector = False
 
                 # Select ST
                 hidr_p, tags_p = get_toplot(hiddens=all_zq, 
@@ -634,7 +643,7 @@ if __name__ == "__main__":
                                                 stop_names=all_vowel_names,
                                                 offsets=offsets["P"], 
                                                 contrast_in="asp", 
-                                                merge=True, 
+                                                merge=merge_one_vector, 
                                                 hidden_dim=hidden_dim, 
                                                 lookat="stop", 
                                                 include_map={"ST": "P"})
@@ -646,7 +655,7 @@ if __name__ == "__main__":
                                                 stop_names=all_vowel_names,
                                                 offsets=offsets["PP"], 
                                                 contrast_in="asp", 
-                                                merge=True, 
+                                                merge=merge_one_vector, 
                                                 hidden_dim=hidden_dim, 
                                                 lookat="stop", 
                                                 include_map={"T": "PP"})
@@ -658,7 +667,7 @@ if __name__ == "__main__":
                                                 stop_names=all_vowel_names,
                                                 offsets=offsets["H"], 
                                                 contrast_in="asp", 
-                                                merge=True, 
+                                                merge=merge_one_vector, 
                                                 hidden_dim=hidden_dim, 
                                                 lookat="stop", 
                                                 include_map={"T": "H"})

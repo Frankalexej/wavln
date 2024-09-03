@@ -87,38 +87,6 @@ def generate_separation(larger_path, smaller_path, target_path, nameset={"larger
 
 def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, sampled=True, batch_size=1):
     raise NotImplementedError("This function should not be used in this thread. ")
-    # for general, path is easy, let's just load it
-    integrated = pd.read_csv(target_path)
-    # integrated = integrated.sample(frac=1).reset_index(drop=True)
-
-    mytrans = TheTransform(sample_rate=REC_SAMPLE_RATE, 
-                        n_fft=N_FFT, n_mels=N_MELS, 
-                        normalizer=Normalizer.norm_mvn, 
-                        denormalizer=DeNormalizer.norm_mvn)
-    
-    # Load TokenMap to map the phoneme to the index
-    with open(os.path.join(src_, "no-stress-seg.dict"), "rb") as file:
-        # Load the object from the file
-        mylist = pickle.load(file)
-        mylist = ["BLANK"] + mylist
-        mylist = mylist + ["SIL"]
-
-    # Now you can use the loaded object
-    mymap = TokenMap(mylist)
-
-    ds = dataset(rec_dir, 
-                        integrated,  
-                        mapper=mymap, 
-                        transform=mytrans, 
-                        ground_truth_path=os.path.join(src_, f"{load}-phoneseq.gt"))
-    
-    use_len = int(select * len(ds))
-    remain_len = len(ds) - use_len
-    use_ds, remain_ds = random_split(ds, [use_len, remain_len])
-
-    use_shuffle = True if load == "train" else False
-    loader = DataLoader(use_ds, batch_size=batch_size, shuffle=use_shuffle, num_workers=LOADER_WORKER, collate_fn=dataset.collate_fn)
-    return loader
 
 def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="both", 
                          sampled=True, batch_size=1, nameset={"larger": "T", "smaller": "ST"}, 
@@ -278,14 +246,6 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
                    dec_size_list=dec_list, 
                    ctc_decoder_size_list=ctc_size_list,
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
-        # Load Data
-        guide_path = os.path.join(hyper_dir, "guides")
-        train_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="train", select="both", sampled=False, batch_size=batch_size, 
-                                        nameset=nameset, noise_controls=noise_controls)
-        valid_loader = load_data_phenomenon(TestDataset, 
-                                        phone_rec_dir, guide_path, load="valid", select="both", sampled=True, batch_size=batch_size, 
-                                        nameset=nameset, noise_controls=noise_controls)
     else: 
         raise Exception("Model type not supported! ")
     
@@ -475,7 +435,7 @@ if __name__ == "__main__":
 
     ## Hyper-preparations
     ts = args.timestamp
-    train_name = "C_0Ta"
+    train_name = "C_0Tc"
     model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}")
     mk(model_save_dir) 
 
@@ -485,17 +445,18 @@ if __name__ == "__main__":
         guide_path = os.path.join(model_save_dir, "guides")
         mk(guide_path)
         generate_separation(os.path.join(src_, "phi-T-guide.csv"), 
-                            os.path.join(src_, "phi-D-guide.csv"), 
+                            os.path.join(src_, "phi-TT-guide.csv"), 
                             guide_path, 
-                            nameset={"larger": "T", "smaller": "D"})
+                            nameset={"larger": "T", "smaller": "TT"})
         
         with open(os.path.join(model_save_dir, "README.note"), "w") as f: 
             f.write("----------------RUN NOTES----------------\n")
             f.write("Variable length noise, much smaller noise (scale = 5e-4)\n")
-            f.write("20240901: Run with larger dimensionalities -> no need to re-run smaller conditions, but 48, 72, 96, 128\n")
+            f.write("20240903: Run with sPV devoid of s vs PV, we mark it as TT and T conditions\n")
+            f.write("Notice that TT is ST devoid of S\n")
 
     else: 
         print(f"{train_name}-{ts}")
         torch.cuda.set_device(args.gpu)
         run_once(model_save_dir, model_type=args.model, condition=args.condition, 
-                 nameset={"larger": "T", "smaller": "D"}, noise_controls={"fixlength": False, "amplitude_scale": 5e-4})
+                 nameset={"larger": "T", "smaller": "TT"}, noise_controls={"fixlength": False, "amplitude_scale": 5e-4})
