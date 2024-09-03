@@ -11,16 +11,16 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=('recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi' 'recon128-phi'
+ms=('recon64-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi' 'recon128-phi'
 cs=('b') # 
-zls=('hidrep' 'attnout') # 'hidrep' 'attnout'
+zls=('ori') # 'hidrep' 'attnout'
 
 # Generate a 10-digit random number
 # ts='0611193546'
 # ts='0828184558'
 ts='0901104956'
 # tn="abx-pppptk"
-tn="abx-pph-smallmiddle"
+tn="abx-pph-smallend"
 echo "Timestamp: $ts; Test: $tn"
 
 # Loop from 1 to 10, incrementing by 1

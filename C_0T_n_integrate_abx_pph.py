@@ -589,7 +589,7 @@ if __name__ == "__main__":
         np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
         print("Done.")
 
-    elif test_name == "abx-pph" or test_name == "abx-pph-smallmiddle": 
+    elif test_name in ["abx-pph", "abx-pph-smallmiddle", "abx-pph-smallend"]: 
         # this one evaluates the copntrast between p, p(h) and (p)h. 
         for epoch in range(0, 100): 
             # 先循环epoch，再循环run
@@ -620,6 +620,9 @@ if __name__ == "__main__":
                     offsets = {"P": (0, 0.4), "PP": (0, 0.25), "H": (0.75, 1)}
                 elif test_name == "abx-pph-smallmiddle": 
                     offsets = {"P": (0.16, 0.32), "PP": (0.1, 0.2), "H": (0.8, 0.9)}
+                elif test_name == "abx-pph-smallend": 
+                    offsets = {"P": (0, 0.16), "PP": (0, 0.1), "H": (0.9, 1)}
+                    # this should be very small and should hopefully anyway include similar things in both P and PP. 
                 else: 
                     raise ValueError("Test_name must be one of 'abx-pppptk' or 'abx-pppptk-m'")
 
