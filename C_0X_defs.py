@@ -99,7 +99,7 @@ def get_in_phone_attn(attn, starts, ends, total):
 def interpolate_traj(current, n_steps=100): 
     current_steps = np.linspace(0, 1, num=len(current))
     target_steps = np.linspace(0, 1, num=n_steps)
-    interp_func = interp1d(current_steps, current, kind='linear', fill_value="extrapolate")
+    interp_func = interp1d(current_steps, current, kind='nearest', fill_value="extrapolate")
     return interp_func(target_steps)
 
 def feedzeroafter(current, n_steps=100): 
@@ -337,7 +337,7 @@ def plot_attention_trajectory_together(all_phi_type, all_attn, all_sepframes1, a
                 ax.plot(mean, label=label, color=c)
                 ax.fill_between(range(n_steps), lower, upper, alpha=0.2, color=c)
 
-        elif selector in ["T", "D", "tachi_T", "tachi_Ch"]: 
+        elif selector in ["T", "D", "tachi_T", "tachi_Ch", "TT"]: 
             s_to_t_traj = []
             t_to_s_traj = []
             t_to_a_traj = []
