@@ -990,7 +990,31 @@ class SilenceSampler_for_TV:
         else: 
             samples = np.random.lognormal(mean=self.mu, sigma=self.sigma, size=size)
         return samples
+
+
+class HarmonicNoiseGen: 
+    def __init__(self, sample_rate, amplitude_scale, oscillation_scale, f_0):
+        self.sr = sample_rate
+        self.amplitude_scale = amplitude_scale
+        self.oscillation_scale = oscillation_scale
+        self.f_0 = f_0
+        print(f"HarmonicNoiseGen: sample_rate={self.sr}, amplitude_scale={self.amplitude_scale}, oscillation_scale={self.oscillation_scale}, f_0={self.f_0}")
     
+    def generate(self, duration): 
+        # Time axis using torch
+        t = torch.linspace(0, duration, int(self.sr * duration), dtype=torch.float32)  # or move to GPU if needed
+        # Generate the dominant F0 sinusoid
+        f0_signal = self.amplitude_scale * torch.sin(2 * torch.pi * self.f_0 * t)
+        # Generate small random oscillations (noise)
+        random_oscillations = self.oscillation_scale * torch.randn(len(t), dtype=torch.float32)
+        # Combine the two
+        noise = f0_signal + random_oscillations
+        noise = noise.unsqueeze(0)
+        return noise
+    
+    def generate_samples(self, durations: np.array):
+        noises = [self.generate(duration) for duration in durations]
+        return noises
 
 class WhiteNoiseGen: 
     def __init__(self, sample_rate, amplitude_scale):
@@ -1050,7 +1074,10 @@ class TargetVowelDatasetPhoneseq(Dataset):
         self.transform = transform
 
         self.mapper = mapper
-        noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=noise_amplitude_scale)
+        # noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=noise_amplitude_scale)
+        noise_gen = HarmonicNoiseGen(sample_rate=16000, 
+                                     amplitude_scale=noise_amplitude_scale, 
+                                     oscillation_scale=0.001, f_0=62)
         self.noise_set = noise_gen.generate_samples(np.array(self.silence_duration))
     
     def __len__(self):
@@ -1279,7 +1306,10 @@ class TargetVowelDatasetBoundaryPhoneseq(Dataset):
         self.transform = transform
 
         self.mapper = mapper
-        noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=noise_amplitude_scale)
+        # noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=noise_amplitude_scale)
+        noise_gen = HarmonicNoiseGen(sample_rate=16000, 
+                                     amplitude_scale=noise_amplitude_scale, 
+                                     oscillation_scale=0.001, f_0=62)
         self.noise_set = noise_gen.generate_samples(np.array(self.silence_duration))
     
     def __len__(self):

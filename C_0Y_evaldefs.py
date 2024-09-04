@@ -1,4 +1,5 @@
 import numpy as np
+import scipy
 
 def filter_data_by_tags(data, tags, select):
     # Convert tag_list to a set for faster membership testing
@@ -74,3 +75,6 @@ def sym_abx_error(cap_delta, cap_ksi, distance):
 
 def euclidean_distance(x, y):
     return np.sqrt(np.sum((x - y) ** 2))
+
+def cosine_distance(x, y): 
+    return scipy.spatial.distance.cosine(x, y)
