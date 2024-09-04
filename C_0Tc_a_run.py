@@ -237,7 +237,8 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
         hiddim = int(model_type.split("-")[0].replace("recon", "")) # get hidden dimension from model_type
         # NOTE: such trainings are all on phenomenon dataset and test on that as well, therefore use smaller batch size
         batch_size = 32
-        masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
+        # masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
+        masked_loss = MaskedCosineLoss()    # NOTE: COSINE LOSS! 
         ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
         model_loss = PseudoAlphaCombineLoss_Recon(masked_loss, ctc_loss, alpha=0.2)
         enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, hiddim]
@@ -451,12 +452,12 @@ if __name__ == "__main__":
         
         with open(os.path.join(model_save_dir, "README.note"), "w") as f: 
             f.write("----------------RUN NOTES----------------\n")
-            f.write("Variable length noise, much smaller noise (scale = 5e-4)\n")
             f.write("20240903: Run with sPV devoid of s vs PV, we mark it as TT and T conditions\n")
             f.write("Notice that TT is ST devoid of S\n")
+            f.write("20240904: Running with Cosine loss, also with new noise method, amplitude=0.006\n")
 
     else: 
         print(f"{train_name}-{ts}")
         torch.cuda.set_device(args.gpu)
         run_once(model_save_dir, model_type=args.model, condition=args.condition, 
-                 nameset={"larger": "T", "smaller": "TT"}, noise_controls={"fixlength": False, "amplitude_scale": 5e-4})
+                 nameset={"larger": "T", "smaller": "TT"}, noise_controls={"fixlength": False, "amplitude_scale": 0.006})

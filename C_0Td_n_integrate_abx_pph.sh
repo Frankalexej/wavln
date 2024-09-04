@@ -11,14 +11,14 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=('recon48-phi' 'recon64-phi' 'recon96-phi' 'recon128-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi' 'recon128-phi'
+ms=('recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi' 'recon128-phi'
 cs=('b') # 
 zls=('hidrep' 'attnout' 'ori') # 'hidrep' 'attnout' 'ori'
 
 # Generate a 10-digit random number
 # ts='0821210446'
-ts='0902011400'
-tn="abx-pphb-smallmiddle-catch"
+ts='0904190254'
+tn="abx-pph-0903-2"
 echo "Timestamp: $ts; Test: $tn"
 
 # Loop from 1 to 10, incrementing by 1
@@ -29,7 +29,7 @@ for m in "${ms[@]}"; do
             # Randomly select a GPU between 0 and 8
             gpu=$((RANDOM % 9))
             # Run the Python script with the current combination of arguments in the background
-            python C_0Ta_n_integrate_abx_pph.py -ts "$ts" -m "$m" -cd "$c" -gpu "$gpu" -zl "$zl" -tn "$tn"&
+            python C_0Td_n_integrate_abx_pph.py -ts "$ts" -m "$m" -cd "$c" -gpu "$gpu" -zl "$zl" -tn "$tn"&
         done
     done
 done

@@ -21,6 +21,20 @@ class MaskedLoss:
         # loss = loss_fn(y_hat_masked, y_masked)
         return loss
     
+class MaskedCosineLoss: 
+    def __init__(self, loss_fn=None):
+        # loss_fn is not used
+        self.loss_fn = nn.CosineSimilarity(dim=-1, eps=1e-6) 
+
+    def get_loss(self, y_hat, y, mask): 
+        """
+        Computes the masked loss given a loss function, predicted values, ground truth values, and a mask tensor.
+        # shape of mask_noele is (B, L)
+        # shape of y_hat and y is (B, L, F)
+        """
+        loss = torch.sum((1 - self.loss_fn(y_hat, y)) * mask) / torch.sum(mask)
+        return loss
+    
 class AlphaCombineLoss:
     def __init__(self, recon_loss, pred_loss, alpha=0.1):
         self.recon_loss = recon_loss
