@@ -286,4 +286,4 @@ if __name__ == "__main__":
     mk(this_model_condition_dir)
 
     main(train_name, ts, rn, model_type, model_save_dir, this_model_condition_dir, guide_dir, valid_full_guide_path, 
-         noise_controls={"fixlength": False, "amplitude_scale": 5e-4})
+         noise_controls={"fixlength": False, "amplitude_scale": 0.006})
