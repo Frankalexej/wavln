@@ -239,9 +239,9 @@ class VQEncoderV3(Module):
         outs.append(enc_x)
         enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
         # initialize h and c
-        hidden_states = [(torch.zeros(d, b, self.hiddim), torch.zeros(d, b, self.hiddim)) for _ in range(self.num_layers)]
+        # hidden_states = [(torch.zeros(d, b, self.hiddim), torch.zeros(d, b, self.hiddim)) for _ in range(self.num_layers)]
         for i, rnn in enumerate(self.rnnlist): 
-            enc_x, (hn, cn) = rnn(enc_x, hidden_states[i])    # (B, L, I1) -> (B, L, I2)
+            enc_x, (hn, cn) = rnn(enc_x)    # (B, L, I1) -> (B, L, I2)
             out_enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
             outs.append(out_enc_x)
         # enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
@@ -427,7 +427,6 @@ class VQDecoderV3(Module):
             dec_x = self.lin_1(dec_in_token)
             dec_x = self.act(dec_x)
             dec_x, hidden = self.rnn(dec_x, hidden)
-            print(hidden[0].shape)
             dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
             dec_x = self.lin_2(dec_x)
             # 这里不能detach，因为training中还要做backprop
