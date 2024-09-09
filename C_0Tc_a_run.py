@@ -260,7 +260,7 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
                                     nameset=nameset, noise_controls=noise_controls)
 
     model.to(device)
-    initialize_model(model)
+    # initialize_model(model)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     model_str = str(model)
     model_txt_path = os.path.join(model_save_dir, "model.txt")
@@ -268,9 +268,12 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
         f.write(model_str)
         f.write("\n")
 
+    # save pre-train model
+    last_model_name = "{}.pt".format(0)
+    torch.save(model.state_dict(), os.path.join(model_save_dir, last_model_name))
     num_epochs = 100
 
-    for epoch in range(num_epochs):
+    for epoch in range(1, num_epochs + 1):
         text_hist.print("Epoch {}".format(epoch))
         model.train()
         train_loss = 0.
@@ -455,6 +458,7 @@ if __name__ == "__main__":
             f.write("20240903: Run with sPV devoid of s vs PV, we mark it as TT and T conditions\n")
             f.write("Notice that TT is ST devoid of S\n")
             f.write("20240904: Running with Cosine loss, also with new noise method, amplitude=0.006\n")
+            f.write("20240909: Running without orthogonal init. \n")
 
     else: 
         print(f"{train_name}-{ts}")

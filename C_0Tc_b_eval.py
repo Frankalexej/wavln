@@ -99,6 +99,10 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
+    # if not pre-epoch, then load model
+    # if stop_epoch == 999: 
+    #     initialize_model(model)
+    # else: 
     # Load model
     model_name = "{}.pt".format(stop_epoch)
     model_path = os.path.join(model_save_dir, model_name)
@@ -233,6 +237,8 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
                    num_layers=NUM_LAYERS, dropout=DROPOUT)
     else: 
         raise Exception("Model type not supported! ")
+    # Run pre-training epoch check (999) 
+    # run_one_epoch(model, single_loader, both_loader, model_save_dir, 999, res_save_dir)
 
     fixer_starting_epoch = 0
     # if model_type == "recon128-phi":
@@ -247,7 +253,7 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
     # else: 
     #     raise Exception("Model type not supported in fixing! ")
     # sil_list = []
-    for epoch in range(fixer_starting_epoch, 100): 
+    for epoch in range(fixer_starting_epoch, 101): # 100 -> 101, because 0 is pre-training epoch 
         run_one_epoch(model, single_loader, both_loader, model_save_dir, epoch, res_save_dir)
     return 
 

@@ -172,7 +172,7 @@ if __name__ == "__main__":
     string_learned_runs = [str(num) for num in learned_runs]
     strseq_learned_runs = "".join(string_learned_runs)
 
-    for epoch in range(0, 100): 
+    for epoch in range(0, 101): 
         cat_attns = []
         # cat_sepframes0 = []
         cat_sepframes1 = []

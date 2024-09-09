@@ -275,7 +275,7 @@ if __name__ == "__main__":
 
     if test_name in ["abx-pph", "abx-pph-0903-1", "abx-pph-0903-2"]: 
         # this one evaluates the copntrast between p, p(h) and (p)h. 
-        for epoch in range(0, 100): 
+        for epoch in range(0, 101): 
             # 先循环epoch，再循环run
             stop_list_runs = []
             asp_list_runs = []
@@ -390,5 +390,120 @@ if __name__ == "__main__":
                   os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
                   {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
                   y_range=(0, 0.6))
+        print("Done.")
+    elif test_name.split("-")[-1] == "catchandpre": 
+        # adds the pre evaluation to existing data
+        uncatched_test_name = test_name.rsplit("-", 1)[0]
+        stop_list_epochs = np.load(os.path.join(res_save_dir, uncatched_test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"))
+        asp_list_epochs = np.load(os.path.join(res_save_dir, uncatched_test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"))
 
+        this_stop_list_epochs = []
+        this_asp_list_epochs = []
+        for epoch in [999]: 
+            # 先循环epoch，再循环run
+            stop_list_runs = []
+            asp_list_runs = []
+            print(f"Processing {model_type} in epoch {epoch}...")
+            for run_number in learned_runs:
+                this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
+                hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
+                                    file_prefix=f"all-{epoch}")
+                hidrep_handler.read()
+                hidrep = hidrep_handler.res
+                if zlevel == "hidrep": 
+                    all_zq = hidrep["ze"]
+                elif zlevel == "attnout": 
+                    all_zq = hidrep["zq"]
+                elif zlevel == "ori": 
+                    if hidden_dim != 64: 
+                        raise Exception("Warning: hidden_dim is not 64, but we are using the original representation! ")
+                    all_zq = hidrep["ori"]
+                else: 
+                    raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
+                
+                all_sepframes1 = hidrep["sep-frame1"]
+                all_sepframes2 = hidrep["sep-frame2"]
+                all_phi_type = hidrep["phi-type"]
+                all_stop_names = hidrep["sn"]
+                all_vowel_names = hidrep["vn"]
+
+                if uncatched_test_name in ["abx-pph", "abx-pph-0903", "abx-pph-0903-1", "abx-pph-0903-2"]: 
+                    # offsets = {"P": (0.3, 0.5), "PP": (0.15, 0.2), "H": (0.65, 0.7)}
+                    # offsets = {"P": (0.4, 0.55), "PP": (0.15, 0.2), "H": (0.75, 0.8)}
+                    offsets = {"P": (0.3, 0.45), "PP": (0.15, 0.2), "H": (0.85, 0.9)}
+                else: 
+                    raise ValueError("Test_name must be one of 'abx-pphb' or 'abx-pphb-smallmiddle'")
+                
+                merge_one_vector = False
+                # Select ST
+                hidr_p, tags_p = get_toplot(hiddens=all_zq, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_vowel_names,
+                                                offsets=offsets["P"], 
+                                                contrast_in="asp", 
+                                                merge=merge_one_vector, 
+                                                hidden_dim=hidden_dim, 
+                                                lookat="stop", 
+                                                include_map={"TT": "P"})
+                # Select T (plosive)
+                hidr_pp, tags_pp = get_toplot(hiddens=all_zq, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_vowel_names,
+                                                offsets=offsets["PP"], 
+                                                contrast_in="asp", 
+                                                merge=merge_one_vector, 
+                                                hidden_dim=hidden_dim, 
+                                                lookat="stop", 
+                                                include_map={"T": "PP"})
+                # Select T (aspiration)
+                hidr_h, tags_h = get_toplot(hiddens=all_zq, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_vowel_names,
+                                                offsets=offsets["H"], 
+                                                contrast_in="asp", 
+                                                merge=merge_one_vector, 
+                                                hidden_dim=hidden_dim, 
+                                                lookat="stop", 
+                                                include_map={"T": "H"})
+                # combine them
+                hidr_cs, tags_cs = np.concatenate((hidr_p, hidr_pp, hidr_h), axis=0), np.concatenate((tags_p, tags_pp, tags_h), axis=0)
+                hidr_cs, tags_cs = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
+                if uncatched_test_name in ["abx-pph-0903-2"]: 
+                    distance_metrics = cosine_distance
+                else: 
+                    distance_metrics = euclidean_distance
+
+                # Now we put in aspiration the contrast between pp and h
+                for i in range(6): 
+                    hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=15, tags=["PP", "H"])
+                    abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=distance_metrics)
+                    asp_list_runs.append(abx_err01)
+
+                # Now we put in stop the contrast between p and pp
+                for i in range(6): 
+                    hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=15, tags=["P", "PP"])
+                    abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=distance_metrics)
+                    stop_list_runs.append(abx_err01)
+
+            this_stop_list_epochs.append(stop_list_runs) # 把每一个epoch的结果汇总，因为最后我们要保存结果，跑起来挺费时间的
+            this_asp_list_epochs.append(asp_list_runs)
+
+        this_stop_list_epochs = np.array(this_stop_list_epochs)
+        this_asp_list_epochs = np.array(this_asp_list_epochs)
+        this_stop_list_epochs = this_stop_list_epochs.transpose(1, 0)
+        this_asp_list_epochs = this_asp_list_epochs.transpose(1, 0)
+
+        stop_list_epochs = np.concatenate((this_stop_list_epochs, stop_list_epochs), axis=1)
+        asp_list_epochs = np.concatenate((this_asp_list_epochs, asp_list_epochs), axis=1)
+
+        plot_many([asp_list_epochs, stop_list_epochs], ["PPH", "PPP"], 
+                  os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
+                  {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+                  y_range=(0, 0.6))
         print("Done.")

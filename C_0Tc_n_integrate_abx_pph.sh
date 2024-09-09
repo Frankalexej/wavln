@@ -17,8 +17,9 @@ zls=('hidrep' 'attnout' 'ori') # 'hidrep' 'attnout' 'ori'
 
 # Generate a 10-digit random number
 # ts='0821210446'
-ts='0904231859'
-tn="abx-pph-0903-2"
+# ts='0904231859'
+ts='0909123742'
+tn="abx-pph-0903-1"
 echo "Timestamp: $ts; Test: $tn"
 
 # Loop from 1 to 10, incrementing by 1

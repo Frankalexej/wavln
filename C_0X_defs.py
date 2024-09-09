@@ -621,3 +621,15 @@ def plot_attention_trajectory_together_012(all_phi_type, all_attn, all_sepframes
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close()
+
+def initialize_model(model):
+    # init LSTM-attn AE
+    for name, param in model.named_parameters():
+        if 'weight_ih' in name:  # Weights of the input-hidden for LSTM layers
+            nn.init.orthogonal_(param.data)
+        elif 'weight_hh' in name:  # Weights of the hidden-hidden (recurrent) for LSTM layers
+            nn.init.orthogonal_(param.data)
+        elif 'weight' in name:  # Weights of linear layers
+            layer_type = name.split('.')[0]
+            if isinstance(getattr(model, layer_type), nn.Linear):  # Check if the layer is linear
+                nn.init.orthogonal_(param.data)

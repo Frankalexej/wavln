@@ -11,11 +11,12 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=('recon4-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi'
+ms=('recon48-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi'
 cs=('b')
-is=(1 2) # 
+is=(3) # 
 # Generate a 10-digit random number
-ts='0904231859'
+# ts='0904231859'   # cosine loss trained, orthogonal init
+ts='0909123742'     # cosine loss trained, default init (what is that? )
 echo "Timestamp: $ts"
 
 # Loop from 1 to 10, incrementing by 1
