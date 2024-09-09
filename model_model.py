@@ -176,6 +176,77 @@ class VQEncoderV1(Module):
         enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
         enc_x = self.lin_2(enc_x)   # this merges the bidirectional into one.
         return enc_x
+
+class VQEncoderV3(Module): 
+    """
+    20240909
+    Linear + Bidirectional LSTM + Linear (merge bidirectional output)
+    We use ModuleList to stack LSTM layers and allow outputting all intermediate outputs. 
+    """
+    def __init__(self, size_list, num_layers=1, dropout=0.5):
+        # size_list = [39, 64, 16, 3]
+        super(VQEncoderV3, self).__init__()
+        # store params to use
+        self.hiddim = size_list[3]
+        self.num_layers = num_layers
+
+        # layers
+        self.lin_1 = nn.Linear(size_list[0], size_list[3])
+        self.rnnlist = nn.ModuleList(
+            [nn.LSTM(input_size=size_list[3], hidden_size=size_list[3],
+                        batch_first=True, bidirectional=True)]
+        )
+        for _ in range(1, num_layers): 
+            self.rnnlist.append(
+                nn.LSTM(input_size=size_list[3] * 2, hidden_size=size_list[3],
+                        batch_first=True, bidirectional=True)
+            )
+        # self.rnn = nn.LSTM(input_size=size_list[3], hidden_size=size_list[3], 
+        #                    num_layers=num_layers, batch_first=True, 
+        #                    dropout=dropout, bidirectional=True)
+        self.lin_2 = nn.Linear(size_list[3] * 2, size_list[3])
+        self.act = nn.ReLU()
+        self.dropout = nn.Dropout(dropout)
+        # self.softmax = nn.Softmax(-1)
+
+    def forward(self, inputs, inputs_lens): 
+        b, l, _ = inputs.size()
+        d = 2 # bidirectional
+        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+        enc_x = self.act(enc_x)
+        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+        # initialize h and c
+        # hidden_states = [(torch.zeros(d, b, self.hiddim), torch.zeros(d, b, self.hiddim)) for _ in range(self.num_layers)]
+        for i, rnn in enumerate(self.rnnlist): 
+            enc_x, (hn, cn) = rnn(enc_x)    # (B, L, I1) -> (B, L, I2)
+            if i < self.num_layers - 1:  # No need to apply dropout after the last layer
+                enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+                enc_x = self.dropout(enc_x)
+                enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+        # enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
+        enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+        enc_x = self.lin_2(enc_x)   # this merges the bidirectional into one.
+        return enc_x
+    
+    # this is only to be called during inference, so dropout is not applied. 
+    def encode_and_out(self, inputs, inputs_lens): 
+        b, l, _ = inputs.size()
+        d = 2 # bidirectional
+
+        outs = []
+        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
+        enc_x = self.act(enc_x)
+        outs.append(enc_x)
+        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+        # initialize h and c
+        hidden_states = [(torch.zeros(d, b, self.hiddim), torch.zeros(d, b, self.hiddim)) for _ in range(self.num_layers)]
+        for i, rnn in enumerate(self.rnnlist): 
+            enc_x, (hn, cn) = rnn(enc_x, hidden_states[i])    # (B, L, I1) -> (B, L, I2)
+            out_enc_x, _ = pad_packed_sequence(enc_x, batch_first=True)
+            outs.append(out_enc_x)
+        # enc_x, (hn, cn) = self.rnn(enc_x)  # (B, L, I1) -> (B, L, I2)
+        enc_x = self.lin_2(out_enc_x)   # this merges the bidirectional into one.
+        return enc_x, outs # return the last output and all intermediate outputs.
     
 class VQDecoderV1(Module): 
     """
@@ -315,6 +386,105 @@ class VQDecoderV2(Module):
         attention_weights = attention_weights.squeeze(2)
         return outputs, attn_outs, attention_weights
 
+class VQDecoderV3(Module): 
+    """
+    注意：decoder是自回归的，因而无需bidirectional
+    同时也输出attention_out
+    Additionally, we output all intermediate outputs. 
+    """
+    def __init__(self, size_list, num_layers=1, dropout=0.5):
+        # size_list = [13, 64, 16, 3]: similar to encoder, just layer 0 different
+        super(VQDecoderV3, self).__init__()
+        self.lin_1 = nn.Linear(size_list[0], size_list[3])
+        self.rnn = nn.LSTM(input_size=size_list[3], hidden_size=size_list[3], 
+                            num_layers=num_layers, batch_first=True, 
+                            dropout=dropout, bidirectional=False)
+        self.attention = ScaledDotProductAttention(q_in=size_list[3], kv_in=size_list[3], qk_out=size_list[3], v_out=size_list[3])
+        self.lin_2 = nn.Linear(size_list[3], size_list[0])
+
+        self.act = nn.ReLU()
+
+        # vars
+        self.num_layers = num_layers
+        self.size_list = size_list
+
+    def inits(self, batch_size, device): 
+        h0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
+        c0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
+        hidden = (h0, c0)
+        dec_in_token = torch.zeros((batch_size, 1, self.size_list[0]), dtype=torch.float, device=device, requires_grad=False)
+        return hidden, dec_in_token
+
+    def forward(self, hid_r, in_mask, init_in, hidden):
+        # Attention decoder
+        length = hid_r.size(1) # get length
+
+        dec_in_token = init_in
+
+        outputs = []
+        attention_weights = []
+        for t in range(length):
+            dec_x = self.lin_1(dec_in_token)
+            dec_x = self.act(dec_x)
+            dec_x, hidden = self.rnn(dec_x, hidden)
+            print(hidden[0].shape)
+            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+            dec_x = self.lin_2(dec_x)
+            # 这里不能detach，因为training中还要做backprop
+            outputs.append(dec_x)
+            attention_weights.append(attention_weight)
+            # Use the current output as the next input token
+            dec_in_token = dec_x
+
+        outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        attention_weights = torch.stack(attention_weights, dim=1)
+        outputs = outputs.squeeze(2)
+        attention_weights = attention_weights.squeeze(2)
+        return outputs, attention_weights
+    
+    def attn_forward(self, hid_r, in_mask, init_in, hidden):
+        # Attention decoder
+        b, length, _ = hid_r.size()
+
+        dec_in_token = init_in
+
+        outputs = []
+        attn_outs = []
+        first_lin_outs = []
+        attention_weights = []
+        rnn_layer_outs = []
+        for t in range(length):
+            dec_x = self.lin_1(dec_in_token)
+            first_lin_outs.append(dec_x)  # post-lin
+            dec_x = self.act(dec_x)
+            dec_x, hidden = self.rnn(dec_x, hidden)
+            # add in rnn outs
+            rnn_layer_outs.append(hidden[0])    # post-rnn
+            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+            # 我的理解是：虽然如果不clone，list里面的tensor也会跟着变
+            # 但是因为这里记录的dec_x在后来都会进入网络中，网络是自带clone的，所以这里不clone也没问题
+            attn_outs.append(dec_x.clone())
+            dec_x = self.lin_2(dec_x)
+            outputs.append(dec_x.clone())
+            attention_weights.append(attention_weight.clone())
+            # Use the current output as the next input token
+            dec_in_token = dec_x
+
+        outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        attn_outs = torch.stack(attn_outs, dim=1)
+        attention_weights = torch.stack(attention_weights, dim=1)
+        first_lin_outs = torch.stack(first_lin_outs, dim=1)
+        rnn_layer_outs = torch.stack(rnn_layer_outs, dim=1)
+        outputs = outputs.squeeze(2)
+        attn_outs = attn_outs.squeeze(2)
+        attention_weights = attention_weights.squeeze(2)
+        first_lin_outs = first_lin_outs.squeeze(2)
+
+        rnn_layer_outs = rnn_layer_outs.permute(0, 2, 1, 3)
+        rnn_layer_outs = torch.unbind(rnn_layer_outs, 0)
+        other_outs = [first_lin_outs] + rnn_layer_outs
+        return outputs, attn_outs, attention_weights, other_outs
+    
 class EncoderV1(Module): 
     """
     Linear * 1 + Unidirectional LSTM
@@ -1084,6 +1254,53 @@ class AEPPV8(Module):
         pp_dec_out, pp_attn_w = ae_dec_out, ae_attn_w
         # return follows: dec_out, attn_w, z
         return (ae_dec_out, attn_out), (ae_attn_w, pp_attn_w), (ze, zq)
+    
+class AEPPV9(Module):
+    # 在4的基础上增加了attn_forward
+    # In addition to hidrep and attnout in AEPPV8, we return all hidden layers. 
+    def __init__(self, enc_size_list, dec_size_list, ctc_decoder_size_list, num_layers=1, dropout=0.5):
+        super(AEPPV9, self).__init__()
+        self.encoder = VQEncoderV3(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        self.ae_decoder = VQDecoderV3(size_list=dec_size_list, num_layers=num_layers, dropout=dropout)
+        # phoneme prediction decoder, this one is not auto-regressive, therefore we can use bidirectional
+        # LSTM to enhance performance. 
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.ae_decoder.inits(batch_size=batch_size, device=self.device)
+
+        ze = self.encoder(inputs, input_lens)
+        # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
+        zq = ze
+        dec_in = ze
+        ae_dec_out, ae_attn_w = self.ae_decoder(dec_in, in_mask, init_in, dec_hid)
+        # pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
+        pp_dec_out, pp_attn_w = ae_dec_out, ae_attn_w
+        # return follows: dec_out, attn_w, z
+        return (ae_dec_out, pp_dec_out), (ae_attn_w, pp_attn_w), (ze, zq)
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        ze = self.encoder(inputs, input_lens)
+        zq = ze
+        return ze, zq
+    
+    def attn_forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.ae_decoder.inits(batch_size=batch_size, device=self.device)
+
+        ze, enc_hid_out_list = self.encoder.encode_and_out(inputs, input_lens)
+        # always, hid_out_list = [flo, rlo1, rlo2, ..., rloN]
+        # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
+        zq = ze
+        dec_in = ze
+        ae_dec_out, attn_out, ae_attn_w, dec_hid_out_list = self.ae_decoder.attn_forward(dec_in, in_mask, init_in, dec_hid)
+        # pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
+        pp_dec_out, pp_attn_w = ae_dec_out, ae_attn_w
+        # return follows: dec_out, attn_w, z
+        return (ae_dec_out, attn_out), (ae_attn_w, pp_attn_w), (ze, zq), (enc_hid_out_list, dec_hid_out_list)
 
 ################################ Chung's AE Replication ################################
 class AEEncoderV1(Module): 
