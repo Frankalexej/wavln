@@ -235,8 +235,8 @@ class VQEncoderV3(Module):
 
         outs = []
         enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
-        enc_x = self.act(enc_x)
         outs.append(enc_x)
+        enc_x = self.act(enc_x)
         enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
         # initialize h and c
         # hidden_states = [(torch.zeros(d, b, self.hiddim), torch.zeros(d, b, self.hiddim)) for _ in range(self.num_layers)]
@@ -481,7 +481,7 @@ class VQDecoderV3(Module):
 
         rnn_layer_outs = rnn_layer_outs.permute(0, 2, 1, 3)
         rnn_layer_outs = torch.unbind(rnn_layer_outs, 0)
-        other_outs = [first_lin_outs] + rnn_layer_outs
+        other_outs = [first_lin_outs] + list(rnn_layer_outs)
         return outputs, attn_outs, attention_weights, other_outs
     
 class EncoderV1(Module): 
