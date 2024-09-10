@@ -264,8 +264,8 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
                                     nameset=nameset, noise_controls=noise_controls)
 
     model.to(device)
-    # initialize_model(model)
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    initialize_model(model)
+    optimizer = optim.Adam(model.parameters(), lr=5e-4)
     model_str = str(model)
     model_txt_path = os.path.join(model_save_dir, "model.txt")
     with open(model_txt_path, "w") as f:
@@ -425,7 +425,7 @@ if __name__ == "__main__":
             f.write("20240910: sPV/PV Running\n")
             f.write("20240904: Running with Cosine loss, also with new noise method, amplitude=0.006\n")
             f.write("20240909: Running without orthogonal init. \n")
-            f.write("20240910: Running with AEPPV9, lr=1e-4 and amplitude_scale lower (amplitude=0.004)\n")
+            f.write("20240910-2: Running with AEPPV9, lr=5e-4 and amplitude_scale lower (amplitude=0.004, noise_amplitude=0.0006, f0=50)\n")
 
     else: 
         print(f"{train_name}-{ts}")
