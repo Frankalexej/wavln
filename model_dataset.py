@@ -1438,7 +1438,7 @@ class TargetVowelDatasetBoundaryPhoneseqSpeakerGender(Dataset):
         # noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=noise_amplitude_scale)
         noise_gen = HarmonicNoiseGen(sample_rate=16000, 
                                      amplitude_scale=noise_amplitude_scale, 
-                                     oscillation_scale=0.001, f_0=60)
+                                     oscillation_scale=0.0006, f_0=50)
         self.noise_set = noise_gen.generate_samples(np.array(self.silence_duration))
     
     def __len__(self):
