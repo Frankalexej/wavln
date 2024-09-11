@@ -168,7 +168,7 @@ if __name__ == "__main__":
     every_sepframes2 = []
     every_phi_types = []
 
-    learned_runs = [1, 3, 4, 5]
+    learned_runs = [1, 2, 3, 4, 5]
     string_learned_runs = [str(num) for num in learned_runs]
     strseq_learned_runs = "".join(string_learned_runs)
 
