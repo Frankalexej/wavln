@@ -239,8 +239,8 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
         hiddim = int(model_type.split("-")[0].replace("recon", "")) # get hidden dimension from model_type
         # NOTE: such trainings are all on phenomenon dataset and test on that as well, therefore use smaller batch size
         batch_size = 32
-        # masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
-        masked_loss = MaskedCosineLoss()    # NOTE: COSINE LOSS! 
+        masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
+        # masked_loss = MaskedCosineLoss()    # NOTE: COSINE LOSS! 
         ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
         model_loss = PseudoAlphaCombineLoss_Recon(masked_loss, ctc_loss, alpha=0.2)
         enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, hiddim]
@@ -425,6 +425,7 @@ if __name__ == "__main__":
             f.write("20240904: Running with Cosine loss, also with new noise method, amplitude=0.006\n")
             f.write("20240909: Running without orthogonal init. \n")
             f.write("20240909: Running with AEPPV9, lr=5e-4 and amplitude_scale lower \n")
+            f.write("20240911: Running with AEPPV9, every thing the same, yet noise level a bit different (oscillation=0.0006, f0=50)\n")
 
     else: 
         print(f"{train_name}-{ts}")

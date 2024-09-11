@@ -5,7 +5,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 from model_model import AEPPV1, AEPPV2, AEPPV4, AEPPV9
 
 from C_0X_defs import *
-from model_dataset import TargetVowelDatasetBoundaryPhoneseq as ThisDataset
+from model_dataset import TargetVowelDatasetBoundaryPhoneseqSpeakerGender as ThisDataset
 from model_dataset import MelSpecTransformDB as TheTransform
 from model_dataset import SilenceSampler_for_TV
 
@@ -84,7 +84,8 @@ def get_data_both(rec_dir, t_guide_path, st_guide_path, word_guide_,
                         mapper=mymap,
                         transform=mytrans, 
                         hop_length=N_FFT//2, 
-                        noise_amplitude_scale=noise_controls["amplitude_scale"])
+                        noise_amplitude_scale=noise_controls["amplitude_scale"], 
+                        speaker_meta_path=os.path.join(src_, "speakers.csv"))
 
     valid_loader = DataLoader(valid_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=LOADER_WORKER, collate_fn=ThisDataset.collate_fn)
     return valid_loader
@@ -136,8 +137,10 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
         "dec-rnn2-f": [],
         "enc-rnn2-b": [],
     }
+    all_sid = []
+    all_gender = []
 
-    for (x, x_lens, pt, sn, vn, sf1, sf2, phoneseq) in both_loader: 
+    for (x, x_lens, pt, sn, vn, sf1, sf2, phoneseq, sid, gender) in both_loader: 
         # name = name[0]
 
         x_mask = generate_mask_from_lengths_mat(x_lens, device=device)
@@ -172,6 +175,8 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
         all_sepframes1 += sf1
         all_sepframes2 += sf2
         all_phi_type += pt
+        all_sid += sid
+        all_gender += gender
 
         # deal with all other hidden outputs
         all_other_hid_outs["enc-lin1"] += [enc_hid_outs[0].cpu().detach().numpy().squeeze()]
@@ -205,6 +210,8 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     reshandler.res["ori"] = all_ori
     reshandler.res["phi-type"] = all_phi_type
     reshandler.res["other-hid-outs"] = all_other_hid_outs
+    reshandler.res["sid"] = all_sid
+    reshandler.res["gender"] = all_gender
     reshandler.save()
     print(f"Results all-{stop_epoch} saved at {res_save_dir}")
 
