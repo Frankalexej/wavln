@@ -241,8 +241,8 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
         hiddim = int(model_type.split("-")[0].replace("recon", "")) # get hidden dimension from model_type
         # NOTE: such trainings are all on phenomenon dataset and test on that as well, therefore use smaller batch size
         batch_size = 32
-        # masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
-        masked_loss = MaskedCosineLoss()    # NOTE: COSINE LOSS! 
+        masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
+        # masked_loss = MaskedCosineLoss()    # NOTE: COSINE LOSS! 
         ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
         model_loss = PseudoAlphaCombineLoss_Recon(masked_loss, ctc_loss, alpha=0.2)
         enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, hiddim]
@@ -264,7 +264,7 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
                                     nameset=nameset, noise_controls=noise_controls)
 
     model.to(device)
-    initialize_model(model)
+    # initialize_model(model)
     optimizer = optim.Adam(model.parameters(), lr=5e-4)
     model_str = str(model)
     model_txt_path = os.path.join(model_save_dir, "model.txt")
@@ -426,6 +426,7 @@ if __name__ == "__main__":
             f.write("20240904: Running with Cosine loss, also with new noise method, amplitude=0.006\n")
             f.write("20240909: Running without orthogonal init. \n")
             f.write("20240910-2: Running with AEPPV9, lr=5e-4 and amplitude_scale lower (amplitude=0.004, noise_amplitude=0.0006, f0=50)\n")
+            f.write("20240912: Same setting, but training without orthogonal init and with MSE loss\n")
 
     else: 
         print(f"{train_name}-{ts}")

@@ -201,12 +201,29 @@ def plot_silhouette(silarray_1, silarray_2, save_path):
     plt.savefig(save_path)
     plt.close()
 
-def plot_many(arrs, labels, save_path, plot_label_dict={"xlabel": "Epoch", "ylabel": "Value", "title": "Value Across Epochs"}, y_range=None): 
+def plot_many(arrs, labels, save_path, plot_label_dict={"xlabel": "Epoch", "ylabel": "Value", "title": "Value Across Epochs"}, y_range=None, cloud=True): 
     n_steps = arrs[0].shape[1]
     mean_trajs = []
     lower_bounds = []
     upper_bounds = []
-    colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
+    # colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan', 
+    #           'black', 'yellow', 'magenta', 'lime', 'teal', 'lavender', 'tan', 'salmon', 'gold', 'indigo']
+    colors = ['#1f77b4',  # blue
+          '#d62728',  # red                
+          '#ff7f0e',  # orange
+          '#2ca02c',  # green
+          '#9467bd',  # purple
+          '#8c564b',  # brown
+          '#e377c2',  # pink
+          '#7f7f7f',  # gray
+          '#bcbd22',  # yellow-green
+          '#17becf',  # teal
+          '#aec7e8',  # light blue
+          '#ffbb78',  # light orange
+          '#98df8a',  # light green
+          '#ff9896',  # light red
+          '#c5b0d5']  # light purple
+
     for arr in arrs: 
         assert arr.shape[1] == n_steps
         mean_traj = np.mean(arr, axis=0)
@@ -222,7 +239,8 @@ def plot_many(arrs, labels, save_path, plot_label_dict={"xlabel": "Epoch", "ylab
     plt.figure(figsize=(12, 8))
     for idx, (mean_traj, lower_bound, upper_bound, label) in enumerate(zip(mean_trajs, lower_bounds, upper_bounds, labels)): 
         plt.plot(mean_traj, label=label, color=colors[idx])
-        plt.fill_between(range(n_steps), lower_bound, upper_bound, color=colors[idx], alpha=0.2)
+        if cloud: 
+            plt.fill_between(range(n_steps), lower_bound, upper_bound, color=colors[idx], alpha=0.2)
 
     if y_range is not None: 
         plt.ylim(y_range)
@@ -471,7 +489,7 @@ if __name__ == "__main__":
         plot_many([asp_list_epochs], ["ARI"], 
                   os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
                   {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
-                  y_range=(0, 0.6))
+                  y_range=(0, 1.0))
         # np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
         np.save(os.path.join(res_save_dir, test_name, f"07-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
         print("Done.")
@@ -486,80 +504,22 @@ if __name__ == "__main__":
                       "dec-rnn2-f", "enc-rnn2-f", "enc-rnn2-b"]: 
             print(f"Processing {model_type} in layer {layer}...")
             asp_list_epochs = []
-            for epoch in range(0, 101): 
-                # 先循环epoch，再循环run
-                stop_list_runs = []
-                asp_list_runs = []
-                print(f"Processing {model_type} in epoch {epoch}...")
-                for run_number in learned_runs:
-                    this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
-                    hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
-                                        file_prefix=f"all-{epoch}")
-                    hidrep_handler.read()
-                    hidrep = hidrep_handler.res
-                    # select representation to work on
-                    other_hid_outs = hidrep["other-hid-outs"]
-                    if layer == "hidrep": 
-                        all_zq = hidrep["ze"]
-                    elif layer == "attnout": 
-                        all_zq = hidrep["zq"]
-                    elif layer in other_hid_outs.keys(): 
-                        all_zq = other_hid_outs[layer]
-                    else: 
-                        raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
-                    
-                    all_sepframes1 = hidrep["sep-frame1"]
-                    all_sepframes2 = hidrep["sep-frame2"]
-                    all_phi_type = hidrep["phi-type"]
-                    all_stop_names = hidrep["sn"]
-                    all_vowel_names = hidrep["vn"]
-
-                    test_name_lookat = test_name.split("-")[1]
-                    test_name_label = test_name.split("-")[2]
-                    
-                    merge_one_vector = False
-                    # Select Vowels and Vowel Tags
-                    hidr_p, tags_p = get_toplot(hiddens=all_zq, 
-                                                    sepframes1=all_sepframes1,
-                                                    sepframes2=all_sepframes2,
-                                                    phi_types=all_phi_type,
-                                                    stop_names=all_vowel_names,
-                                                    offsets=(0.4, 0.6), 
-                                                    contrast_in=test_name_label, 
-                                                    merge=merge_one_vector, 
-                                                    hidden_dim=hidden_dim, 
-                                                    lookat=test_name_lookat, 
-                                                    include_map={"AA": "AA", 
-                                                                "UW": "UW",
-                                                                "IY": "IY"})
-                    # combine them
-                    # hidr_cs, tags_cs = np.concatenate((hidr_p, hidr_pp, hidr_h), axis=0), np.concatenate((tags_p, tags_pp, tags_h), axis=0)
-                    hidr_cs, tags_cs = hidr_p, tags_p
-                    hidr_cs, tags_cs = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
-
-                    kmeans = KMeans(n_clusters=3, random_state=0)
-                    predicted_labels = kmeans.fit_predict(hidr_cs)
-                    ari = adjusted_rand_score(tags_cs, predicted_labels)
-                    asp_list_runs.append(ari)
-
-                asp_list_epochs.append(asp_list_runs)
-
-            asp_list_epochs = np.array(asp_list_epochs)
-            asp_list_epochs = asp_list_epochs.transpose(1, 0)
-            layered_res[layer] = asp_list_epochs
+            look_for_layer_path = test_name.split("-")[0][:-3] + "-" + test_name.split("-")[1] + "-" + test_name.split("-")[2]
+            layer_path = os.path.join(res_save_dir, look_for_layer_path, 
+                                      f"07-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{layer}.npy")
+            layer_res = np.load(layer_path)
+            layered_res[layer] = layer_res
         # deal with ori
         ori_path = os.path.join(res_save_dir, test_name, f"07-save-ari-recon64-phi-{model_condition}-{strseq_learned_runs}-ori.npy")
         if os.path.exists(ori_path): 
             ori_res = np.load(ori_path)
             layered_res["ori"] = ori_res
-
-        # plot_silhouette(asp_list_epochs, stop_list_epochs, os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
-        plot_many(layered_res.values(), layered_res.keys(), 
+        plot_many(list(layered_res.values()), list(layered_res.keys()), 
                   os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
                   {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
-                  y_range=(0, 1.0))
+                  y_range=(0, 0.8), cloud=False)
         # np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
         # np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
-        with open(os.path.join(res_save_dir, test_name, f"06-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.pkl"), "wb") as f: 
-            pickle.dump(layered_res, f)
+        # with open(os.path.join(res_save_dir, test_name, f"06-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.pkl"), "wb") as f: 
+        #     pickle.dump(layered_res, f)
         print("Done.")
