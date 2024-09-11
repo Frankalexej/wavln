@@ -11,15 +11,15 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ms=( 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi'
+ms=('recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi'
 cs=('b') # 
-zls=('hidrep' 'attnout' 'enc-lin1' 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f') 
+zls=('all') 
 # 'hidrep' 'attnout' 'ori' 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f'
 # Generate a 10-digit random number
 # ts='0821210446'
 # ts='0904231859'
-ts='0909202420'
-tn="abx-pph-0903-2"
+ts='0911151319'
+tn="clusterARIAll-vowel-vowel"
 echo "Timestamp: $ts; Test: $tn"
 
 # Loop from 1 to 10, incrementing by 1
