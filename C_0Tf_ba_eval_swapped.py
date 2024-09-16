@@ -30,61 +30,56 @@ N_FFT = 400
 N_MELS = 64
 LOADER_WORKER = 32
 
-def swap_columns(df1: pd.DataFrame, df2: pd.DataFrame, columns: list):
-    # Make sure the columns exist in both DataFrames
-    for col in columns:
-        if col not in df1.columns or col not in df2.columns:
-            raise ValueError(f"Column '{col}' not found in both DataFrames")
-    
-    # Swap the columns
-    df1_temp = df1[columns].copy()
-    df2_temp = df2[columns].copy()
-    
-    df1[columns] = df2_temp
-    df2[columns] = df1_temp
-    
-    return df1, df2
+def assign_rows_for_speakers(df1: pd.DataFrame, df2: pd.DataFrame, speaker_col: str, columns: list):
+    """
+    For each unique speaker in df1, assign random rows from df2 (with replacement) for matching speakers
+    into a copy of df1's specified columns, without changing the order of the original df1.
 
-def construct_swapped_dataset(df1: pd.DataFrame, df2: pd.DataFrame, columns: list):
-    # Swap the specified columns
-    df1, df2 = swap_columns(df1, df2, columns)
+    Args:
+    df1 (pd.DataFrame): The first DataFrame (original DataFrame remains unchanged).
+    df2 (pd.DataFrame): The second DataFrame, where random rows will be selected from.
+    speaker_col (str): The name of the column containing speaker information.
+    columns (list): A list of column names in df1 to be updated with values from df2.
+
+    Returns:
+    pd.DataFrame: A new copy of df1 with values from df2 assigned.
+    """
     
-    # Now, adjust pre_startTime and pre_endTime based on stop_startTime and length of pre
-    for df in [df1, df2]:
-        if 'pre_startTime' in df.columns and 'pre_endTime' in df.columns and 'stop_startTime' in df.columns:
-            pre_length = df['pre_endTime'] - df['pre_startTime']
-            df['pre_endTime'] = df['stop_startTime']
-            df['pre_startTime'] = df['pre_endTime'] - pre_length
+    # Create a copy of df1 to work on
+    df1_copy = df1.copy()
+
+    # Get unique speakers in df1
+    unique_speakers = pd.unique(df1_copy[speaker_col])
     
-    return df1, df2
+    # Iterate over each unique speaker
+    for speaker in unique_speakers:
+        # Select rows for the speaker in both DataFrames
+        df1_speaker_rows = df1_copy[df1_copy[speaker_col] == speaker]
+        df2_speaker_rows = df2[df2[speaker_col] == speaker]
+        
+        # Get the number of rows to assign (N) based on the number of rows for this speaker in df1
+        N = len(df1_speaker_rows)
+        M = len(df2_speaker_rows)
+        
+        if M == 0:
+            # If there are no corresponding rows in df2, skip the speaker
+            continue
+        
+        # Randomly select N rows from df2 (with replacement to allow repetition)
+        selected_df2_rows = df2_speaker_rows.sample(n=N, replace=True)
+        
+        # Assign the selected rows from df2 to the respective columns in the df1_copy
+        df1_copy.loc[df1_speaker_rows.index, columns] = selected_df2_rows[columns].values
+
+        pre_length = df1_copy['pre_endTime'] - df1_copy['pre_startTime']
+        df1_copy['pre_endTime'] = df1_copy['stop_startTime']
+        df1_copy['pre_startTime'] = df1_copy['pre_endTime'] - pre_length
+
+    return df1_copy
 
 # not using that in B, but we overwrite it here
-def get_data(rec_dir, guide_path, word_guide_):
-    mytrans = TheTransform(sample_rate=REC_SAMPLE_RATE, 
-                        n_fft=N_FFT, n_mels=N_MELS, 
-                        normalizer=Normalizer.norm_mvn, 
-                        denormalizer=DeNormalizer.norm_mvn)
-
-    st_valid = pd.read_csv(guide_path)
-
-    # Load TokenMap to map the phoneme to the index
-    with open(os.path.join(src_, "no-stress-seg.dict"), "rb") as file:
-        # Load the object from the file
-        mylist = pickle.load(file)
-        mylist = ["BLANK"] + mylist
-        mylist = mylist + ["SIL"]
-
-    # Now you can use the loaded object
-    mymap = TokenMap(mylist)
-
-    valid_ds = ThisDataset(rec_dir, 
-                        st_valid, 
-                        mapper=mymap,
-                        transform=mytrans, 
-                        hop_length=N_FFT//2)
-
-    valid_loader = DataLoader(valid_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=LOADER_WORKER, collate_fn=ThisDataset.collate_fn)
-    return valid_loader
+def get_data(rec_dir, guide_path, word_guide_): 
+    raise Exception("Not using this function in this script! ")
 
 def get_data_both(rec_dir, t_guide_path, st_guide_path, word_guide_, 
                   noise_controls={"fixlength": False, "amplitude_scale": 0.01}):
@@ -96,8 +91,8 @@ def get_data_both(rec_dir, t_guide_path, st_guide_path, word_guide_,
     st_valid = pd.read_csv(st_guide_path)
     t_valid = pd.read_csv(t_guide_path)
     # now st also has noise, so we need to sample silence for both
-    # st_valid["pre_startTime"] = st_valid["stop_startTime"] - SilenceSampler_for_TV(fixlength=noise_controls["fixlength"]).sample(len(st_valid))
-    t_valid["pre_startTime"] = t_valid["stop_startTime"] - SilenceSampler_for_TV(fixlength=noise_controls["fixlength"]).sample(len(t_valid))
+    st_valid["pre_startTime"] = st_valid["stop_startTime"] - SilenceSampler_for_TV(fixlength=noise_controls["fixlength"]).sample(len(st_valid))
+    # t_valid["pre_startTime"] = t_valid["stop_startTime"] - SilenceSampler_for_TV(fixlength=noise_controls["fixlength"]).sample(len(t_valid))
     all_valid = pd.concat([t_valid, st_valid], ignore_index=True, sort=False)
     # all_valid.to_csv("all_valid.csv", index=False)
     # raise Exception("Stop here")
@@ -267,7 +262,8 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     return 0
 
 def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, guide_dir, word_guide_, 
-         noise_controls={"fixlength": False, "amplitude_scale": 0.01}): 
+         noise_controls={"fixlength": False, "amplitude_scale": 0.01}, 
+         st_guide_path=None, t_guide_path=None): 
     # Dirs
     rec_dir = train_cut_phone_
     # Check model path
@@ -275,12 +271,13 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
     assert PU.path_exist(guide_dir)
 
     # Load data
-    st_guide_path = os.path.join(guide_dir, "ST-valid.csv")
+    assert PU.path_exist(st_guide_path)
+    assert PU.path_exist(t_guide_path)
     # single_loader = get_data(rec_dir, st_guide_path, word_guide_)
     single_loader = None
     # note that we always use the balanced data to evaluate, this is because we want the evaluation to have 
     # equal contrast, instead of having huge bias. 
-    both_loader = get_data_both(rec_dir, os.path.join(guide_dir, "T-valid-sampled.csv"), 
+    both_loader = get_data_both(rec_dir, t_guide_path, 
                                 st_guide_path, word_guide_, 
                                 noise_controls=noise_controls)
 
@@ -329,6 +326,7 @@ def main(train_name, ts, run_number, model_type, model_save_dir, res_save_dir, g
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='argparse')
+    parser.add_argument('--dataprepare', '-dp', action="store_true")
     parser.add_argument('--timestamp', '-ts', type=str, default="0000000000", help="Timestamp for project, better be generated by bash")
     parser.add_argument('--runnumber', '-rn', type=str, default="0", help="Run number")
     parser.add_argument('--gpu', '-gpu', type=int, default=0, help="Choose the GPU to work on")
@@ -351,10 +349,27 @@ if __name__ == "__main__":
     
     model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}-{rn}", args.model, args.condition)
     guide_dir = os.path.join(model_save_, f"{train_name}-{ts}-{rn}", "guides")
-    res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
+    res_save_dir = os.path.join(model_save_, f"evalswapped-{train_name}-{ts}")
     this_model_condition_dir = os.path.join(res_save_dir, args.model, args.condition, f"{rn}")
     valid_full_guide_path = os.path.join(src_, "guide_validation.csv")
     mk(this_model_condition_dir)
 
-    main(train_name, ts, rn, model_type, model_save_dir, this_model_condition_dir, guide_dir, valid_full_guide_path, 
-         noise_controls={"fixlength": False, "amplitude_scale": 0.004})
+    condition_dict = {"larger": "T", "smaller": "ST"}
+
+    if args.dataprepare: 
+        print(f"{train_name}-{ts}-DataPrepare")
+        st_guide_path = os.path.join(guide_dir, f"{condition_dict["smaller"]}-valid.csv")
+        t_guide_path = os.path.join(guide_dir, f"{condition_dict["larger"]}-valid-sampled.csv")
+        st_valid = pd.read_csv(st_guide_path)
+        t_valid = pd.read_csv(t_guide_path)
+
+        swapped_st_valid = assign_rows_for_speakers(st_valid, t_valid, speaker_col="speaker", columns=["pre", "pre_path", "pre_startTime", "pre_endTime", "phi_type"])
+        swapped_t_valid = assign_rows_for_speakers(t_valid, st_valid, speaker_col="speaker", columns=["pre", "pre_path", "pre_startTime", "pre_endTime", "phi_type"])
+
+        swapped_st_valid.to_csv(os.path.join(guide_dir, f"{condition_dict["smaller"]}-valid-swapped.csv"), index=False)
+        swapped_t_valid.to_csv(os.path.join(guide_dir, f"{condition_dict["larger"]}-valid-sampled-swapped.csv"), index=False)
+    else:
+        main(train_name, ts, rn, model_type, model_save_dir, this_model_condition_dir, guide_dir, valid_full_guide_path, 
+            noise_controls={"fixlength": False, "amplitude_scale": 0.004}, 
+            st_guide_path=os.path.join(guide_dir, f"{condition_dict["smaller"]}-valid-swapped.csv"), 
+            t_guide_path=os.path.join(guide_dir, f"{condition_dict["larger"]}-valid-sampled-swapped.csv"))
