@@ -22,7 +22,7 @@ echo "Timestamp: $ts"
 # Loop from 1 to 10, incrementing by 1
 # for (( i=1; i<=5; i++ )); do
 for i in "${is[@]}"; do
-    python C_0Tf_ba_eval_swapped.py -ts "$ts-$i" -dp
+    # python C_0Tf_ba_eval_swapped.py -ts "$ts" -rn "$i" -dp
     # Loop over each combination of arguments
     for m in "${ms[@]}"; do
         for c in "${cs[@]}"; do

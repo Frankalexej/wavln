@@ -339,37 +339,36 @@ if __name__ == "__main__":
 
     ts = args.timestamp # this timestamp does not contain run number
     rn = args.runnumber
-    model_type = args.model
-
     rn = int(rn)
 
     train_name = "C_0Tf"
     if not PU.path_exist(os.path.join(model_save_, f"{train_name}-{ts}-{rn}")):
         raise Exception(f"Training {train_name}-{ts}-{rn} does not exist! ")
-    
-    model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}-{rn}", args.model, args.condition)
     guide_dir = os.path.join(model_save_, f"{train_name}-{ts}-{rn}", "guides")
-    res_save_dir = os.path.join(model_save_, f"evalswapped-{train_name}-{ts}")
-    this_model_condition_dir = os.path.join(res_save_dir, args.model, args.condition, f"{rn}")
-    valid_full_guide_path = os.path.join(src_, "guide_validation.csv")
-    mk(this_model_condition_dir)
 
     condition_dict = {"larger": "T", "smaller": "ST"}
 
     if args.dataprepare: 
         print(f"{train_name}-{ts}-DataPrepare")
-        st_guide_path = os.path.join(guide_dir, f"{condition_dict["smaller"]}-valid.csv")
-        t_guide_path = os.path.join(guide_dir, f"{condition_dict["larger"]}-valid-sampled.csv")
+        st_guide_path = os.path.join(guide_dir, f"{condition_dict['smaller']}-valid.csv")
+        t_guide_path = os.path.join(guide_dir, f"{condition_dict['larger']}-valid-sampled.csv")
         st_valid = pd.read_csv(st_guide_path)
         t_valid = pd.read_csv(t_guide_path)
 
         swapped_st_valid = assign_rows_for_speakers(st_valid, t_valid, speaker_col="speaker", columns=["pre", "pre_path", "pre_startTime", "pre_endTime", "phi_type"])
         swapped_t_valid = assign_rows_for_speakers(t_valid, st_valid, speaker_col="speaker", columns=["pre", "pre_path", "pre_startTime", "pre_endTime", "phi_type"])
 
-        swapped_st_valid.to_csv(os.path.join(guide_dir, f"{condition_dict["smaller"]}-valid-swapped.csv"), index=False)
-        swapped_t_valid.to_csv(os.path.join(guide_dir, f"{condition_dict["larger"]}-valid-sampled-swapped.csv"), index=False)
+        swapped_st_valid.to_csv(os.path.join(guide_dir, f"{condition_dict['smaller']}-valid-swapped.csv"), index=False)
+        swapped_t_valid.to_csv(os.path.join(guide_dir, f"{condition_dict['larger']}-valid-sampled-swapped.csv"), index=False)
     else:
+        model_type = args.model
+        model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}-{rn}", args.model, args.condition)
+        res_save_dir = os.path.join(model_save_, f"evalswapped-{train_name}-{ts}")
+        this_model_condition_dir = os.path.join(res_save_dir, args.model, args.condition, f"{rn}")
+        valid_full_guide_path = os.path.join(src_, "guide_validation.csv")
+        mk(this_model_condition_dir)
+
         main(train_name, ts, rn, model_type, model_save_dir, this_model_condition_dir, guide_dir, valid_full_guide_path, 
             noise_controls={"fixlength": False, "amplitude_scale": 0.004}, 
-            st_guide_path=os.path.join(guide_dir, f"{condition_dict["smaller"]}-valid-swapped.csv"), 
-            t_guide_path=os.path.join(guide_dir, f"{condition_dict["larger"]}-valid-sampled-swapped.csv"))
+            st_guide_path=os.path.join(guide_dir, f"{condition_dict['smaller']}-valid-swapped.csv"), 
+            t_guide_path=os.path.join(guide_dir, f"{condition_dict['larger']}-valid-sampled-swapped.csv"))
