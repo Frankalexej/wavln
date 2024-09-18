@@ -677,3 +677,124 @@ if __name__ == "__main__":
         # with open(os.path.join(res_save_dir, test_name, f"06-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.pkl"), "wb") as f: 
         #     pickle.dump(layered_res, f)
         print("Done.")
+
+    elif test_name.split("-")[0] in ["clusterSomething"]: 
+        # 1 is euclidean, 2 is cosine distance
+        # this one evaluates the copntrast between p, p(h) and (p)h. 
+        for epoch in range(0, 101): 
+            # 先循环epoch，再循环run
+            stop_list_runs = []
+            asp_list_runs = []
+            print(f"Processing {model_type} in epoch {epoch}...")
+            for run_number in learned_runs:
+
+                test_name_lookat = test_name.split("-")[1]
+                test_name_label = test_name.split("-")[2]
+                test_name_datasource = test_name.split("-")[3]
+
+
+                this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
+                hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
+                                    file_prefix=f"all-{epoch}")
+                hidrep_handler.read()
+                hidrep = hidrep_handler.res
+                # select representation to work on
+                other_hid_outs = hidrep["other-hid-outs"]
+                if zlevel == "hidrep": 
+                    all_zq = hidrep["ze"]
+                elif zlevel == "attnout": 
+                    all_zq = hidrep["zq"]
+                elif zlevel == "ori": 
+                    if hidden_dim != 64: 
+                        raise Exception("Warning: hidden_dim is not 64, but we are using the original representation! ")
+                    all_zq = hidrep["ori"]
+                elif zlevel in other_hid_outs.keys(): 
+                    all_zq = other_hid_outs[zlevel]
+                else: 
+                    raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
+                
+                all_sepframes1 = hidrep["sep-frame1"]
+                all_sepframes2 = hidrep["sep-frame2"]
+                all_phi_type = hidrep["phi-type"]
+                all_stop_names = hidrep["sn"]
+                all_vowel_names = hidrep["vn"]
+                if test_name_datasource == "gender": 
+                    all_datasource = hidrep["gender"]
+                elif test_name_datasource == "speaker": 
+                    all_datasource = hidrep["sid"]
+                else: 
+                    raise ValueError("Datasource not included! ")
+                
+                merge_one_vector = False
+                # Select Vowels and Vowel Tags
+                hidr_p, tags_p = get_toplot(hiddens=all_zq, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_datasource,
+                                                offsets=(0.4, 0.6), 
+                                                contrast_in=test_name_label, 
+                                                merge=merge_one_vector, 
+                                                hidden_dim=hidden_dim, 
+                                                lookat=test_name_lookat)
+                # combine them
+                # hidr_cs, tags_cs = np.concatenate((hidr_p, hidr_pp, hidr_h), axis=0), np.concatenate((tags_p, tags_pp, tags_h), axis=0)
+                hidr_cs, tags_cs = hidr_p, tags_p
+                hidr_cs, tags_cs = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
+
+                kmeans = KMeans(n_clusters=8, random_state=0)
+                predicted_labels = kmeans.fit_predict(hidr_cs)
+                ari = adjusted_rand_score(tags_cs, predicted_labels)
+                asp_list_runs.append(ari)
+
+            asp_list_epochs.append(asp_list_runs)
+
+        asp_list_epochs = np.array(asp_list_epochs)
+        asp_list_epochs = asp_list_epochs.transpose(1, 0)
+        # plot_silhouette(asp_list_epochs, stop_list_epochs, os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
+        plot_many([asp_list_epochs], ["ARI"], 
+                  os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
+                  {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+                  y_range=(0, 1.0))
+        # np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
+        np.save(os.path.join(res_save_dir, test_name, f"07-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
+        print("Done.")
+
+    elif test_name.split("-")[0] in ["clusterSomethingAll"]: 
+        # 1 is euclidean, 2 is cosine distance
+        # this one evaluates the copntrast between p, p(h) and (p)h.
+        # 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 
+        layered_res = {}
+        for layer in ["hidrep", "attnout", "dec-lin1", "enc-lin1", 
+                      "dec-rnn1-f", "enc-rnn1-f", "enc-rnn1-b",
+                      "dec-rnn2-f", "enc-rnn2-f", "enc-rnn2-b", 
+                      "dec-rnn3-f", "enc-rnn3-f", "enc-rnn3-b", 
+                      "dec-rnn4-f", "enc-rnn4-f", "enc-rnn4-b", 
+                      "dec-rnn5-f", "enc-rnn5-f", "enc-rnn5-b", ]: # "enc-lin1", 
+            print(f"Processing {model_type} in layer {layer}...")
+            asp_list_epochs = []
+            look_for_layer_path = test_name.split("-")[0][:-3] + "-" + test_name.split("-")[1] + "-" + test_name.split("-")[2] + "-" + test_name.split("-")[3]
+            layer_path = os.path.join(res_save_dir, look_for_layer_path, 
+                                      f"07-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{layer}.npy")
+            layer_res = np.load(layer_path)
+            layered_res[layer] = layer_res
+        # deal with ori
+        ori_path = os.path.join(res_save_dir, look_for_layer_path, f"07-save-ari-recon64-phi-{model_condition}-{strseq_learned_runs}-ori.npy")
+        if os.path.exists(ori_path): 
+            ori_res = np.load(ori_path)
+            layered_res["ori"] = ori_res
+        else: 
+            raise ValueError("No ori path found.")
+        # plot_many(list(layered_res.values()), list(layered_res.keys()), 
+        #           os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
+        #           {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+        #           y_range=(0, 0.8), cloud=False)
+        plot_many_plotly(list(layered_res.values()), list(layered_res.keys()), 
+                  os.path.join(res_save_dir, test_name, f"08-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.html"), 
+                  {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+                  y_range=(0, 0.4), cloud=False)
+        # np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
+        # np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
+        # with open(os.path.join(res_save_dir, test_name, f"06-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.pkl"), "wb") as f: 
+        #     pickle.dump(layered_res, f)
+        print("Done.")

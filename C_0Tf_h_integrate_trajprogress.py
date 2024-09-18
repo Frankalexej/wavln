@@ -154,7 +154,7 @@ if __name__ == "__main__":
     model_type = args.model
     model_condition = args.condition
     train_name = "C_0Tf"
-    res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
+    res_save_dir = os.path.join(model_save_, f"evalswapped-{train_name}-{ts}")
 
     sil_dict = {}
     model_condition_dir = os.path.join(res_save_dir, model_type, model_condition)

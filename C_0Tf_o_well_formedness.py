@@ -280,25 +280,23 @@ if __name__ == "__main__":
     string_learned_runs = [str(num) for num in learned_runs]
     strseq_learned_runs = "".join(string_learned_runs)
 
-    stop_list_epochs = [] # list for each epoch of lists of sse for each run
-    asp_list_epochs = []
-
-
     if test_name.split("-")[0] in ["reconloss"]: 
         # 1 is euclidean, 2 is cosine distance
         # this one evaluates the copntrast between p, p(h) and (p)h. 
+        resresdict = {}
         for test_type in ["normal", "swapped"]: 
             if test_type == "normal": 
                 res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
             elif test_type == "swapped": 
-                res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}-swapped")
+                res_save_dir = os.path.join(model_save_, f"evalswapped-{train_name}-{ts}")
             else: 
                 raise ValueError("Test type must be one of 'normal' or 'swapped'")
             
             model_condition_dir = os.path.join(res_save_dir, model_type, model_condition)
             assert PU.path_exist(model_condition_dir)
-            resresdict = {}
-            for epoch in range(0, 101): 
+            stop_list_epochs = [] # list for each epoch of lists of sse for each run
+            asp_list_epochs = []
+            for epoch in range(0, 20): 
                 # 先循环epoch，再循环run
                 stop_list_runs = []
                 asp_list_runs = []
@@ -359,7 +357,9 @@ if __name__ == "__main__":
             asp_list_epochs = np.array(asp_list_epochs)
             asp_list_epochs = asp_list_epochs.transpose(1, 0)
             resresdict[test_type] = asp_list_epochs
-        # plot_silhouette(asp_list_epochs, stop_list_epochs, os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
+
+
+        res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
         plot_many([resresdict["normal"], resresdict["swapped"]], ["Normal", "Swapped"], 
                   os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
                   {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
