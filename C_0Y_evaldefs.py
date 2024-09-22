@@ -33,6 +33,8 @@ def postproc_standardize(data, tags, outlier_ratio=0, denan=True):
         mask = ~np.isnan(data).any(axis=1)
         data = data[mask]
         tags = tags[mask] 
+        nannum = np.sum(~mask)
+
     if outlier_ratio > 0: 
         # Step 1: Remove outliers
         low_percentile = np.percentile(data, outlier_ratio, axis=0)
@@ -53,7 +55,10 @@ def postproc_standardize(data, tags, outlier_ratio=0, denan=True):
 
     # Z-score standardization
     standardized_data = (filtered_data - mean) / std
-    return standardized_data, filtered_tags
+    if denan: 
+        return standardized_data, filtered_tags, nannum
+    else:
+        return standardized_data, filtered_tags
 
 def indicator_function(condition):
     return 1 if condition else 0

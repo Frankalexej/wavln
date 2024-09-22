@@ -417,11 +417,15 @@ if __name__ == "__main__":
                                                 include_map={"AA": "AA", 
                                                              "UW": "UW",
                                                              "IY": "IY"})
-                print(f"{model_type}@{epoch} in run {run_number}: {bc}/{ac}")
+                # print(f"{model_type}@{epoch} in run {run_number}: {bc}/{ac}")
                 # combine them
                 # hidr_cs, tags_cs = np.concatenate((hidr_p, hidr_pp, hidr_h), axis=0), np.concatenate((tags_p, tags_pp, tags_h), axis=0)
                 hidr_cs, tags_cs = hidr_p, tags_p
-                hidr_cs, tags_cs = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5, denan=True)
+                if hidr_cs.shape[0] == 0:
+                    print(f"{model_type}@{epoch} in run {run_number}: {bc}/{ac}|bad")
+                    continue
+                hidr_cs, tags_cs, nannum = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5, denan=True)
+                print(f"{model_type}@{epoch} in run {run_number}: {bc}/{ac}|{nannum}")
 
                 kmeans = KMeans(n_clusters=3, random_state=0)
                 predicted_labels = kmeans.fit_predict(hidr_cs)
@@ -458,9 +462,12 @@ if __name__ == "__main__":
             layer_path = os.path.join(res_save_dir, look_for_layer_path, 
                                       f"07-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{layer}.npy")
             layer_res = np.load(layer_path)
+            if layer_res.shape[0] == 0: 
+                print(f"{model_type} in layer {layer}: bad")
+                layer_res = np.zeros((len(learned_runs), 101))
             layered_res[layer] = layer_res
         # deal with ori
-        ori_path = os.path.join(res_save_dir, look_for_layer_path, f"07-save-ari-recon64-phi-{model_condition}-{strseq_learned_runs}-ori.npy")
+        ori_path = os.path.join(res_save_dir, look_for_layer_path, f"07-save-ari-recon64-phi-{model_condition}-12345-ori.npy")
         if os.path.exists(ori_path): 
             ori_res = np.load(ori_path)
             layered_res["ori"] = ori_res
