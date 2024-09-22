@@ -27,7 +27,12 @@ def filter_data_by_tags_to_list(data, tags, tag_list):
 
     return result
 
-def postproc_standardize(data, tags, outlier_ratio=0): 
+def postproc_standardize(data, tags, outlier_ratio=0, denan=True):
+    if denan: 
+        # Remove NaN values
+        mask = ~np.isnan(data).any(axis=1)
+        data = data[mask]
+        tags = tags[mask] 
     if outlier_ratio > 0: 
         # Step 1: Remove outliers
         low_percentile = np.percentile(data, outlier_ratio, axis=0)
