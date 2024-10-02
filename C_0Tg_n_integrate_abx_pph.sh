@@ -19,7 +19,7 @@ zls=('all')
 # ts='0821210446'
 # ts='0904231859'
 ts='0915163757'
-tn="clusterSomethingAll-vowel-vowel-speaker"
+tn="ABXSomethingAll-pre-pre-STT"
 echo "Timestamp: $ts; Test: $tn"
 
 # Loop from 1 to 10, incrementing by 1

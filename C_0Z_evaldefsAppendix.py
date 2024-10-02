@@ -86,6 +86,8 @@ def collect_attention_epoch_trajectory(all_phi_type, all_attn, all_sepframes1, a
             ress = np.array([target_group1, target_group2, target_group3, target_group4])
             resslist.append(ress)
 
+        npresslist = np.array(resslist)
+        npresslist = npresslist.transpose(1, 0, 2)
         res_dict[selector] = resslist
 
     return res_dict
