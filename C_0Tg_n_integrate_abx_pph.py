@@ -7,6 +7,7 @@ to identify the stop consonant. We will check whether the model also did the sam
 from cgi import test
 from tkinter import E
 import warnings
+from xml.etree.ElementInclude import include
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from C_0X_defs import *
@@ -413,7 +414,7 @@ if __name__ == "__main__":
                                                 merge=merge_one_vector, 
                                                 hidden_dim=hidden_dim, 
                                                 lookat="stop", 
-                                                include_map={"TT": "P"})
+                                                include_map={"ST": "P"})
                 # Select T (plosive)
                 hidr_pp, tags_pp = get_toplot(hiddens=all_zq, 
                                                 sepframes1=all_sepframes1,
@@ -440,7 +441,8 @@ if __name__ == "__main__":
                                                 include_map={"T": "H"})
                 # combine them
                 hidr_cs, tags_cs = np.concatenate((hidr_p, hidr_pp, hidr_h), axis=0), np.concatenate((tags_p, tags_pp, tags_h), axis=0)
-                hidr_cs, tags_cs = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
+                hidr_cs, tags_cs, nannum = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5, denan=True)
+                print(f"{model_type}@{epoch} in run {run_number}: {nannum}")
 
 
                 if test_name in ["abx-pph-0903-2"]: 
@@ -484,6 +486,44 @@ if __name__ == "__main__":
                   {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
                   y_range=(0, 0.6))
 
+        print("Done.")
+    elif test_name in ["abx-pphAll"]: 
+        # 1 is euclidean, 2 is cosine distance
+        # this one evaluates the copntrast between p, p(h) and (p)h.
+        # 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 
+        if zlevel == "PPP": 
+            contrast = "ptk"
+            savenumber = "04"
+        elif zlevel == "PPH": 
+            contrast = "asp"
+            savenumber = "05"
+        else: 
+            raise Exception("zlevel either PPP or PPH! ")
+        layered_res = {}
+        for layer in ["hidrep", "attnout", "dec-lin1", "enc-lin1", 
+                      "dec-rnn1-f", "enc-rnn1-f", "enc-rnn1-b",
+                      "dec-rnn2-f", "enc-rnn2-f", "enc-rnn2-b", 
+                      "dec-rnn3-f", "enc-rnn3-f", "enc-rnn3-b", 
+                      "dec-rnn4-f", "enc-rnn4-f", "enc-rnn4-b", 
+                      "dec-rnn5-f", "enc-rnn5-f", "enc-rnn5-b", ]: # "enc-lin1", 
+            print(f"Processing {model_type} in layer {layer}...")
+            asp_list_epochs = []
+            look_for_layer_path = "abx-pph"
+            layer_path = os.path.join(res_save_dir, look_for_layer_path, 
+                                      f"{savenumber}-save-{contrast}-{model_type}-{model_condition}-{strseq_learned_runs}-{layer}.npy")
+            layer_res = np.load(layer_path)
+            layered_res[layer] = layer_res
+        # deal with ori
+        ori_path = os.path.join(res_save_dir, look_for_layer_path, f"{savenumber}-save-{contrast}-recon64-phi-{model_condition}-{strseq_learned_runs}-ori.npy")
+        if os.path.exists(ori_path): 
+            ori_res = np.load(ori_path)
+            layered_res["ori"] = ori_res
+        else: 
+            raise ValueError("No ori path found.")
+        plot_many_plotly(list(layered_res.values()), list(layered_res.keys()), 
+                  os.path.join(res_save_dir, test_name, f"08-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.html"), 
+                  {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+                  y_range=(0, 0.5), cloud=False)
         print("Done.")
     elif test_name.split("-")[0] in ["clusterARI"]: 
         # 1 is euclidean, 2 is cosine distance
@@ -835,6 +875,7 @@ if __name__ == "__main__":
                 all_phi_type = hidrep["phi-type"]
                 # all_stop_names = hidrep["sn"]
                 # all_vowel_names = hidrep["vn"]
+                include_map = None
                 if test_name_datasource == "gender": 
                     all_datasource = hidrep["gender"]
                 elif test_name_datasource == "speaker": 
@@ -843,6 +884,12 @@ if __name__ == "__main__":
                     all_datasource = hidrep["sn"]
                 elif test_name_datasource == "STT": 
                     all_datasource = hidrep["phi-type"]
+                    include_map = {"ST": "s", "T": "#"}
+                    include_tags = ["s", "#"]
+                elif test_name_datasource == "vowel": 
+                    all_datasource = hidrep["vn"]
+                    include_map = {"AA": "AA", "IY": "IY"}
+                    include_tags = ["AA", "IY"]
                 else: 
                     raise ValueError("Datasource not included! ")
                 
@@ -858,8 +905,7 @@ if __name__ == "__main__":
                                                 merge=merge_one_vector, 
                                                 hidden_dim=hidden_dim, 
                                                 lookat=test_name_lookat, 
-                                                include_map={"ST": "s", 
-                                                             "T": "#"})
+                                                include_map=include_map)
                 # combine them
                 # hidr_cs, tags_cs = np.concatenate((hidr_p, hidr_pp, hidr_h), axis=0), np.concatenate((tags_p, tags_pp, tags_h), axis=0)
                 hidr_cs, tags_cs = hidr_p, tags_p
@@ -909,6 +955,157 @@ if __name__ == "__main__":
             layered_res[layer] = layer_res
         # deal with ori
         ori_path = os.path.join(res_save_dir, look_for_layer_path, f"07-save-ari-recon64-phi-{model_condition}-{strseq_learned_runs}-ori.npy")
+        if os.path.exists(ori_path): 
+            ori_res = np.load(ori_path)
+            layered_res["ori"] = ori_res
+        else: 
+            raise ValueError("No ori path found.")
+        # plot_many(list(layered_res.values()), list(layered_res.keys()), 
+        #           os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
+        #           {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+        #           y_range=(0, 0.8), cloud=False)
+        plot_many_plotly(list(layered_res.values()), list(layered_res.keys()), 
+                  os.path.join(res_save_dir, test_name, f"08-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.html"), 
+                  {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+                  y_range=(0, 0.5), cloud=False)
+        # np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
+        # np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
+        # with open(os.path.join(res_save_dir, test_name, f"06-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.pkl"), "wb") as f: 
+        #     pickle.dump(layered_res, f)
+        print("Done.")
+    elif test_name.split("-")[0] in ["ABXposition"]: 
+        for epoch in range(0, 101): 
+            # 先循环epoch，再循环run
+            stop_list_runs = []
+            asp_list_runs = []
+            print(f"Processing {model_type} in epoch {epoch}...")
+            for run_number in learned_runs:
+                test_name_lookat = test_name.split("-")[1]
+                test_name_label = test_name.split("-")[2]
+                test_name_datasource = test_name.split("-")[3]
+
+                this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
+                hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
+                                    file_prefix=f"all-{epoch}")
+                hidrep_handler.read()
+                hidrep = hidrep_handler.res
+                # select representation to work on
+                other_hid_outs = hidrep["other-hid-outs"]
+                if zlevel == "hidrep": 
+                    all_zq = hidrep["ze"]
+                elif zlevel == "attnout": 
+                    all_zq = hidrep["zq"]
+                elif zlevel == "ori": 
+                    if hidden_dim != 64: 
+                        raise Exception("Warning: hidden_dim is not 64, but we are using the original representation! ")
+                    all_zq = hidrep["ori"]
+                elif zlevel in other_hid_outs.keys(): 
+                    all_zq = other_hid_outs[zlevel]
+                else: 
+                    raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
+                
+                all_sepframes1 = hidrep["sep-frame1"]
+                all_sepframes2 = hidrep["sep-frame2"]
+                all_phi_type = hidrep["phi-type"]
+
+                if test_name_datasource == "vowel": 
+                    all_datasource = hidrep["vn"]
+                elif test_name_datasource == "gender": 
+                    all_datasource = hidrep["gender"]
+                elif test_name_datasource == "speaker": 
+                    all_datasource = hidrep["sid"]
+                elif test_name_datasource == "POA": 
+                    all_datasource = hidrep["sn"]
+                elif test_name_datasource == "STT": 
+                    all_datasource = hidrep["phi-type"]
+                else: 
+                    raise ValueError("Datasource not included! ")
+
+
+                offsets = {"P": (0.3, 0.45), "PP": (0.15, 0.2), "H": (0.85, 0.9)}                
+                merge_one_vector = False
+                # Select T (plosive)
+                hidr_pp, tags_pp = get_toplot(hiddens=all_zq, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_datasource,
+                                                offsets=offsets["PP"], 
+                                                contrast_in=test_name_label, 
+                                                merge=merge_one_vector, 
+                                                hidden_dim=hidden_dim, 
+                                                lookat=test_name_lookat, 
+                                                include_map={"AA": "VPP", 
+                                                             "IY": "VPP",
+                                                             "UW": "VPP"})
+                # Select T (aspiration)
+                hidr_h, tags_h = get_toplot(hiddens=all_zq, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_datasource,
+                                                offsets=offsets["H"], 
+                                                contrast_in=test_name_label, 
+                                                merge=merge_one_vector, 
+                                                hidden_dim=hidden_dim, 
+                                                lookat=test_name_lookat, 
+                                                include_map={"AA": "VH",
+                                                             "IY": "VH",
+                                                             "UW": "VH"})
+                # combine them
+                hidr_cs, tags_cs = np.concatenate((hidr_pp, hidr_h), axis=0), np.concatenate((tags_pp, tags_h), axis=0)
+                hidr_cs, tags_cs, nannum = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5, denan=True)
+                print(f"{model_type}@{epoch} in run {run_number}: {nannum}")
+
+                distance_metrics = euclidean_distance
+
+                # Now we put in aspiration the contrast between pp and h
+                for i in range(6): 
+                    hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=15, tags=["VPP", "VH"])
+                    abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=distance_metrics)
+                    asp_list_runs.append(abx_err01)
+
+                # # Now we put in stop the contrast between p and pp
+                # for i in range(6): 
+                #     hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=15, tags=["P", "PP"])
+                #     abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=distance_metrics)
+                #     stop_list_runs.append(abx_err01)
+
+            # stop_list_epochs.append(stop_list_runs) # 把每一个epoch的结果汇总，因为最后我们要保存结果，跑起来挺费时间的
+            asp_list_epochs.append(asp_list_runs)
+
+        # stop_list_epochs = np.array(stop_list_epochs)
+        asp_list_epochs = np.array(asp_list_epochs)
+        # stop_list_epochs = stop_list_epochs.transpose(1, 0)
+        asp_list_epochs = asp_list_epochs.transpose(1, 0)
+        # plot_silhouette(asp_list_epochs, stop_list_epochs, os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
+        # plot_many([asp_list_epochs, stop_list_epochs], ["PPH", "PPP"], 
+        #           os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
+        #           {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+        #           y_range=(0, 0.6))
+        # np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
+        np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
+        print("Done.")
+    elif test_name.split("-")[0] in ["ABXpositionAll"]: 
+        # 1 is euclidean, 2 is cosine distance
+        # this one evaluates the copntrast between p, p(h) and (p)h.
+        # 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 
+        layered_res = {}
+        for layer in ["hidrep", "attnout", "dec-lin1", "enc-lin1", 
+                      "dec-rnn1-f", "enc-rnn1-f", "enc-rnn1-b",
+                      "dec-rnn2-f", "enc-rnn2-f", "enc-rnn2-b", 
+                      "dec-rnn3-f", "enc-rnn3-f", "enc-rnn3-b", 
+                      "dec-rnn4-f", "enc-rnn4-f", "enc-rnn4-b", 
+                      "dec-rnn5-f", "enc-rnn5-f", "enc-rnn5-b", ]: # "enc-lin1", 
+            print(f"Processing {model_type} in layer {layer}...")
+            asp_list_epochs = []
+            look_for_layer_path = test_name.split("-")[0][:-3] + "-" + test_name.split("-")[1] + "-" + test_name.split("-")[2] + "-" + test_name.split("-")[3]
+            layer_path = os.path.join(res_save_dir, look_for_layer_path, 
+                                      f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{layer}.npy")
+            layer_res = np.load(layer_path)
+            layered_res[layer] = layer_res
+        # deal with ori
+        ori_path = os.path.join(res_save_dir, look_for_layer_path, f"05-save-asp-recon64-phi-{model_condition}-{strseq_learned_runs}-ori.npy")
         if os.path.exists(ori_path): 
             ori_res = np.load(ori_path)
             layered_res["ori"] = ori_res
