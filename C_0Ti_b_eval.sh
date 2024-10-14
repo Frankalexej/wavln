@@ -12,27 +12,26 @@ generate_random_number() {
 
 # Arrays of options for each argument
 ms=('recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi'
-cs=('b') # 
-zls=('all') 
-# 'hidrep' 'attnout' 'ori' 'enc-lin1' 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 'enc-rnn3-f' 'enc-rnn3-b' 'dec-rnn3-f' 'enc-rnn4-f' 'enc-rnn4-b' 'dec-rnn4-f' 'enc-rnn5-f' 'enc-rnn5-b' 'dec-rnn5-f'
+cs=('b')
+is=(1 2 3 4 5) # 
 # Generate a 10-digit random number
-# ts='0821210446'
-# ts='0904231859'
-ts='0915163757'
-tn="ABXSomethingAllOriwise-vowel-vowel-vowel"
-echo "Timestamp: $ts; Test: $tn"
+# ts='0910145009'     # cosine loss trained, default init, AEPPV9, lr=1e-4, noise=0.004
+ts='1014180320'     # cosine loss trained, default init, AEPPV9, lr=5e-4, noise=0.004
+echo "Timestamp: $ts"
 
 # Loop from 1 to 10, incrementing by 1
-# Loop over each combination of arguments
-for m in "${ms[@]}"; do
-    for c in "${cs[@]}"; do
-        for zl in "${zls[@]}"; do
+# for (( i=1; i<=5; i++ )); do
+for i in "${is[@]}"; do
+    # Loop over each combination of arguments
+    for m in "${ms[@]}"; do
+        for c in "${cs[@]}"; do
             # Randomly select a GPU between 0 and 8
             gpu=$((RANDOM % 9))
             # Run the Python script with the current combination of arguments in the background
-            python C_0Tg_n_integrate_abx_pph.py -ts "$ts" -m "$m" -cd "$c" -gpu "$gpu" -zl "$zl" -tn "$tn"&
+            python C_0Ti_b_eval.py -ts "$ts" -rn "$i" -m "$m" -cd "$c" -gpu "$gpu" &
         done
     done
 done
+
 # Wait for all background processes to finish
 wait

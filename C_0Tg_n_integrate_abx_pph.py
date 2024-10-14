@@ -525,6 +525,40 @@ if __name__ == "__main__":
                   {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
                   y_range=(0, 0.5), cloud=False)
         print("Done.")
+    elif test_name in ["abx-pphAllOriwise"]: 
+        if zlevel == "PPP": 
+            contrast = "ptk"
+            savenumber = "04"
+        elif zlevel == "PPH": 
+            contrast = "asp"
+            savenumber = "05"
+        else: 
+            raise Exception("zlevel either PPP or PPH! ")
+        layered_res = {}
+        look_for_layer_path = "abx-pph"
+        # deal with ori
+        ori_path = os.path.join(res_save_dir, look_for_layer_path, f"{savenumber}-save-{contrast}-recon64-phi-{model_condition}-{strseq_learned_runs}-ori.npy")
+        if os.path.exists(ori_path): 
+            ori_res = np.load(ori_path)
+        else: 
+            raise ValueError("No ori path found.")
+        for layer in ["hidrep", "attnout", "dec-lin1", "enc-lin1", 
+                      "dec-rnn1-f", "enc-rnn1-f", "enc-rnn1-b",
+                      "dec-rnn2-f", "enc-rnn2-f", "enc-rnn2-b", 
+                      "dec-rnn3-f", "enc-rnn3-f", "enc-rnn3-b", 
+                      "dec-rnn4-f", "enc-rnn4-f", "enc-rnn4-b", 
+                      "dec-rnn5-f", "enc-rnn5-f", "enc-rnn5-b", ]: # "enc-lin1", 
+            print(f"Processing {model_type} in layer {layer}...")
+            asp_list_epochs = []
+            layer_path = os.path.join(res_save_dir, look_for_layer_path, 
+                                      f"{savenumber}-save-{contrast}-{model_type}-{model_condition}-{strseq_learned_runs}-{layer}.npy")
+            layer_res = np.load(layer_path)
+            layered_res[layer] = layer_res / ori_res
+        plot_many_plotly(list(layered_res.values()), list(layered_res.keys()), 
+                  os.path.join(res_save_dir, test_name, f"08-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.html"), 
+                  {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+                  cloud=False)
+        print("Done.")
     elif test_name.split("-")[0] in ["clusterARI"]: 
         # 1 is euclidean, 2 is cosine distance
         # this one evaluates the copntrast between p, p(h) and (p)h. 
@@ -876,6 +910,7 @@ if __name__ == "__main__":
                 # all_stop_names = hidrep["sn"]
                 # all_vowel_names = hidrep["vn"]
                 include_map = None
+                include_tags = None
                 if test_name_datasource == "gender": 
                     all_datasource = hidrep["gender"]
                 elif test_name_datasource == "speaker": 
@@ -914,7 +949,7 @@ if __name__ == "__main__":
 
                 # Now we put in aspiration the contrast between pp and h
                 for i in range(6): 
-                    hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=15, tags=["s", "#"])
+                    hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=15, tags=include_tags)
                     abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
                     asp_list_runs.append(abx_err01)
                 # kmeans = KMeans(n_clusters=8, random_state=0)
@@ -972,6 +1007,37 @@ if __name__ == "__main__":
         # np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
         # with open(os.path.join(res_save_dir, test_name, f"06-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.pkl"), "wb") as f: 
         #     pickle.dump(layered_res, f)
+        print("Done.")
+    elif test_name.split("-")[0] in ["ABXSomethingAllOriwise"]: 
+        # 1 is euclidean, 2 is cosine distance
+        # this one evaluates the copntrast between p, p(h) and (p)h.
+        # 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 
+        layered_res = {}
+        look_for_layer_path = "ABXSomething" + "-" + test_name.split("-")[1] + "-" + test_name.split("-")[2] + "-" + test_name.split("-")[3]
+
+        # load ori
+        ori_path = os.path.join(res_save_dir, look_for_layer_path, f"07-save-ari-recon64-phi-{model_condition}-{strseq_learned_runs}-ori.npy")
+        if os.path.exists(ori_path): 
+            ori_res = np.load(ori_path)
+        else: 
+            raise ValueError("No ori path found.")
+        for layer in ["hidrep", "attnout", "dec-lin1", "enc-lin1", 
+                      "dec-rnn1-f", "enc-rnn1-f", "enc-rnn1-b",
+                      "dec-rnn2-f", "enc-rnn2-f", "enc-rnn2-b", 
+                      "dec-rnn3-f", "enc-rnn3-f", "enc-rnn3-b", 
+                      "dec-rnn4-f", "enc-rnn4-f", "enc-rnn4-b", 
+                      "dec-rnn5-f", "enc-rnn5-f", "enc-rnn5-b", ]: # "enc-lin1", 
+            print(f"Processing {model_type} in layer {layer}...")
+            asp_list_epochs = []
+            layer_path = os.path.join(res_save_dir, look_for_layer_path, 
+                                      f"07-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{layer}.npy")
+            layer_res = np.load(layer_path)
+            layered_res[layer] = layer_res / ori_res
+
+        plot_many_plotly(list(layered_res.values()), list(layered_res.keys()), 
+                  os.path.join(res_save_dir, test_name, f"08-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.html"), 
+                  {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+                  cloud=False)
         print("Done.")
     elif test_name.split("-")[0] in ["ABXposition"]: 
         for epoch in range(0, 101): 
