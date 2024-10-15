@@ -394,7 +394,7 @@ if __name__ == "__main__":
     test_name = args.testname
 
     ts = args.timestamp # this timestamp does not contain run number
-    train_name = "C_0Tg"
+    train_name = "C_0Ti"
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
     model_type = args.model
     model_condition = args.condition
@@ -473,7 +473,7 @@ if __name__ == "__main__":
                                                 merge=merge_one_vector, 
                                                 hidden_dim=hidden_dim, 
                                                 lookat="stop", 
-                                                include_map={"ST": "P"})
+                                                include_map={"TT": "P"})
                 # Select T (plosive)
                 hidr_pp, tags_pp = get_toplot(hiddens=all_zq, 
                                                 sepframes1=all_sepframes1,
@@ -726,7 +726,8 @@ if __name__ == "__main__":
                 # combine them
                 # hidr_cs, tags_cs = np.concatenate((hidr_p, hidr_pp, hidr_h), axis=0), np.concatenate((tags_p, tags_pp, tags_h), axis=0)
                 hidr_cs, tags_cs = hidr_p, tags_p
-                hidr_cs, tags_cs = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5)
+                hidr_cs, tags_cs, nannum = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5, denan=True)
+                print(f"{model_type}@{epoch} in run {run_number}: {nannum}")
 
                 kmeans = KMeans(n_clusters=3, random_state=0)
                 predicted_labels = kmeans.fit_predict(hidr_cs)
@@ -1030,7 +1031,7 @@ if __name__ == "__main__":
                     all_datasource = hidrep["sn"]
                 elif test_name_datasource == "STT": 
                     all_datasource = hidrep["phi-type"]
-                    include_map = {"ST": "s", "T": "#"}
+                    include_map = {"TT": "s", "T": "#"}
                     include_tags = ["s", "#"]
                 elif test_name_datasource == "vowel": 
                     all_datasource = hidrep["vn"]
@@ -1085,7 +1086,14 @@ if __name__ == "__main__":
         # 1 is euclidean, 2 is cosine distance
         # this one evaluates the copntrast between p, p(h) and (p)h.
         # 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 
+        look_for_layer_path = test_name.split("-")[0][:-3] + "-" + test_name.split("-")[1] + "-" + test_name.split("-")[2] + "-" + test_name.split("-")[3]
         layered_res = {}
+        # deal with ori
+        ori_path = os.path.join(res_save_dir, look_for_layer_path, f"07-save-ari-recon64-phi-{model_condition}-{strseq_learned_runs}-ori.npy")
+        if os.path.exists(ori_path): 
+            ori_res = np.load(ori_path)
+        else: 
+            raise ValueError("No ori path found.")
         for layer in ["hidrep", "attnout", "dec-lin1", "enc-lin1", 
                       "dec-rnn1-f", "enc-rnn1-f", "enc-rnn1-b",
                       "dec-rnn2-f", "enc-rnn2-f", "enc-rnn2-b", 
@@ -1094,18 +1102,17 @@ if __name__ == "__main__":
                       "dec-rnn5-f", "enc-rnn5-f", "enc-rnn5-b", ]: # "enc-lin1", 
             print(f"Processing {model_type} in layer {layer}...")
             asp_list_epochs = []
-            look_for_layer_path = test_name.split("-")[0][:-3] + "-" + test_name.split("-")[1] + "-" + test_name.split("-")[2] + "-" + test_name.split("-")[3]
             layer_path = os.path.join(res_save_dir, look_for_layer_path, 
                                       f"07-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{layer}.npy")
-            layer_res = np.load(layer_path)
+            if os.path.exists(layer_path): 
+                layer_res = np.load(layer_path)
+            else: 
+                print(f"Warning: {layer_path} not found. ")
+                layer_res = np.zeros_like(ori_res)
             layered_res[layer] = layer_res
-        # deal with ori
-        ori_path = os.path.join(res_save_dir, look_for_layer_path, f"07-save-ari-recon64-phi-{model_condition}-{strseq_learned_runs}-ori.npy")
-        if os.path.exists(ori_path): 
-            ori_res = np.load(ori_path)
-            layered_res["ori"] = ori_res
-        else: 
-            raise ValueError("No ori path found.")
+
+        layered_res["ori"] = ori_res
+
         # plot_many(list(layered_res.values()), list(layered_res.keys()), 
         #           os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
         #           {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
@@ -1142,7 +1149,11 @@ if __name__ == "__main__":
             asp_list_epochs = []
             layer_path = os.path.join(res_save_dir, look_for_layer_path, 
                                       f"07-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{layer}.npy")
-            layer_res = np.load(layer_path)
+            if os.path.exists(layer_path): 
+                layer_res = np.load(layer_path)
+            else: 
+                print(f"Warning: {layer_path} not found. ")
+                layer_res = np.zeros_like(ori_res)
             layered_res[layer] = layer_res / ori_res
 
         plot_many_plotly(list(layered_res.values()), list(layered_res.keys()), 
