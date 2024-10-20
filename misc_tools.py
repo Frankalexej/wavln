@@ -198,3 +198,34 @@ class AudioCut:
 def get_timestamp():
     # for model save
     return datetime.datetime.now().strftime("%m%d%H%M%S")   # timestamp ignores year and second, not really needed. 
+
+# Calculate mean and variance online (i.e., without storing all data points)
+class OnlineMeanVariance:
+    def __init__(self):
+        self.n = 0       # Number of data points
+        self.mean = 0.0   # Running mean
+        self.M2 = 0.0     # Sum of squared differences from the mean (for variance calculation)
+    
+    def update(self, x):
+        """Add a new data point and update mean and variance"""
+        self.n += 1
+        delta = x - self.mean
+        self.mean += delta / self.n
+        delta2 = x - self.mean
+        self.M2 += delta * delta2
+    
+    def get_mean(self):
+        """Return the current mean"""
+        return self.mean
+    
+    def get_variance(self):
+        """Return the current variance"""
+        if self.n < 2:
+            return float('nan')  # Variance is undefined for fewer than 2 data points
+        return self.M2 / (self.n - 1)  # Use (n-1) for sample variance
+
+    def get_population_variance(self):
+        """Return the population variance (divide by n instead of n-1)"""
+        if self.n < 1:
+            return float('nan')  # Variance is undefined for no data points
+        return self.M2 / self.n  # Use n for population variance

@@ -14,7 +14,7 @@ from torch import nn
 from misc_my_utils import time_to_frame
 import torch.nn.functional as F
 import pickle
-from misc_tools import AudioCut
+from misc_tools import AudioCut, OnlineMeanVariance
 from misc_tools import PathUtils as PU
 import numpy as np
 
@@ -1154,9 +1154,23 @@ class TargetVowelDatasetManualNorm(Dataset):
     # NOTE: for TV condition we add silence as # in the place of S
     # This dataset will take in mean and variance from the outside and 
     # conduct normalization with the data. 
-    def __init__(self, src_dir, guide_, 
+    def __init__(self, src_dir, guide_,  
                  mapper=None, transform=None, normalizer=None, plosive_suffix="", 
                  noise_fixlength=False, noise_amplitude_scale=0.01, mv_config=None): 
+        """
+            Parameters:
+            src_dir (str): Source directory to read sound. 
+            guide_ (str or pd.DataFrame): Guide file path or DataFrame containing the dataset information.
+            is_train (bool): Flag indicating if the dataset is for training. Default is True.
+            mapper (optional): Used to map between tag encoding and text, currently not used. Default is None.
+            transform (optional): Mel-transformation. Default is None.
+            normalizer (optional): Normalization. Default is None.
+            plosive_suffix (str): Suffix to distinguish between different types of plosives. Default is "".
+            noise_fixlength (bool): Flag to determine if noise should have a fixed length. Default is False.
+            noise_amplitude_scale (float): Amplitude scale for noise generation. Default is 0.01.
+            mv_config (dict, optional): Dictionary containing mean and variance configuration. Default is None.
+            hop_length (int): Hop length for calculating between frame and time. Default is 400.
+        """
         # Read the guide file
         if isinstance(guide_, str):
             guide_file = pd.read_csv(guide_)
@@ -1172,12 +1186,10 @@ class TargetVowelDatasetManualNorm(Dataset):
         pre_path_col = guide_file["pre_path"]
         stop_path_col = guide_file["stop_path"]
         vowel_path_col = guide_file["vowel_path"]
-
         phi_type_col = guide_file["phi_type"]
         stop_name_col = guide_file["stop"]
         vowel_name_col = guide_file["vowel"]
 
-        # generate random length silence for TV condition
         self.silence_duration = SilenceSampler_for_TV(fixlength=noise_fixlength).sample(len(stop_name_col))
         
         self.guide_file = guide_file
@@ -1187,11 +1199,11 @@ class TargetVowelDatasetManualNorm(Dataset):
         self.phi_type = phi_type_col.tolist()
         self.stop_name = stop_name_col.tolist()
         self.vowel_name = vowel_name_col.tolist()
+
         self.src_dir = src_dir
         self.transform = transform
-
+        self.normalizer = normalizer
         self.mapper = mapper
-        # noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=noise_amplitude_scale)
         noise_gen = HarmonicNoiseGen(sample_rate=16000, 
                                      amplitude_scale=noise_amplitude_scale, 
                                      oscillation_scale=0.0006, f_0=50)
@@ -1210,7 +1222,23 @@ class TargetVowelDatasetManualNorm(Dataset):
     def __len__(self):
         return len(self.dataset)
     
-    def __getitem__(self, idx):
+    def __getitem__(self, idx): 
+        mel_data, this_phi_type, this_stop_name, this_phone_seq = self.___loaditem(idx)
+
+        if self.normalizer: 
+            mel_data = self.normalizer(mel_data, self.mean, self.std)
+        
+        return mel_data, this_phi_type, this_stop_name, this_phone_seq
+    
+    def ___getmv(self): 
+        # Load the data and calculate the mean and variance
+        mv_calculator = OnlineMeanVariance()
+
+        for idx in range(len(self.dataset)): 
+            mel_data, _, _, _ = self.___loaditem(idx)
+            mv_calculator.update(mel_data)
+    
+    def ___loaditem(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
         
@@ -1241,7 +1269,6 @@ class TargetVowelDatasetManualNorm(Dataset):
             # Here we don't need to repair, as any sequence could fit in as long as it starts woith #
             # "T"
             # NOTE: in this way we equate STV and #TV conditions and they are now directly comparable. 
-            Sil_duration = self.silence_duration[idx]
             T_name = os.path.join(
                 self.src_dir, 
                 self.dataset[idx]
