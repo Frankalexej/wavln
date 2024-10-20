@@ -1147,6 +1147,133 @@ class TargetVowelDatasetPhoneseq(Dataset):
         phoneseq_lens = [len(x) for x in phoneseq]
         phoneseq_pad = pad_sequence(phoneseq, batch_first=batch_first, padding_value=0)
         return (xx_pad, phoneseq_pad), (x_lens, phoneseq_lens), phi_type, stop_name
+    
+class TargetVowelDatasetManualNorm(Dataset): 
+    # Target means the phenomenon-target, that is, e.g. /th/ or /st/. 
+    # This dataset additionally returns the phone seq. 
+    # NOTE: for TV condition we add silence as # in the place of S
+    # This dataset will take in mean and variance from the outside and 
+    # conduct normalization with the data. 
+    def __init__(self, src_dir, guide_, 
+                 mapper=None, transform=None, normalizer=None, plosive_suffix="", 
+                 noise_fixlength=False, noise_amplitude_scale=0.01, mv_config=None): 
+        # Read the guide file
+        if isinstance(guide_, str):
+            guide_file = pd.read_csv(guide_)
+        elif isinstance(guide_, pd.DataFrame):
+            guide_file = guide_
+        else:
+            raise Exception("Guide neither to read or to be used directly")
+        
+        # ""即不區分ST和T，"H"則是區分 -> ?
+        self.plosive_suffix = plosive_suffix
+
+        # Load in the data cols 
+        pre_path_col = guide_file["pre_path"]
+        stop_path_col = guide_file["stop_path"]
+        vowel_path_col = guide_file["vowel_path"]
+
+        phi_type_col = guide_file["phi_type"]
+        stop_name_col = guide_file["stop"]
+        vowel_name_col = guide_file["vowel"]
+
+        # generate random length silence for TV condition
+        self.silence_duration = SilenceSampler_for_TV(fixlength=noise_fixlength).sample(len(stop_name_col))
+        
+        self.guide_file = guide_file
+        self.dataset = stop_path_col.tolist()
+        self.pre_path = pre_path_col.tolist()
+        self.vowel_path = vowel_path_col.tolist()
+        self.phi_type = phi_type_col.tolist()
+        self.stop_name = stop_name_col.tolist()
+        self.vowel_name = vowel_name_col.tolist()
+        self.src_dir = src_dir
+        self.transform = transform
+
+        self.mapper = mapper
+        # noise_gen = WhiteNoiseGen(sample_rate=16000, amplitude_scale=noise_amplitude_scale)
+        noise_gen = HarmonicNoiseGen(sample_rate=16000, 
+                                     amplitude_scale=noise_amplitude_scale, 
+                                     oscillation_scale=0.0006, f_0=50)
+        self.noise_set = noise_gen.generate_samples(np.array(self.silence_duration))
+
+
+        if mv_config is not None: 
+            self.mean = mv_config["mean"]
+            self.std = mv_config["std"]
+        else: 
+            print("No mean and variance provided, calculating from the data ...")
+
+            raise Exception("No mean and variance configuration provided")
+            # TODO: if there is no such data given, we shall load and calculate the mean and variance here once. 
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        
+        if self.phi_type[idx] == "ST": 
+            # read two and concat
+            S_name = os.path.join(
+                self.src_dir, 
+                self.pre_path[idx]
+            )
+            T_name = os.path.join(
+                self.src_dir, 
+                self.dataset[idx]
+            )
+            V_name = os.path.join(
+                self.src_dir, 
+                self.vowel_path[idx]
+            )
+
+            S_data, sample_rate_S = torchaudio.load(S_name, normalize=True)
+            T_data, sample_rate_T = torchaudio.load(T_name, normalize=True)
+            V_data, sample_rate_V = torchaudio.load(V_name, normalize=True)
+            assert sample_rate_S == sample_rate_T == sample_rate_V
+
+            data = torch.cat([S_data, T_data, V_data], dim=1)
+            phoneseq = torch.tensor([self.mapper.encode(segment) for segment in ['S', self.stop_name[idx], self.vowel_name[idx]]], 
+                                    dtype=torch.long)
+        else: 
+            # Here we don't need to repair, as any sequence could fit in as long as it starts woith #
+            # "T"
+            # NOTE: in this way we equate STV and #TV conditions and they are now directly comparable. 
+            Sil_duration = self.silence_duration[idx]
+            T_name = os.path.join(
+                self.src_dir, 
+                self.dataset[idx]
+            )
+            V_name = os.path.join(
+                self.src_dir, 
+                self.vowel_path[idx]
+            )
+            Sil_data = self.noise_set[idx]
+            T_data, sample_rate_T = torchaudio.load(T_name, normalize=True)
+            V_data, sample_rate_V = torchaudio.load(V_name, normalize=True)
+            assert sample_rate_T == sample_rate_V
+
+            data = torch.cat([Sil_data, T_data, V_data], dim=1)
+            phoneseq = torch.tensor([self.mapper.encode(segment) for segment in [self.stop_name[idx] + self.plosive_suffix, self.vowel_name[idx]]], 
+                                    dtype=torch.long)   # 'SIL', 
+
+        if self.transform:
+            data = self.transform(data)
+        
+        return data, self.phi_type[idx], self.stop_name[idx], phoneseq
+
+    @staticmethod
+    def collate_fn(data):
+        # only working for one data at the moment
+        batch_first = True
+        xx, phi_type, stop_name, phoneseq = zip(*data)
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        phoneseq_lens = [len(x) for x in phoneseq]
+        phoneseq_pad = pad_sequence(phoneseq, batch_first=batch_first, padding_value=0)
+        return (xx_pad, phoneseq_pad), (x_lens, phoneseq_lens), phi_type, stop_name
 
 class TargetVowelDatasetPhoneseqBothSIL(Dataset): 
     # Target means the phenomenon-target, that is, e.g. /th/ or /st/. 
