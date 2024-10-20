@@ -1215,9 +1215,7 @@ class TargetVowelDatasetManualNorm(Dataset):
             self.std = mv_config["std"]
         else: 
             print("No mean and variance provided, calculating from the data ...")
-
-            raise Exception("No mean and variance configuration provided")
-            # TODO: if there is no such data given, we shall load and calculate the mean and variance here once. 
+            self.mean, self.std = self.___getmv()
     
     def __len__(self):
         return len(self.dataset)
@@ -1232,11 +1230,15 @@ class TargetVowelDatasetManualNorm(Dataset):
     
     def ___getmv(self): 
         # Load the data and calculate the mean and variance
-        mv_calculator = OnlineMeanVariance()
+        mel_data_list = []
 
         for idx in range(len(self.dataset)): 
             mel_data, _, _, _ = self.___loaditem(idx)
-            mv_calculator.update(mel_data)
+            mel_data_list.append(mel_data)
+
+        mel_data = torch.cat(mel_data_list, dim=0)
+
+        return mel_data.mean(), mel_data.std()
     
     def ___loaditem(self, idx):
         if torch.is_tensor(idx):
@@ -2635,6 +2637,12 @@ class Normalizer(nn.Module):
         eps = 1e-9
         mean = mel_spec.mean()
         std = mel_spec.std(unbiased=False)
+        norm_spec = (mel_spec - mean) / (std + eps)
+        return norm_spec
+    
+    @staticmethod
+    def norm_mvn_manual(mel_spec, mean, std):
+        eps = 1e-9
         norm_spec = (mel_spec - mean) / (std + eps)
         return norm_spec
     
