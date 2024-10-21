@@ -28,7 +28,7 @@ import argparse
 from model_model import AEPPV1, AEPPV2, AEPPV4, AEPPV9
 from model_dataset import DS_Tools
 from model_dataset import TargetVowelDatasetManualNorm as TestDataset
-from model_dataset import Normalizer, DeNormalizer, TokenMap, WordDictionary
+from model_dataset import NormalizerMVNManual, DeNormalizer, TokenMap, WordDictionary
 from model_dataset import MelSpecTransformDBNoNorm as TheTransform
 from paths import *
 from misc_my_utils import *
@@ -114,7 +114,7 @@ def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="bo
 
     mytrans = TheTransform(sample_rate=REC_SAMPLE_RATE, 
                         n_fft=N_FFT, n_mels=N_MELS)
-    mynorm = Normalizer(Normalizer.norm_mvn_manual)
+    mynorm = NormalizerMVNManual()
     
     # Load TokenMap to map the phoneme to the index
     with open(os.path.join(src_, "no-stress-seg.dict"), "rb") as file:
