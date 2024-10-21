@@ -1213,6 +1213,7 @@ class TargetVowelDatasetManualNorm(Dataset):
         if mv_config is not None: 
             self.mean = mv_config["mean"]
             self.std = mv_config["std"]
+            print(f"MV: {self.mean}, {self.std}")
         else: 
             print("No mean and variance provided, calculating from the data ...")
             self.mean, self.std = self.___getmv()
