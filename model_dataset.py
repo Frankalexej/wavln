@@ -2488,6 +2488,35 @@ class MelSpecTransformDB(nn.Module):
         inv = self.grifflim(i_mel)
         return inv
 
+class MelSpecTransformDBNoNorm(nn.Module): 
+    def __init__(self, sample_rate, n_fft=400, n_mels=64): 
+        super().__init__()
+        self.sample_rate = sample_rate
+        n_stft = int((n_fft//2) + 1)
+        self.transform = torchaudio.transforms.MelSpectrogram(sample_rate, n_mels=n_mels, n_fft=n_fft)
+        self.inverse_mel = torchaudio.transforms.InverseMelScale(sample_rate=sample_rate, n_mels=n_mels, n_stft=n_stft)
+        self.grifflim = torchaudio.transforms.GriffinLim(n_fft=n_fft)
+        self.amplitude_to_DB = torchaudio.transforms.AmplitudeToDB(stype='power')
+
+    def forward(self, waveform): 
+        # transform to mel_spectrogram
+        mel_spec = self.transform(waveform)  # (channel, n_mels, time)
+        # mel_spec = F.amplitude_to_DB(mel_spec)
+        mel_spec = self.amplitude_to_DB(mel_spec)
+        # mel_spec = torch.tensor(librosa.power_to_db(mel_spec.squeeze().numpy()))
+        mel_spec = mel_spec.squeeze()
+        mel_spec = mel_spec.permute(1, 0) # (F, L) -> (L, F)
+        return mel_spec
+    
+    def inverse(self, mel_spec): 
+        mel_spec = mel_spec.permute(1, 0) # (L, F) -> (F, L)
+        # mel_spec = torch.tensor(librosa.db_to_power(mel_spec.numpy()))
+        mel_spec = torchaudio.functional.DB_to_amplitude(mel_spec, ref=1.0, power=1)
+        mel_spec = mel_spec.unsqueeze(0)  # restore from (F, L) to (channel, F, L)
+        i_mel = self.inverse_mel(mel_spec)
+        inv = self.grifflim(i_mel)
+        return inv
+
 class MelSpecTransformDBAugust(nn.Module): 
     def __init__(self, sample_rate, n_fft=400, n_mels=64, normalizer=None, denormalizer=None): 
         super().__init__()
