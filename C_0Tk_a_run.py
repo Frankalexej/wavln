@@ -12,7 +12,7 @@ TE is running PV/P'V again, but with AEPPV9. Also, I would tune down the learnin
 
 TF is running sPV/PV, but with AEPPV9. Also, I would tune down the learning rate to 1e-4 and make noise quieter. Same as TE. 
 
-TJ is new normalization method with sPVPV. 
+TK is new normalization method with PVPV. 
 """
 ######################### Libs #########################
 from tkinter.font import names
@@ -417,7 +417,7 @@ if __name__ == "__main__":
 
     ## Hyper-preparations
     ts = args.timestamp
-    train_name = "C_0Tj"
+    train_name = "C_0Tk"
     model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}")
     mk(model_save_dir) 
 
@@ -427,21 +427,18 @@ if __name__ == "__main__":
         guide_path = os.path.join(model_save_dir, "guides")
         mk(guide_path)
         generate_separation(os.path.join(src_, "phi-T-guide.csv"), 
-                            os.path.join(src_, "phi-ST-guide.csv"), 
+                            os.path.join(src_, "phi-TT-guide.csv"), 
                             guide_path, 
-                            nameset={"larger": "T", "smaller": "ST"})
+                            nameset={"larger": "T", "smaller": "TT"})
         
         with open(os.path.join(model_save_dir, "README.note"), "w") as f: 
             f.write("----------------RUN NOTES----------------\n")
-            f.write("20240910: sPV/PV Running\n")
-            f.write("20240904: Running with Cosine loss, also with new noise method, amplitude=0.006\n")
-            f.write("20240909: Running without orthogonal init. \n")
-            f.write("20240910-2: Running with AEPPV9, lr=5e-4 and amplitude_scale lower (amplitude=0.004, noise_amplitude=0.0006, f0=50)\n")
-            f.write("20240913: sPV/PV, without orthogonal init, with MSE loss, 5-layers\n")
+            f.write("20241021: Running with AEPPV9, lr=5e-4 and amplitude_scale lower (amplitude=0.004, noise_amplitude=0.0006, f0=50)\n")
+            f.write("20241021: PV/PV, without orthogonal init, with MSE loss, 5-layers\n")
             f.write("20241021: used manual normalization for consistent normalization across the whole dataset. \n")
 
     else: 
         print(f"{train_name}-{ts}")
         torch.cuda.set_device(args.gpu)
         run_once(model_save_dir, model_type=args.model, condition=args.condition, 
-                 nameset={"larger": "T", "smaller": "ST"}, noise_controls={"fixlength": False, "amplitude_scale": 0.004})
+                 nameset={"larger": "T", "smaller": "TT"}, noise_controls={"fixlength": False, "amplitude_scale": 0.004})
