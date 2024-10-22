@@ -289,7 +289,7 @@ if __name__ == "__main__":
     ts = args.timestamp
     model_type = args.model
     model_condition = args.condition
-    train_name = "C_0Tj"
+    train_name = "C_0Tk"
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
 
     sil_dict = {}
@@ -331,10 +331,10 @@ if __name__ == "__main__":
         every_sepframes1.append(cat_sepframes1)
         every_sepframes2.append(cat_sepframes2)
         every_phi_types.append(cat_phi_types)    
-    # plot_attention_epoch_trajectory(every_phi_types, every_attns, every_sepframes1, every_sepframes2, os.path.join(res_save_dir, f"attnepochtraj-at-all-{model_type}-{model_condition}-{strseq_learned_runs}-10pc.png"), 
-    #                                 conditionlist=["T", "ST"])
+    plot_attention_epoch_trajectory(every_phi_types, every_attns, every_sepframes1, every_sepframes2, os.path.join(res_save_dir, f"attnepochtraj-at-all-{model_type}-{model_condition}-{strseq_learned_runs}-10pc.png"), 
+                                    conditionlist=["T", "TT"])
     
     plot_attention_epoch_trajectory_diff(every_phi_types, every_attns, every_sepframes1, every_sepframes2, os.path.join(res_save_dir, f"attnepochtraj-diff-at-all-{model_type}-{model_condition}-{strseq_learned_runs}-10pc.png"), 
-                                    conditionlist=["T", "ST"])
+                                    conditionlist=["T", "TT"])
 
     print("Done.")
