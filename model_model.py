@@ -1418,7 +1418,7 @@ class AEPPV11(Module):
             ae_attn_ws.append(ae_attn_w)
         
         # it returns the last layer's output as well as all the outputs. 
-        return (ae_dec_out[-1], ae_dec_outs), (ae_attn_ws[-1], ae_attn_ws), (zes[-1], zes)
+        return (ae_dec_outs[-1], ae_dec_outs), (ae_attn_ws[-1], ae_attn_ws), (zes[-1], zes)
     
     def encode(self, inputs, input_lens, in_mask): 
         zes = []
