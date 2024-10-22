@@ -1382,6 +1382,67 @@ class AEPPV9(Module):
         # return follows: dec_out, attn_w, z
         return (ae_dec_out, attn_out), (ae_attn_w, pp_attn_w), (ze, zq), (enc_hid_out_list, dec_hid_out_list)
     
+class AEPPV11(Module):
+    # 在4的基础上增加了attn_forward
+    # In addition to hidrep and attnout in AEPPV8, we return all hidden layers. 
+    # 允許多層encoder和decoder
+    def __init__(self, enc_size_list, dec_size_list, ctc_decoder_size_list, num_layers=1, dropout=0.5, num_big_layers=1): 
+        # num_big_layers: the number of encoder and decoder components. 
+        super(AEPPV11, self).__init__()
+        self.encoder_list = nn.ModuleList([VQEncoderV3(size_list=enc_size_list, num_layers=num_layers, dropout=dropout) for i in range(num_big_layers)])
+        self.ae_decoder_list = nn.ModuleList([VQDecoderV3(size_list=dec_size_list, num_layers=num_layers, dropout=dropout) for i in range(num_big_layers)])
+        # self.encoder = VQEncoderV3(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        # self.ae_decoder = VQDecoderV3(size_list=dec_size_list, num_layers=num_layers, dropout=dropout)
+        # phoneme prediction decoder, this one is not auto-regressive, therefore we can use bidirectional
+        # LSTM to enhance performance. 
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.num_big_layers = num_big_layers
+
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hids, init_ins = [], []
+        for i in range(self.num_big_layers): 
+            dec_hid, init_in = self.ae_decoder_list[i].inits(batch_size=batch_size, device=self.device)
+            dec_hids.append(dec_hid)
+            init_ins.append(init_in)
+        zes = []
+        ae_dec_outs, ae_attn_ws = [], []
+        for i in range(self.num_big_layers): 
+            ze = self.encoder_list[i](inputs, input_lens)
+            zq = ze
+            dec_in = ze
+            ae_dec_out, ae_attn_w = self.ae_decoder_list[i](dec_in, in_mask, init_ins[i], dec_hids[i])
+            zes.append(ze)
+            ae_dec_outs.append(ae_dec_out)
+            ae_attn_ws.append(ae_attn_w)
+        
+        # it returns the last layer's output as well as all the outputs. 
+        return (ae_dec_out[-1], ae_dec_outs), (ae_attn_ws[-1], ae_attn_ws), (zes[-1], zes)
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        zes = []
+        for i in range(self.num_big_layers): 
+            ze = self.encoder_list[i](inputs, input_lens)
+            zes.append(ze)
+        return zes[-1], zes
+    
+    def attn_forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.ae_decoder.inits(batch_size=batch_size, device=self.device)
+
+        ze, enc_hid_out_list = self.encoder.encode_and_out(inputs, input_lens)
+        # always, hid_out_list = [flo, rlo1, rlo2, ..., rloN]
+        # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
+        zq = ze
+        dec_in = ze
+        ae_dec_out, attn_out, ae_attn_w, dec_hid_out_list = self.ae_decoder.attn_forward(dec_in, in_mask, init_in, dec_hid)
+        # pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
+        pp_dec_out, pp_attn_w = ae_dec_out, ae_attn_w
+        # return follows: dec_out, attn_w, z
+        return (ae_dec_out, attn_out), (ae_attn_w, pp_attn_w), (ze, zq), (enc_hid_out_list, dec_hid_out_list)
+    
 class AEPPV10(Module):
     # 在4的基础上增加了attn_forward
     # In addition to hidrep and attnout in AEPPV8, we return all hidden layers. 
