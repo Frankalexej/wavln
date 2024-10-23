@@ -1795,7 +1795,7 @@ class EncoderSingleV1(Module):
     # this is only to be called during inference, so dropout is not applied. 
     def encode_and_out(self, inputs, inputs_lens): 
         lstm_outs_f, lstm_outs_b = [], []
-        enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
+        enc_x = pack_padded_sequence(inputs, inputs_lens, batch_first=True, enforce_sorted=False)
         for i, rnn in enumerate(self.rnnlist): 
             enc_x, (hn, cn) = rnn(enc_x)    # (B, L, I1) -> (B, L, I2)
             enc_x_lstm_out, _ = pad_packed_sequence(enc_x, batch_first=True)
