@@ -1777,7 +1777,6 @@ class EncoderSingleV1(Module):
         self.lin = nn.Linear(indim * 2, outdim)
         # we include two passers in case we want to set one to be identity while keeping the another in the future. 
         self.passer_1 = AddPass() if add_linear else DirectPass()
-        self.passer_2 = AddPass() if add_linear else DirectPass()
 
     def forward(self, inputs, inputs_lens): 
         enc_x = pack_padded_sequence(inputs, inputs_lens, batch_first=True, enforce_sorted=False)
@@ -1789,10 +1788,9 @@ class EncoderSingleV1(Module):
                 enc_x = pack_padded_sequence(enc_x, inputs_lens, batch_first=True, enforce_sorted=False)
         enc_x_lstm_out, _ = pad_packed_sequence(enc_x, batch_first=True)
 
-        enc_x_pass_1 = self.passer_1(enc_x_lstm_out, inputs)  # residual connection 1
-        enc_x_lin_out = self.lin(enc_x_pass_1)   # this merges the bidirectional into one.
-        enc_x_pass_2 = self.passer_2(enc_x_lin_out, enc_x_pass_1)  # residual connection 2
-        return enc_x_pass_2
+        enc_x_lin_out = self.lin(enc_x_lstm_out)   # this merges the bidirectional into one.
+        enc_x_pass_1 = self.passer_1(enc_x_lin_out, inputs)  # residual connection 2
+        return enc_x_pass_1
     
     # this is only to be called during inference, so dropout is not applied. 
     def encode_and_out(self, inputs, inputs_lens): 
@@ -1804,10 +1802,54 @@ class EncoderSingleV1(Module):
             enc_x_lstm_out_f, enc_x_lstm_out_b = enc_x_lstm_out[:, :, :self.indim], enc_x_lstm_out[:, :, self.indim:]
             lstm_outs_f.append(enc_x_lstm_out_f)
             lstm_outs_b.append(enc_x_lstm_out_b)
-        enc_x_pass_1 = self.passer_1(enc_x_lstm_out, inputs)  # residual connection 1
-        enc_x_lin_out = self.lin(enc_x_pass_1)   # this merges the bidirectional into one.
-        enc_x_pass_2 = self.passer_2(enc_x_lin_out, enc_x_pass_1)  # residual connection 2
-        return enc_x_pass_2, lstm_outs_f, lstm_outs_b # return the last output and all intermediate outputs.
+
+        enc_x_lin_out = self.lin(enc_x_lstm_out)   # this merges the bidirectional into one.
+        enc_x_pass_1 = self.passer_1(enc_x_lin_out, inputs)  # residual connection 2
+        return enc_x_pass_1, lstm_outs_f, lstm_outs_b # return the last output and all intermediate outputs.
+
+class EncoderBlockV1(Module): 
+    """
+    20241023
+    Linear + Blocked EncoderSingles
+    """
+    def __init__(self, indim, outdim, num_layers=1, dropout=0.5, add_linear=False, num_blocks=1):
+        # Input: (B, L, I0)
+        # Output: (B, L, H0)
+        super(EncoderBlockV1, self).__init__()
+        self.indim = indim
+        self.outdim = outdim
+        self.num_layers = num_layers
+        self.num_blocks = num_blocks
+
+        self.lin = nn.Linear(indim, outdim)
+        self.act = nn.ReLU()
+        self.blocks = nn.ModuleList(
+            [EncoderSingleV1(indim=outdim, outdim=outdim, num_layers=num_layers, dropout=dropout, add_linear=add_linear) for _ in range(num_blocks)]
+        )
+
+    def forward(self, inputs, inputs_lens): 
+        enc_outs = []
+        enc_x = self.lin(inputs) # (B, L, I0) -> (B, L, H0)
+        enc_x = self.act(enc_x)
+        for block in self.blocks: 
+            enc_x = block(enc_x, inputs_lens)   # NOTE: each block will take the output from the previous block. 
+            enc_outs.append(enc_x)
+        return enc_outs # [num_blocks, (B, L, H0)]
+    
+    # this is only to be called during inference, so dropout is not applied. 
+    def encode_and_out(self, inputs, inputs_lens): 
+        enc_hidrep_outs, enc_lstm_outs_f, enc_lstm_outs_b = [], [], []
+        enc_x = self.lin(inputs) # (B, L, I0) -> (B, L, I1)
+        enc_x = self.act(enc_x)
+        for block in self.blocks:
+            enc_x, lstm_outs_f, lstm_outs_b = block.encode_and_out(enc_x, inputs_lens)
+            enc_hidrep_outs.append(enc_x)
+            enc_lstm_outs_f.append(lstm_outs_f)
+            enc_lstm_outs_b.append(lstm_outs_b)
+
+        # enc_hidrep_outs = [num_blocks, (B, L, H0)]
+        # enc_lstm_outs_f/b = [num_blocks, num_layers, (B, L, H0)]
+        return enc_hidrep_outs, enc_lstm_outs_f, enc_lstm_outs_b # return the last output and all intermediate outputs.
     
 class DecoderBlockV1(Module):
     """
@@ -1902,180 +1944,70 @@ class DecoderBlockV1(Module):
             final_output_frames.append(dec_x_lin2)
             dec_in_token = dec_x_lin2
 
-        final_output = torch.stack(final_output_frames, dim=1).squeeze(2)   # stack along length dim
-        lstm_outputs
-
-
-
-        for t in range(length):
-            dec_x = self.lin_1(dec_in_token)
-            first_lin_outs.append(dec_x)  # post-lin
-            dec_x = self.act(dec_x)
-            dec_x, hidden = self.rnn(dec_x, hidden)
-            # add in rnn outs
-            rnn_layer_outs.append(hidden[0])    # post-rnn
-            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
-            # 我的理解是：虽然如果不clone，list里面的tensor也会跟着变
-            # 但是因为这里记录的dec_x在后来都会进入网络中，网络是自带clone的，所以这里不clone也没问题
-            attn_outs.append(dec_x.clone())
-            dec_x = self.lin_2(dec_x)
-            outputs.append(dec_x.clone())
-            attention_weights.append(attention_weight.clone())
-            # Use the current output as the next input token
-            dec_in_token = dec_x
-
-        outputs = torch.stack(outputs, dim=1)   # stack along length dim
-        attn_outs = torch.stack(attn_outs, dim=1)
-        attention_weights = torch.stack(attention_weights, dim=1)
-        first_lin_outs = torch.stack(first_lin_outs, dim=1)
-        rnn_layer_outs = torch.stack(rnn_layer_outs, dim=1)
-        outputs = outputs.squeeze(2)
-        attn_outs = attn_outs.squeeze(2)
-        attention_weights = attention_weights.squeeze(2)
-        first_lin_outs = first_lin_outs.squeeze(2)
-
-        rnn_layer_outs = rnn_layer_outs.permute(0, 2, 1, 3)
-        rnn_layer_outs = torch.unbind(rnn_layer_outs, 0)
-        other_outs = [first_lin_outs] + list(rnn_layer_outs)
-        return outputs, attn_outs, attention_weights, other_outs
-
-
-class DecoderSingleV1(Module):
-    """
-    注意：decoder是自回归的，因而无需bidirectional
-    同时也输出attention_out
-    Additionally, we output all intermediate outputs. 
-    This serves as a building block of the multi-block model. 
-    """
-    def __init__(self, indim, outdim, num_layers=1, dropout=0.5):
-        super(DecoderSingleV1, self).__init__()
-        self.rnn = nn.LSTM(input_size=indim, hidden_size=indim, 
-                            num_layers=num_layers, batch_first=True, 
-                            dropout=dropout, bidirectional=False)
-        self.attention = ScaledDotProductAttention(q_in=indim, kv_in=indim, qk_out=indim, v_out=indim)
-        self.lin = nn.Linear(indim, outdim)
-        self.act = nn.ReLU()
-        # vars
-        self.indim = indim
-        self.outdim = outdim
-        self.num_layers = num_layers
-
-    def inits(self, batch_size, device): 
-        h0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
-        c0 = torch.zeros((self.num_layers, batch_size, self.size_list[3]), dtype=torch.float, device=device, requires_grad=False)
-        hidden = (h0, c0)
-        dec_in_token = torch.zeros((batch_size, 1, self.size_list[0]), dtype=torch.float, device=device, requires_grad=False)
-        return hidden, dec_in_token
-
-    def forward(self, hid_r, in_mask, init_in, hidden):
-        # Attention decoder
-        length = hid_r.size(1) # get length
-
-        dec_in_token = init_in
-
-        outputs = []
-        attention_weights = []
-        for t in range(length):
-            dec_x = self.lin_1(dec_in_token)
-            dec_x = self.act(dec_x)
-            dec_x, hidden = self.rnn(dec_x, hidden)
-            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
-            dec_x = self.lin_2(dec_x)
-            # 这里不能detach，因为training中还要做backprop
-            outputs.append(dec_x)
-            attention_weights.append(attention_weight)
-            # Use the current output as the next input token
-            dec_in_token = dec_x
-
-        outputs = torch.stack(outputs, dim=1)   # stack along length dim
-        attention_weights = torch.stack(attention_weights, dim=1)
-        outputs = outputs.squeeze(2)
-        attention_weights = attention_weights.squeeze(2)
-        return outputs, attention_weights
+        final_output = torch.stack(final_output_frames, dim=1).squeeze(-2)   # stack along length dim
+        lstm_outputs_org = [torch.unbind(torch.stack(lstm_outputs[i], dim=2), dim=0) for i in range(self.num_blocks)]   # [num_blocks, num_layers, (B, L, H)]
+        attention_outputs_org = [torch.stack(attention_outputs[i], dim=1).squeeze(-2) for i in range(self.num_blocks)]   # [num_blocks, (B, L, H)]
+        block_outputs_org = [torch.stack(block_outputs[i], dim=1).squeeze(-2) for i in range(self.num_blocks)]   # [num_blocks, (B, L, H)]
+        attention_weights_org = [torch.stack(attention_weights[i], dim=1).squeeze(-2) for i in range(self.num_blocks)]   # [num_blocks, (B, L, H)]
+        return final_output, lstm_outputs_org, attention_outputs_org, block_outputs_org, attention_weights_org
     
-    def attn_forward(self, hid_r, in_mask, init_in, hidden):
-        # Attention decoder
-        b, length, _ = hid_r.size()
 
-        dec_in_token = init_in
+class MultiBlockV1(Module):
+    # Multi-block model with residual connections
+    def __init__(self, enc_size_list, dec_size_list, num_layers=2, num_blocks=1, dropout=0.5, residual=False):
+        super(MultiBlockV1, self).__init__()
+        self.encoder = EncoderBlockV1(indim=enc_size_list["in"], outdim=enc_size_list["hid"], 
+                                      num_layers=num_layers, num_blocks=num_blocks, 
+                                      add_linear=residual, dropout=dropout)
+        self.decoder = DecoderBlockV1(hiddim=dec_size_list["hid"], outdim=dec_size_list["out"], 
+                                      num_layers=num_layers, num_blocks=num_blocks, 
+                                      add_linear=residual, dropout=dropout)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        outputs = []
-        attn_outs = []
-        first_lin_outs = []
-        attention_weights = []
-        rnn_layer_outs = []
-        for t in range(length):
-            dec_x = self.lin_1(dec_in_token)
-            first_lin_outs.append(dec_x)  # post-lin
-            dec_x = self.act(dec_x)
-            dec_x, hidden = self.rnn(dec_x, hidden)
-            # add in rnn outs
-            rnn_layer_outs.append(hidden[0])    # post-rnn
-            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
-            # 我的理解是：虽然如果不clone，list里面的tensor也会跟着变
-            # 但是因为这里记录的dec_x在后来都会进入网络中，网络是自带clone的，所以这里不clone也没问题
-            attn_outs.append(dec_x.clone())
-            dec_x = self.lin_2(dec_x)
-            outputs.append(dec_x.clone())
-            attention_weights.append(attention_weight.clone())
-            # Use the current output as the next input token
-            dec_in_token = dec_x
-
-        outputs = torch.stack(outputs, dim=1)   # stack along length dim
-        attn_outs = torch.stack(attn_outs, dim=1)
-        attention_weights = torch.stack(attention_weights, dim=1)
-        first_lin_outs = torch.stack(first_lin_outs, dim=1)
-        rnn_layer_outs = torch.stack(rnn_layer_outs, dim=1)
-        outputs = outputs.squeeze(2)
-        attn_outs = attn_outs.squeeze(2)
-        attention_weights = attention_weights.squeeze(2)
-        first_lin_outs = first_lin_outs.squeeze(2)
-
-        rnn_layer_outs = rnn_layer_outs.permute(0, 2, 1, 3)
-        rnn_layer_outs = torch.unbind(rnn_layer_outs, 0)
-        other_outs = [first_lin_outs] + list(rnn_layer_outs)
-        return outputs, attn_outs, attention_weights, other_outs
-
-class EncoderBlockV1(Module): 
-    """
-    20241023
-    Linear + Blocked EncoderSingles
-    """
-    def __init__(self, indim, outdim, num_layers=1, dropout=0.5, add_linear=False, num_blocks=1):
-        # Input: (B, L, I0)
-        # Output: (B, L, H0)
-        super(EncoderBlockV1, self).__init__()
-        self.indim = indim
-        self.outdim = outdim
-        self.num_layers = num_layers
-        self.num_blocks = num_blocks
-
-        self.lin = nn.Linear(indim, outdim)
-        self.act = nn.ReLU()
-        self.blocks = nn.ModuleList(
-            [EncoderSingleV1(indim=outdim, outdim=outdim, num_layers=num_layers, dropout=dropout, add_linear=add_linear) for _ in range(num_blocks)]
-        )
-
-    def forward(self, inputs, inputs_lens): 
-        enc_outs = []
-        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, H0)
-        enc_x = self.act(enc_x)
-        for block in self.blocks: 
-            enc_x = block(enc_x, inputs_lens)   # NOTE: each block will take the output from the previous block. 
-            enc_outs.append(enc_x)
-        return enc_outs # [num_blocks, (B, L, H0)]
+    def forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hids, init_in = self.decoder.inits(batch_size=batch_size, device=self.device)
+        enc_outs = self.encoder(inputs, input_lens)
+        dec_out = self.decoder(enc_outs, in_mask, init_in, dec_hids)
+        return dec_out
     
-    # this is only to be called during inference, so dropout is not applied. 
-    def encode_and_out(self, inputs, inputs_lens): 
-        enc_hidrep_outs, enc_lstm_outs_f, enc_lstm_outs_b = [], [], []
-        enc_x = self.lin_1(inputs) # (B, L, I0) -> (B, L, I1)
-        enc_x = self.act(enc_x)
-        for block in self.blocks:
-            enc_x, lstm_outs_f, lstm_outs_b = block.encode_and_out(enc_x, inputs_lens)
-            enc_hidrep_outs.append(enc_x)
-            enc_lstm_outs_f.append(lstm_outs_f)
-            enc_lstm_outs_b.append(lstm_outs_b)
+    def run_and_out(self, inputs, input_lens, in_mask):
+        batch_size = inputs.size(0)
+        dec_hids, init_in = self.decoder.inits(batch_size=batch_size, device=self.device)
 
-        # enc_hidrep_outs = [num_blocks, (B, L, H0)]
+        enc_hidreps, enc_lstm_outs_f, enc_lstm_outs_b = self.encoder.encode_and_out(inputs, input_lens)
+        dec_out, dec_lstm_outs, dec_attn_outs, dec_block_outs, attn_ws = self.decoder.decode_and_out(enc_hidreps, in_mask, init_in, dec_hids)
+
+        # enc_hidreps = [num_blocks, (B, L, H0)]
         # enc_lstm_outs_f/b = [num_blocks, num_layers, (B, L, H0)]
-        return enc_hidrep_outs, enc_lstm_outs_f, enc_lstm_outs_b # return the last output and all intermediate outputs.
+        # dec_out = (B, L, O)
+        # dec_lstm_outs = [num_blocks, num_layers, (B, L, H)]
+        # dec_attn_outs = [num_blocks, (B, L, H)]
+        # dec_block_outs = [num_blocks, (B, L, H)]
+        # attn_ws = [num_blocks, (B, L, H)]
+        hidlayer_outs = {}
+        # Now we start to name all the outputs and put them in dict
+        for idx, out in enumerate(enc_hidreps): 
+            hidlayer_outs[f"hidrep-{idx+1}"] = out
+        
+        for idx, outs in enumerate(enc_lstm_outs_f): 
+            for jdx, out in enumerate(outs): 
+                hidlayer_outs[f"encrnn-{idx+1}-{jdx+1}-f"] = out
+
+        for idx, outs in enumerate(enc_lstm_outs_b):
+            for jdx, out in enumerate(outs): 
+                hidlayer_outs[f"encrnn-{idx+1}-{jdx+1}-b"] = out
+
+        for idx, outs in enumerate(dec_lstm_outs):
+            for jdx, out in enumerate(outs): 
+                hidlayer_outs[f"decrnn-{idx+1}-{jdx+1}-f"] = out
+        
+        for idx, out in enumerate(dec_attn_outs):
+            hidlayer_outs[f"attnout-{idx+1}"] = out
+
+        for idx, out in enumerate(dec_block_outs):
+            hidlayer_outs[f"decrep-{idx+1}"] = out
+
+        return dec_out, attn_ws, hidlayer_outs
+    
