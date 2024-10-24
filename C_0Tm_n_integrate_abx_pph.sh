@@ -13,11 +13,11 @@ generate_random_number() {
 # Arrays of options for each argument
 ms=('recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi'
 cs=('b') # 
-zls=("ori" "hidrep-1" "hidrep-2" "hidrep-3" "attnout-1" "attnout-2" "attnout-3" "decrep-1" "decrep-2" "decrep-3" "encrnn-1-1-f" "encrnn-1-1-b" "encrnn-1-2-f" "encrnn-1-2-b" "encrnn-2-1-f" "encrnn-2-1-b" "encrnn-2-2-f" "encrnn-2-2-b" "encrnn-3-1-f" "encrnn-3-1-b" "encrnn-3-2-f" "encrnn-3-2-b" "decrnn-1-1-f" "decrnn-1-2-f" "decrnn-2-1-f" "decrnn-2-2-f" "decrnn-3-1-f" "decrnn-3-2-f")
-# zls=('GENDER') 
+# zls=("ori" "hidrep-1" "hidrep-2" "hidrep-3" "attnout-1" "attnout-2" "attnout-3" "decrep-1" "decrep-2" "decrep-3" "encrnn-1-1-f" "encrnn-1-1-b" "encrnn-1-2-f" "encrnn-1-2-b" "encrnn-2-1-f" "encrnn-2-1-b" "encrnn-2-2-f" "encrnn-2-2-b" "encrnn-3-1-f" "encrnn-3-1-b" "encrnn-3-2-f" "encrnn-3-2-b" "decrnn-1-1-f" "decrnn-1-2-f" "decrnn-2-1-f" "decrnn-2-2-f" "decrnn-3-1-f" "decrnn-3-2-f")
+zls=('PPP' 'PPH') 
 # 'hidrep' 'attnout' 'ori' 'enc-lin1' 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 'enc-rnn3-f' 'enc-rnn3-b' 'dec-rnn3-f' 'enc-rnn4-f' 'enc-rnn4-b' 'dec-rnn4-f' 'enc-rnn5-f' 'enc-rnn5-b' 'dec-rnn5-f'
 ts='1023185236'
-tn="abx-pph" # FinalEpochsDimneutral
+tn="abx-pphAll" # FinalEpochsDimneutral
 echo "Timestamp: $ts; Test: $tn"
 
 # Loop from 1 to 10, incrementing by 1

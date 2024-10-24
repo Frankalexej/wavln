@@ -10,6 +10,7 @@ import warnings
 from xml.etree.ElementInclude import include
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
+from C_0Tm_a_run import NUM_BLOCKS, NUM_LAYERS
 from C_0X_defs import *
 from C_0Y_evaldefs import *
 import plotly.graph_objs as go
@@ -271,7 +272,7 @@ def plot_many_plotly(arrs, labels, save_path, plot_label_dict={"xlabel": "Epoch"
     mean_trajs = []
     lower_bounds = []
     upper_bounds = []
-    colors = px.colors.qualitative.Alphabet
+    colors = px.colors.qualitative.Alphabet + px.colors.qualitative.Alphabet
 
     for arr in arrs:
         assert arr.shape[1] == n_steps
@@ -559,12 +560,16 @@ if __name__ == "__main__":
         else: 
             raise Exception("zlevel either PPP or PPH! ")
         layered_res = {}
-        for layer in ["hidrep", "attnout", "dec-lin1", "enc-lin1", 
-                      "dec-rnn1-f", "enc-rnn1-f", "enc-rnn1-b",
-                      "dec-rnn2-f", "enc-rnn2-f", "enc-rnn2-b", 
-                      "dec-rnn3-f", "enc-rnn3-f", "enc-rnn3-b", 
-                      "dec-rnn4-f", "enc-rnn4-f", "enc-rnn4-b", 
-                      "dec-rnn5-f", "enc-rnn5-f", "enc-rnn5-b", ]: # "enc-lin1", 
+        layerslist = []
+        for idx in range(NUM_BLOCKS): 
+            layerslist.append(f"hidrep-{idx+1}")
+            layerslist.append(f"attnout-{idx+1}")
+            layerslist.append(f"decrep-{idx+1}")
+            for jdx in range(NUM_LAYERS): 
+                layerslist.append(f"encrnn-{idx+1}-{jdx+1}-f")
+                layerslist.append(f"encrnn-{idx+1}-{jdx+1}-b")
+                layerslist.append(f"decrnn-{idx+1}-{jdx+1}-f")
+        for layer in layerslist: # "enc-lin1", 
             print(f"Processing {model_type} in layer {layer}...")
             asp_list_epochs = []
             look_for_layer_path = "abx-pph"
