@@ -1051,7 +1051,7 @@ if __name__ == "__main__":
                     all_datasource = hidrep["phi-type"]
                     include_map = {st_condition_name: "-asp", t_condition_name: "+asp"}
                     include_tags = ["-asp", "+asp"]
-                    this_offset = {"-asp": (0.8, 0.9), "+asp": (0.85, 0.9)}
+                    this_offset = {st_condition_name: (0.8, 0.9), t_condition_name: (0.85, 0.9)}
                     this_auxon = "data"
                 else: 
                     raise ValueError("Datasource not included! ")
