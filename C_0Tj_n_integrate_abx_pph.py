@@ -120,12 +120,16 @@ def get_toplot(hiddens, sepframes1, sepframes2, phi_types, stop_names, offsets=(
         tags_list = stop_names  # should pass vowel_names to stop_names
     elif contrast_in == "pre": 
         tags_list = stop_names
+    elif contrast_in == "data": 
+        tags_list = stop_names
     else:
         raise ValueError("Contrast_in must be one of 'asp' or 'stop'")
     
     if aux_on == "asp": 
         # aux_on is the auxiliary information that we want to for deciding the cut ranges that may not depend on the tag
         aux_on = phi_types
+    elif aux_on == "data": 
+        aux_on = stop_names
     elif aux_on == "stop": 
         aux_on = stop_names
     elif aux_on == "vowel":
@@ -417,6 +421,10 @@ if __name__ == "__main__":
 
     stop_list_epochs = [] # list for each epoch of lists of sse for each run
     asp_list_epochs = []
+
+    # This will be changed according to the environment
+    st_condition_name = "ST"
+    t_condition_name = "T"
 
 
     if test_name in ["abx-pph", "abx-pph-0903-1", "abx-pph-0903-2"]: 
@@ -1022,6 +1030,8 @@ if __name__ == "__main__":
                 # all_vowel_names = hidrep["vn"]
                 include_map = None
                 include_tags = None
+                this_offset = (0.4, 0.6)
+                this_auxon = None
                 if test_name_datasource == "gender": 
                     all_datasource = hidrep["gender"]
                 elif test_name_datasource == "speaker": 
@@ -1036,6 +1046,13 @@ if __name__ == "__main__":
                     all_datasource = hidrep["vn"]
                     include_map = {"AA": "AA", "IY": "IY"}
                     include_tags = ["AA", "IY"]
+                elif test_name_datasource == "aspiration": 
+                    # In this we will use different offsets for different conditions, so we need to specify the offsets and auxon
+                    all_datasource = hidrep["phi-type"]
+                    include_map = {st_condition_name: "-asp", t_condition_name: "+asp"}
+                    include_tags = ["-asp", "+asp"]
+                    this_offset = {"-asp": (0.8, 0.9), "+asp": (0.85, 0.9)}
+                    this_auxon = "data"
                 else: 
                     raise ValueError("Datasource not included! ")
                 
@@ -1046,12 +1063,13 @@ if __name__ == "__main__":
                                                 sepframes2=all_sepframes2,
                                                 phi_types=all_phi_type,
                                                 stop_names=all_datasource,
-                                                offsets=(0.4, 0.6), 
+                                                offsets=this_offset, 
                                                 contrast_in=test_name_label, 
                                                 merge=merge_one_vector, 
                                                 hidden_dim=hidden_dim, 
                                                 lookat=test_name_lookat, 
-                                                include_map=include_map)
+                                                include_map=include_map, 
+                                                aux_on=this_auxon)
                 # combine them
                 # hidr_cs, tags_cs = np.concatenate((hidr_p, hidr_pp, hidr_h), axis=0), np.concatenate((tags_p, tags_pp, tags_h), axis=0)
                 hidr_cs, tags_cs = hidr_p, tags_p
@@ -1063,10 +1081,6 @@ if __name__ == "__main__":
                     hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=15, tags=include_tags)
                     abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
                     asp_list_runs.append(abx_err01)
-                # kmeans = KMeans(n_clusters=8, random_state=0)
-                # predicted_labels = kmeans.fit_predict(hidr_cs)
-                # ari = adjusted_rand_score(tags_cs, predicted_labels)
-                # asp_list_runs.append(ari)
 
             asp_list_epochs.append(asp_list_runs)
 
