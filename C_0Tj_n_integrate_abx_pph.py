@@ -991,6 +991,10 @@ if __name__ == "__main__":
     elif test_name.split("-")[0] in ["ABXSomething"]: 
         # 1 is euclidean, 2 is cosine distance
         # this one evaluates the copntrast between p, p(h) and (p)h. 
+        if len(test_name.split("-")) > 5:
+            test_name_range_start = test_name.split("-")[4]
+            test_name_range_end = test_name.split("-")[5]
+            print("aspirationRangeComp:", (float(f"0.{test_name_range_start}"), float(f"0.{test_name_range_end}")))
         for epoch in range(0, 101): 
             # 先循环epoch，再循环run
             stop_list_runs = []
@@ -1001,6 +1005,9 @@ if __name__ == "__main__":
                 test_name_lookat = test_name.split("-")[1]
                 test_name_label = test_name.split("-")[2]
                 test_name_datasource = test_name.split("-")[3]
+                if len(test_name.split("-")) > 5:
+                    test_name_range_start = test_name.split("-")[4]
+                    test_name_range_end = test_name.split("-")[5]
 
 
                 this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
@@ -1059,6 +1066,13 @@ if __name__ == "__main__":
                     include_tags = ["-asp", "+asp"]
                     this_offset = {st_condition_name: (0.8, 0.9), t_condition_name: (0.85, 0.9)}
                     this_auxon = "data"
+                elif test_name_datasource == "aspirationRangeComp": 
+                    # In this we will use different offsets for different conditions, so we need to specify the offsets and auxon
+                    all_datasource = hidrep["phi-type"]
+                    include_map = {st_condition_name: "-asp", t_condition_name: "+asp"}
+                    include_tags = ["-asp", "+asp"]
+                    this_offset = (float(f"0.{test_name_range_start}"), float(f"0.{test_name_range_end}"))
+                    merge_one_vector = True
                 elif test_name_datasource == "aspirationTotal": 
                     # In this we will use different offsets for different conditions, so we need to specify the offsets and auxon
                     all_datasource = hidrep["phi-type"]
@@ -1115,6 +1129,10 @@ if __name__ == "__main__":
         # 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 
         layered_res = {}
         look_for_layer_path = test_name.split("-")[0][:-3] + "-" + test_name.split("-")[1] + "-" + test_name.split("-")[2] + "-" + test_name.split("-")[3]
+        if zlevel.split("-")[0] == "ARC": 
+            range_start = zlevel.split("-")[1]
+            range_end = zlevel.split("-")[2]
+            look_for_layer_path += f"-{range_start}-{range_end}"
         # deal with ori
         ori_path = os.path.join(res_save_dir, look_for_layer_path, f"07-save-ari-recon64-phi-{model_condition}-{strseq_learned_runs}-ori.npy")
         if os.path.exists(ori_path): 
