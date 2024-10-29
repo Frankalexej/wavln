@@ -1032,6 +1032,7 @@ if __name__ == "__main__":
                 include_tags = None
                 this_offset = (0.4, 0.6)
                 this_auxon = None
+                merge_one_vector = False
                 if test_name_datasource == "gender": 
                     all_datasource = hidrep["gender"]
                 elif test_name_datasource == "speaker": 
@@ -1046,6 +1047,11 @@ if __name__ == "__main__":
                     all_datasource = hidrep["vn"]
                     include_map = {"AA": "AA", "IY": "IY"}
                     include_tags = ["AA", "IY"]
+                elif test_name_datasource == "stop": 
+                    all_datasource = hidrep["sn"]
+                    merge_one_vector = True
+                    this_offset = {st_condition_name: (0.3, 0.45), t_condition_name: (0.15, 0.2)}
+                    this_auxon = "asp"
                 elif test_name_datasource == "aspiration": 
                     # In this we will use different offsets for different conditions, so we need to specify the offsets and auxon
                     all_datasource = hidrep["phi-type"]
@@ -1053,10 +1059,18 @@ if __name__ == "__main__":
                     include_tags = ["-asp", "+asp"]
                     this_offset = {st_condition_name: (0.8, 0.9), t_condition_name: (0.85, 0.9)}
                     this_auxon = "data"
+                elif test_name_datasource == "aspirationTotal": 
+                    # In this we will use different offsets for different conditions, so we need to specify the offsets and auxon
+                    all_datasource = hidrep["phi-type"]
+                    include_map = {st_condition_name: "-asp", t_condition_name: "+asp"}
+                    include_tags = ["-asp", "+asp"]
+                    # this_offset = {st_condition_name: (, 0.9), t_condition_name: (0.85, 0.9)}
+                    this_offset = (0, 1)
+                    merge_one_vector = True
+                    # this_auxon = "data"
                 else: 
                     raise ValueError("Datasource not included! ")
                 
-                merge_one_vector = False
                 # Select Vowels and Vowel Tags
                 hidr_p, tags_p = get_toplot(hiddens=all_zq, 
                                                 sepframes1=all_sepframes1,
