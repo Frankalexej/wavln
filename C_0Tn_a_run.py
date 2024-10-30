@@ -48,7 +48,7 @@ ENC_SIZE_LIST = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
 DEC_SIZE_LIST = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
 DROPOUT = 0.5
 NUM_LAYERS = 2
-NUM_BLOCKS = 3
+NUM_BLOCKS = 1
 EMBEDDING_DIM = 128
 REC_SAMPLE_RATE = 16000
 N_FFT = 400
@@ -435,6 +435,7 @@ if __name__ == "__main__":
             f.write("20241023: used manual normalization for consistent normalization across the whole dataset. \n")
             f.write("20241023: MultiBlock Model, multiple encoders and decoders, corrected information flow\n")
             f.write("20241024: Tn is BlockModel but not using residual pass. \n")
+            f.write("20241030: This run has only one block. \n")
     else: 
         print(f"{train_name}-{ts}")
         torch.cuda.set_device(args.gpu)

@@ -1033,8 +1033,6 @@ if __name__ == "__main__":
                 all_sepframes1 = hidrep["sep-frame1"]
                 all_sepframes2 = hidrep["sep-frame2"]
                 all_phi_type = hidrep["phi-type"]
-                # all_stop_names = hidrep["sn"]
-                # all_vowel_names = hidrep["vn"]
                 include_map = None
                 include_tags = None
                 this_offset = (0.4, 0.6)
