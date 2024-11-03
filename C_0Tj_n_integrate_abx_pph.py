@@ -1171,6 +1171,139 @@ if __name__ == "__main__":
         # with open(os.path.join(res_save_dir, test_name, f"06-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.pkl"), "wb") as f: 
         #     pickle.dump(layered_res, f)
         print("Done.")
+    elif test_name.split("-")[0] in ["ABXSomethingPro"]: 
+        # This is to run with larger ABX item size and more samples of ABX test
+        # 1 is euclidean, 2 is cosine distance
+        # this one evaluates the copntrast between p, p(h) and (p)h. 
+        if len(test_name.split("-")) > 5:
+            test_name_range_start = test_name.split("-")[4]
+            test_name_range_end = test_name.split("-")[5]
+            print("aspirationRangeComp:", (float(f"0.{test_name_range_start}"), float(f"0.{test_name_range_end}")))
+        for epoch in range(0, 101): 
+            # 先循环epoch，再循环run
+            stop_list_runs = []
+            asp_list_runs = []
+            print(f"Processing {model_type} in epoch {epoch}...")
+            for run_number in learned_runs:
+
+                test_name_lookat = test_name.split("-")[1]
+                test_name_label = test_name.split("-")[2]
+                test_name_datasource = test_name.split("-")[3]
+                if len(test_name.split("-")) > 5:
+                    test_name_range_start = test_name.split("-")[4]
+                    test_name_range_end = test_name.split("-")[5]
+
+
+                this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
+                hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
+                                    file_prefix=f"all-{epoch}")
+                hidrep_handler.read()
+                hidrep = hidrep_handler.res
+                # select representation to work on
+                other_hid_outs = hidrep["other-hid-outs"]
+                if zlevel == "hidrep": 
+                    all_zq = hidrep["ze"]
+                elif zlevel == "attnout": 
+                    all_zq = hidrep["zq"]
+                elif zlevel == "ori": 
+                    if hidden_dim != 64: 
+                        raise Exception("Warning: hidden_dim is not 64, but we are using the original representation! ")
+                    all_zq = hidrep["ori"]
+                elif zlevel in other_hid_outs.keys(): 
+                    all_zq = other_hid_outs[zlevel]
+                else: 
+                    raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
+                
+                all_sepframes1 = hidrep["sep-frame1"]
+                all_sepframes2 = hidrep["sep-frame2"]
+                all_phi_type = hidrep["phi-type"]
+                include_map = None
+                include_tags = None
+                this_offset = (0.4, 0.6)
+                this_auxon = None
+                merge_one_vector = False
+                if test_name_datasource == "gender": 
+                    all_datasource = hidrep["gender"]
+                elif test_name_datasource == "speaker": 
+                    all_datasource = hidrep["sid"]
+                elif test_name_datasource == "POA": 
+                    all_datasource = hidrep["sn"]
+                elif test_name_datasource == "STT": 
+                    all_datasource = hidrep["phi-type"]
+                    include_map = {"ST": "s", "T": "#"}
+                    include_tags = ["s", "#"]
+                elif test_name_datasource == "vowel": 
+                    all_datasource = hidrep["vn"]
+                    include_map = {"AA": "AA", "IY": "IY"}
+                    include_tags = ["AA", "IY"]
+                elif test_name_datasource == "stop": 
+                    all_datasource = hidrep["sn"]
+                    merge_one_vector = True
+                    this_offset = {st_condition_name: (0.3, 0.45), t_condition_name: (0.15, 0.2)}
+                    this_auxon = "asp"
+                elif test_name_datasource == "aspiration": 
+                    # In this we will use different offsets for different conditions, so we need to specify the offsets and auxon
+                    all_datasource = hidrep["phi-type"]
+                    include_map = {st_condition_name: "-asp", t_condition_name: "+asp"}
+                    include_tags = ["-asp", "+asp"]
+                    this_offset = {st_condition_name: (0.8, 0.9), t_condition_name: (0.85, 0.9)}
+                    this_auxon = "data"
+                elif test_name_datasource == "aspirationRangeComp": 
+                    # In this we will use different offsets for different conditions, so we need to specify the offsets and auxon
+                    all_datasource = hidrep["phi-type"]
+                    include_map = {st_condition_name: "-asp", t_condition_name: "+asp"}
+                    include_tags = ["-asp", "+asp"]
+                    this_offset = (float(f"0.{test_name_range_start}"), float(f"0.{test_name_range_end}"))
+                    merge_one_vector = True
+                elif test_name_datasource == "aspirationTotal": 
+                    # In this we will use different offsets for different conditions, so we need to specify the offsets and auxon
+                    all_datasource = hidrep["phi-type"]
+                    include_map = {st_condition_name: "-asp", t_condition_name: "+asp"}
+                    include_tags = ["-asp", "+asp"]
+                    # this_offset = {st_condition_name: (, 0.9), t_condition_name: (0.85, 0.9)}
+                    this_offset = (0, 1)
+                    merge_one_vector = True
+                    # this_auxon = "data"
+                else: 
+                    raise ValueError("Datasource not included! ")
+                
+                # Select Vowels and Vowel Tags
+                hidr_p, tags_p = get_toplot(hiddens=all_zq, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_datasource,
+                                                offsets=this_offset, 
+                                                contrast_in=test_name_label, 
+                                                merge=merge_one_vector, 
+                                                hidden_dim=hidden_dim, 
+                                                lookat=test_name_lookat, 
+                                                include_map=include_map, 
+                                                aux_on=this_auxon)
+                # combine them
+                # hidr_cs, tags_cs = np.concatenate((hidr_p, hidr_pp, hidr_h), axis=0), np.concatenate((tags_p, tags_pp, tags_h), axis=0)
+                hidr_cs, tags_cs = hidr_p, tags_p
+                hidr_cs, tags_cs, nannum = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5, denan=True)
+                print(f"{model_type}@{epoch} in run {run_number}: {nannum}")
+
+                # Now we put in aspiration the contrast between pp and h
+                for i in range(20): 
+                    hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=30, tags=include_tags)
+                    abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
+                    asp_list_runs.append(abx_err01)
+
+            asp_list_epochs.append(asp_list_runs)
+
+        asp_list_epochs = np.array(asp_list_epochs)
+        asp_list_epochs = asp_list_epochs.transpose(1, 0)
+        # plot_silhouette(asp_list_epochs, stop_list_epochs, os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
+        # plot_many([asp_list_epochs], ["ABX"], 
+        #           os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
+        #           {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+        #           y_range=(0, 1.0))
+        # np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
+        np.save(os.path.join(res_save_dir, test_name, f"07-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
+        print("Done.")
     elif test_name.split("-")[0] in ["ABXSomethingAllOriwise"]: 
         # 1 is euclidean, 2 is cosine distance
         # this one evaluates the copntrast between p, p(h) and (p)h.

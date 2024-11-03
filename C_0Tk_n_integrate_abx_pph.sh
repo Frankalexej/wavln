@@ -14,10 +14,11 @@ generate_random_number() {
 ms=('recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi'
 cs=('b') # 
 # zls=('hidrep' 'attnout' 'ori' 'enc-lin1' 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 'enc-rnn3-f' 'enc-rnn3-b' 'dec-rnn3-f' 'enc-rnn4-f' 'enc-rnn4-b' 'dec-rnn4-f' 'enc-rnn5-f' 'enc-rnn5-b' 'dec-rnn5-f')
-zls=('ARC-0-2' 'ARC-2-4' 'ARC-4-6' 'ARC-6-8')     # 'POS' 'PPP' 'PPH' 'VC'
+zls=('hidrep' 'attnout' 'ori')
+# zls=('ARC-0-2' 'ARC-2-4' 'ARC-4-6' 'ARC-6-8')     # 'POS' 'PPP' 'PPH' 'VC'
 # 'hidrep' 'attnout' 'ori' 'enc-lin1' 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 'enc-rnn3-f' 'enc-rnn3-b' 'dec-rnn3-f' 'enc-rnn4-f' 'enc-rnn4-b' 'dec-rnn4-f' 'enc-rnn5-f' 'enc-rnn5-b' 'dec-rnn5-f'
 ts='1021183234'
-tn="ABXSomethingAll-stop-data-aspirationRangeComp" # FinalEpochsDimneutral ABXpositionAll-vowel-vowel-vowel
+tn="ABXSomethingAll-stop-data-aspirationRangeComp-2-4" # FinalEpochsDimneutral ABXpositionAll-vowel-vowel-vowel
 echo "Timestamp: $ts; Test: $tn"
 # portionrange=("0 2" "2 4" "4 6" "6 8" "8 99")
 
