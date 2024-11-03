@@ -298,6 +298,7 @@ def plot_many_plotly(arrs, labels, save_path, plot_label_dict={"xlabel": "Epoch"
             mode='lines',
             name=label,
             line=dict(color=colors[idx]),
+            legendgroup=label,
         ))
         # Add confidence interval shading if cloud is True
         if cloud:
@@ -309,6 +310,7 @@ def plot_many_plotly(arrs, labels, save_path, plot_label_dict={"xlabel": "Epoch"
                 line=dict(color='rgba(255,255,255,0)'),
                 showlegend=False,
                 opacity=0.2,
+                legendgroup=label,
             ))
 
     # Update layout
