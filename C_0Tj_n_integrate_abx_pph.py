@@ -1288,7 +1288,7 @@ if __name__ == "__main__":
 
                 # Now we put in aspiration the contrast between pp and h
                 for i in range(20): 
-                    hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=30, tags=include_tags)
+                    hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=20, tags=include_tags)
                     abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
                     asp_list_runs.append(abx_err01)
 
