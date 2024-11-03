@@ -1164,7 +1164,7 @@ if __name__ == "__main__":
         plot_many_plotly(list(layered_res.values()), list(layered_res.keys()), 
                   os.path.join(res_save_dir, test_name, f"08-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.html"), 
                   {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
-                  y_range=(0, 0.5), cloud=False)
+                  y_range=(0, 0.5), cloud=True)
         # np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
         # np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
         # with open(os.path.join(res_save_dir, test_name, f"06-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.pkl"), "wb") as f: 
