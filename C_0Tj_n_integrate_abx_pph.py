@@ -1496,6 +1496,19 @@ if __name__ == "__main__":
             look_for_layer_path = "ABXSomething-vowel-vowel-vowel"
             resnum = "07"
             resname = "ari"
+        elif zlevel == "POS": 
+            look_for_layer_path = "ABXposition-vowel-vowel-vowel"
+            resnum = "05"
+            resname = "asp"
+        elif zlevel == "STOPPOA": 
+            look_for_layer_path = "ABXSomething-stop-data-stop"
+            resnum = "07"
+            resname = "ari"
+        elif zlevel.split("-")[0] == "PARC": 
+            _, a, b = zlevel.split("-")
+            look_for_layer_path = f"ABXSomethingPro-stop-data-aspirationRangeComp-{a}-{b}"
+            resnum = "07"
+            resname = "ari"
         elif zlevel == "PPP": 
             look_for_layer_path = "abx-pph"
             resnum = "04"
@@ -1506,6 +1519,14 @@ if __name__ == "__main__":
             resname = "asp"
         elif zlevel == "STT": 
             look_for_layer_path = "ABXSomething-pre-pre-STT"
+            resnum = "07"
+            resname = "ari"
+        elif zlevel == "GENDER": 
+            look_for_layer_path = "ABXSomething-vowel-vowel-gender"
+            resnum = "07"
+            resname = "ari"
+        elif zlevel == "ASPALLSTOP": 
+            look_for_layer_path = "ABXSomething-stop-data-aspirationTotal"
             resnum = "07"
             resname = "ari"
         
