@@ -1509,6 +1509,11 @@ if __name__ == "__main__":
             look_for_layer_path = f"ABXSomethingPro-stop-data-aspirationRangeComp-{a}-{b}"
             resnum = "07"
             resname = "ari"
+        elif zlevel.split("-")[0] == "ARC": 
+            _, a, b = zlevel.split("-")
+            look_for_layer_path = f"ABXSomething-stop-data-aspirationRangeComp-{a}-{b}"
+            resnum = "07"
+            resname = "ari"
         elif zlevel == "PPP": 
             look_for_layer_path = "abx-pph"
             resnum = "04"
@@ -1540,6 +1545,8 @@ if __name__ == "__main__":
         else: 
             raise ValueError("No ori path found.")
         
+        ori_val = ori_res[:, 95:100].reshape(-1)
+        
         for layer in ["hidrep", "attnout", "dec-lin1", "enc-lin1", 
                     "dec-rnn1-f", "enc-rnn1-f", "enc-rnn1-b",
                     "dec-rnn2-f", "enc-rnn2-f", "enc-rnn2-b", 
@@ -1558,17 +1565,17 @@ if __name__ == "__main__":
                 else: 
                     print(f"Warning: {layer_path} not found. ")
                     layer_res = np.zeros_like(ori_res)
-                layer_res_with_dims.append(layer_res[:, 95:100].reshape(-1))
+                layer_res_with_dims.append(layer_res[:, 95:100].reshape(-1)-ori_val)
                 # [dim, runs]
             layered_res[layer] = np.array(layer_res_with_dims).transpose(1, 0)
             # layered_res[layer] = layer_res[:, 90:100].reshape(-1)
 
-        layered_res["ori"] = np.repeat(ori_res[:, 95:100].reshape(-1)[:, np.newaxis], len(dimensions), axis=1)
+        # layered_res["ori"] = np.repeat(ori_res[:, 95:100].reshape(-1)[:, np.newaxis], len(dimensions), axis=1)
 
         plot_many_plotly_errbar(list(layered_res.values()), list(layered_res.keys()), 
                   os.path.join(res_save_dir, test_name, f"08-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.html"), 
                   {"xlabel": "Dimension", "ylabel": "ABX Error Rate (Epochs 95-100)", "title": f"Final Epochs ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
-                  x_list=[4, 8, 16, 32, 48, 64], y_range=(0, 0.5), cloud=True)
+                  x_list=[4, 8, 16, 32, 48, 64], y_range=(-0.5, 0.5), cloud=True)
         # np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
         # np.save(os.path.join(res_save_dir, test_name, f"05-save-asp-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
         # with open(os.path.join(res_save_dir, test_name, f"06-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.pkl"), "wb") as f: 
