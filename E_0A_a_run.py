@@ -19,7 +19,6 @@ import pandas as pd
 import argparse
 # import summary
 from model_model import AEPPV9
-from model_dataset import DS_Tools
 from model_dataset import SaShiDatasetManualNorm as TestDataset
 from model_dataset import NormalizerMVNManual, TokenMap
 from model_dataset import MelSpecTransformDBNoNorm as TheTransform
@@ -29,21 +28,27 @@ from misc_recorder import *
 from model_loss import *
 from model_padding import generate_mask_from_lengths_mat
 
-BATCH_SIZE = 512
-INPUT_DIM = 64
-OUTPUT_DIM = 64 
-INTER_DIM_0 = 32
-INTER_DIM_1 = 16
-INTER_DIM_2 = 8
-ENC_SIZE_LIST = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
-DEC_SIZE_LIST = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, INTER_DIM_2]
-DROPOUT = 0.5
-NUM_LAYERS = 5
-EMBEDDING_DIM = 128
-REC_SAMPLE_RATE = 16000
-N_FFT = 400
-N_MELS = 64
-LOADER_WORKER = 32
+transform_configs = {
+    "sample_rate": 16000,
+    "n_fft": 512,
+    "hop_length": 32,
+    "n_mels": 128,  
+}
+
+model_configs = {
+    "input_dim": 128,   # this must equal to n_mels
+    "output_dim": 128, 
+    "inter_dim_0": 512,
+    "dropout": 0.5, 
+    "num_layers": 5,
+}
+
+train_configs = {
+    "batch_size": 32,
+    "num_epochs": 100,
+    "num_workers": 32,
+    "learning_rate": 5e-4,
+}
 
 
 def random_sample_by_speaker(larger, smaller, valid_proportion=0.2): 
@@ -105,8 +110,9 @@ def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="bo
 
     integrated = integrated.sample(frac=1).reset_index(drop=True)
 
-    mytrans = TheTransform(sample_rate=REC_SAMPLE_RATE, 
-                        n_fft=N_FFT, n_mels=N_MELS)
+    mytrans = TheTransform(sample_rate=transform_configs["sample_rate"], 
+                        n_fft=transform_configs["n_fft"], n_mels=transform_configs["n_mels"],
+                        hop_length=transform_configs["hop_length"])
     mynorm = NormalizerMVNManual()
     
     # Load TokenMap to map the phoneme to the index
@@ -129,7 +135,7 @@ def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="bo
                         mv_config=mv_config)
 
     use_shuffle = True if load == "train" else False
-    loader = DataLoader(ds, batch_size=batch_size, shuffle=use_shuffle, num_workers=LOADER_WORKER, collate_fn=dataset.collate_fn)
+    loader = DataLoader(ds, batch_size=batch_size, shuffle=use_shuffle, num_workers=train_configs["num_workers"], collate_fn=dataset.collate_fn)
     return loader
 
 
@@ -211,9 +217,6 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
 
     # Recording Directory
     phone_rec_dir = train_cut_phone_
-    word_rec_dir = train_cut_word_
-    train_guide_path = os.path.join(src_, "guide_train.csv")
-    valid_guide_path = os.path.join(src_, "guide_validation.csv")
 
     # Load TokenMap to map the phoneme to the index
     with open(os.path.join(src_, "no-stress-seg.dict"), "rb") as file:
@@ -225,11 +228,11 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
     # Now you can use the loaded object
     mymap = TokenMap(mylist)
     class_dim = mymap.token_num()
-    ctc_size_list = {'hid': INTER_DIM_2, 'class': class_dim}
+    ctc_size_list = {'hid': model_configs["inter_dim_0"], 'class': class_dim}
 
 
     # Load MV_config
-    with open(os.path.join(src_, "mv_config.pkl"), "rb") as file: 
+    with open(os.path.join(src_, "mv_config_sashi.pkl"), "rb") as file: 
         mv_config = pickle.load(file)
 
     # Initialize Model
@@ -244,12 +247,18 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
         # masked_loss = MaskedCosineLoss()    # NOTE: COSINE LOSS! 
         ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
         model_loss = PseudoAlphaCombineLoss_Recon(masked_loss, ctc_loss, alpha=0.2)
-        enc_list = [INPUT_DIM, INTER_DIM_0, INTER_DIM_1, hiddim]
-        dec_list = [OUTPUT_DIM, INTER_DIM_0, INTER_DIM_1, hiddim]
+        enc_list = [model_configs["input_dim"], 
+                    model_configs["inter_dim_0"], 
+                    model_configs["inter_dim_0"], 
+                    hiddim]
+        dec_list = [model_configs["output_dim"], 
+                    model_configs["inter_dim_0"], 
+                    model_configs["inter_dim_0"], 
+                    hiddim]
         model = AEPPV9(enc_size_list=enc_list, 
                    dec_size_list=dec_list, 
                    ctc_decoder_size_list=ctc_size_list,
-                   num_layers=NUM_LAYERS, dropout=DROPOUT)
+                   num_layers=model_configs["num_layers"], dropout=model_configs["dropout"])
     else: 
         raise Exception("Model type not supported! ")
     
@@ -266,7 +275,7 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
 
     model.to(device)
     # initialize_model(model)
-    optimizer = optim.Adam(model.parameters(), lr=5e-4)
+    optimizer = optim.Adam(model.parameters(), lr=train_configs["learning_rate"])
     model_str = str(model)
     model_txt_path = os.path.join(model_save_dir, "model.txt")
     with open(model_txt_path, "w") as f:
@@ -276,7 +285,7 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
     # save pre-train model
     last_model_name = "{}.pt".format(0)
     torch.save(model.state_dict(), os.path.join(model_save_dir, last_model_name))
-    num_epochs = 100
+    num_epochs = train_configs["num_epochs"]
 
     for epoch in range(1, num_epochs + 1):
         text_hist.print("Epoch {}".format(epoch))
@@ -286,7 +295,7 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
         train_cumulative_l_embedding = 0.
         train_cumulative_l_commitment = 0.
         train_num = len(train_loader.dataset)    # train_loader
-        for idx, ((x, y_preds), (x_lens, y_preds_lens), pt, sn) in enumerate(train_loader):
+        for idx, ((x, y_preds), (x_lens, y_preds_lens)) in enumerate(train_loader):
             current_batch_size = x.shape[0]
             # y_lens should be the same as x_lens
             optimizer.zero_grad()
@@ -323,8 +332,6 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
         train_embedding_losses.append(train_cumulative_l_embedding / train_num)
         train_commitment_losses.append(train_cumulative_l_commitment / train_num)
 
-        # text_hist.print(f"""※※※Training loss {train_loss / train_num: .3f} \t recon {train_cumulative_l_reconstruct / train_num: .3f} \t embed {train_cumulative_l_embedding / train_num: .3f} \t commit {train_cumulative_l_commitment / train_num: .3f}※※※""")
-
         last_model_name = "{}.pt".format(epoch)
         torch.save(model.state_dict(), os.path.join(model_save_dir, last_model_name))
 
@@ -335,7 +342,7 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
         valid_cumulative_l_embedding = 0.
         valid_cumulative_l_commitment = 0.
         valid_num = len(valid_loader.dataset)
-        for idx, ((x, y_preds), (x_lens, y_preds_lens), pt, sn) in enumerate(valid_loader):
+        for idx, ((x, y_preds), (x_lens, y_preds_lens)) in enumerate(valid_loader):
             current_batch_size = x.shape[0]
             x_mask = generate_mask_from_lengths_mat(x_lens, device=device)
 
@@ -359,7 +366,6 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
             valid_cumulative_l_embedding += l_embedding.item() * current_batch_size
             valid_cumulative_l_commitment += l_commitment.item() * current_batch_size
 
-        # text_hist.print(f"""※※※Valid loss {valid_loss / valid_num: .3f} \t recon {valid_cumulative_l_reconstruct / valid_num: .3f} \t embed {valid_cumulative_l_embedding / valid_num: .3f} \t commit {valid_cumulative_l_commitment / valid_num: .3f}※※※""")
         valid_losses.append(valid_loss / valid_num)
         valid_recon_losses.append(valid_cumulative_l_reconstruct / valid_num)
         valid_embedding_losses.append(valid_cumulative_l_embedding / valid_num)
@@ -408,7 +414,7 @@ if __name__ == "__main__":
 
     ## Hyper-preparations
     ts = args.timestamp
-    train_name = "C_0Tj"
+    train_name = "E_0A"
     model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}")
     mk(model_save_dir) 
 
@@ -417,22 +423,17 @@ if __name__ == "__main__":
         print(f"{train_name}-{ts}-DataPrepare")
         guide_path = os.path.join(model_save_dir, "guides")
         mk(guide_path)
-        generate_separation(os.path.join(src_, "phi-T-guide.csv"), 
-                            os.path.join(src_, "phi-ST-guide.csv"), 
+        generate_separation(os.path.join(src_, "phi-sashi-S-guide.csv"), 
+                            os.path.join(src_, "phi-sashi-Sh-guide.csv"), 
                             guide_path, 
-                            nameset={"larger": "T", "smaller": "ST"})
+                            nameset={"larger": "S", "smaller": "Sh"})
         
         with open(os.path.join(model_save_dir, "README.note"), "w") as f: 
             f.write("----------------RUN NOTES----------------\n")
-            f.write("20240910: sPV/PV Running\n")
-            f.write("20240904: Running with Cosine loss, also with new noise method, amplitude=0.006\n")
-            f.write("20240909: Running without orthogonal init. \n")
-            f.write("20240910-2: Running with AEPPV9, lr=5e-4 and amplitude_scale lower (amplitude=0.004, noise_amplitude=0.0006, f0=50)\n")
-            f.write("20240913: sPV/PV, without orthogonal init, with MSE loss, 5-layers\n")
-            f.write("20241021: used manual normalization for consistent normalization across the whole dataset. \n")
+            f.write("E_0A (20241113): We use SASHI dataset; and we shall use higher input dimension and higher time resolution. \n")
 
     else: 
         print(f"{train_name}-{ts}")
         torch.cuda.set_device(args.gpu)
         run_once(model_save_dir, model_type=args.model, condition=args.condition, 
-                 nameset={"larger": "T", "smaller": "ST"}, noise_controls={"fixlength": False, "amplitude_scale": 0.004})
+                 nameset={"larger": "S", "smaller": "Sh"}, noise_controls={"fixlength": False, "amplitude_scale": 0.004})
