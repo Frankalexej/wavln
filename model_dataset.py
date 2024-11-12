@@ -1305,6 +1305,141 @@ class TargetVowelDatasetManualNorm(Dataset):
         phoneseq_pad = pad_sequence(phoneseq, batch_first=batch_first, padding_value=0)
         return (xx_pad, phoneseq_pad), (x_lens, phoneseq_lens), phi_type, stop_name
 
+
+class SaShiDatasetManualNorm(Dataset): 
+    # Target means the phenomenon-target, that is, e.g. /th/ or /st/. 
+    # This dataset additionally returns the phone seq. 
+    # NOTE: for TV condition we add silence as # in the place of S
+    # This dataset will take in mean and variance from the outside and 
+    # conduct normalization with the data. 
+    def __init__(self, src_dir, guide_,  
+                 mapper=None, transform=None, normalizer=None, plosive_suffix="", 
+                 noise_fixlength=False, noise_amplitude_scale=0.01, mv_config=None): 
+        """
+            Parameters:
+            src_dir (str): Source directory to read sound. 
+            guide_ (str or pd.DataFrame): Guide file path or DataFrame containing the dataset information.
+            is_train (bool): Flag indicating if the dataset is for training. Default is True.
+            mapper (optional): Used to map between tag encoding and text, currently not used. Default is None.
+            transform (optional): Mel-transformation. Default is None.
+            normalizer (optional): Normalization. Default is None.
+            plosive_suffix (str): Suffix to distinguish between different types of plosives. Default is "".
+            noise_fixlength (bool): Flag to determine if noise should have a fixed length. Default is False.
+            noise_amplitude_scale (float): Amplitude scale for noise generation. Default is 0.01.
+            mv_config (dict, optional): Dictionary containing mean and variance configuration. Default is None.
+            hop_length (int): Hop length for calculating between frame and time. Default is 400.
+        """
+        # Read the guide file
+        if isinstance(guide_, str):
+            guide_file = pd.read_csv(guide_)
+        elif isinstance(guide_, pd.DataFrame):
+            guide_file = guide_
+        else:
+            raise Exception("Guide neither to read or to be used directly")
+        
+        # ""即不區分ST和T，"H"則是區分 -> ?
+        self.plosive_suffix = plosive_suffix
+
+        # Load in the data cols 
+        pre_path_col = guide_file["pre_path"]
+        stop_path_col = guide_file["stop_path"]
+        vowel_path_col = guide_file["vowel_path"]
+        phi_type_col = guide_file["phi_type"]
+        pre_name_col = guide_file["pre"]
+        stop_name_col = guide_file["stop"]
+        vowel_name_col = guide_file["vowel"]
+        
+        self.guide_file = guide_file
+        self.S_path = stop_path_col.tolist()
+        self.V1_path = pre_path_col.tolist()
+        self.V2_path = vowel_path_col.tolist()
+        self.phi_type = phi_type_col.tolist()
+        self.V1_name = pre_name_col.tolist()
+        self.S_name = stop_name_col.tolist()
+        self.V2_name = vowel_name_col.tolist()
+
+        self.src_dir = src_dir
+        self.transform = transform
+        self.normalizer = normalizer
+        self.mapper = mapper
+
+
+        if mv_config is not None: 
+            self.mean = mv_config["mean"]
+            self.std = mv_config["std"]
+            print(f"MV: {self.mean}, {self.std}")
+        else: 
+            print("No mean and variance provided, calculating from the data ...")
+            self.mean, self.std = self.___getmv()
+    
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx): 
+        mel_data, this_phone_seq = self.___loaditem(idx)
+
+        if self.normalizer: 
+            mel_data = self.normalizer(mel_data, self.mean, self.std)
+        
+        return mel_data, this_phone_seq
+    
+    def ___getmv(self): 
+        # Load the data and calculate the mean and variance
+        mel_data_list = []
+
+        for idx in range(len(self.dataset)): 
+            mel_data, _, _, _ = self.___loaditem(idx)
+            mel_data_list.append(mel_data)
+
+        mel_data = torch.cat(mel_data_list, dim=0)
+
+        return mel_data.mean(), mel_data.std()
+    
+    def ___loaditem(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        # read two and concat
+        V1_name = os.path.join(
+            self.src_dir, 
+            self.V1_path[idx]
+        )
+        S_name = os.path.join(
+            self.src_dir, 
+            self.S_path[idx]
+        )
+        V2_name = os.path.join(
+            self.src_dir, 
+            self.V2_path[idx]
+        )
+
+        V1_data, sample_rate_V1 = torchaudio.load(V1_name, normalize=True)
+        S_data, sample_rate_S = torchaudio.load(S_name, normalize=True)
+        V2_data, sample_rate_V2 = torchaudio.load(V2_name, normalize=True)
+        assert sample_rate_V1 == sample_rate_S == sample_rate_V2
+
+        data = torch.cat([V1_data, S_data, V2_data], dim=1)
+        phoneseq = torch.tensor([self.mapper.encode(segment) for segment in [self.V1_name[idx], self.S_name[idx], self.V2_name[idx]]], 
+                                dtype=torch.long)
+
+        if self.transform:
+            data = self.transform(data)
+        
+        return data, phoneseq
+
+    @staticmethod
+    def collate_fn(data):
+        # only working for one data at the moment
+        batch_first = True
+        xx, phoneseq = zip(*data)
+        x_lens = [len(x) for x in xx]
+        xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
+        phoneseq_lens = [len(x) for x in phoneseq]
+        phoneseq_pad = pad_sequence(phoneseq, batch_first=batch_first, padding_value=0)
+        return (xx_pad, phoneseq_pad), (x_lens, phoneseq_lens)
+
+
+
 class TargetVowelDatasetPhoneseqBothSIL(Dataset): 
     # Target means the phenomenon-target, that is, e.g. /th/ or /st/. 
     # This dataset additionally returns the phone seq. 
