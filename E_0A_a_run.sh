@@ -23,6 +23,7 @@ echo "Timestamp: $ts"
 # Loop from 1 to 10, incrementing by 1
 for (( i=1; i<=5; i++ )); do
     # Loop over each combination of arguments
+    echo "$i"
     python E_0A_a_run.py -ts "$ts-$i" -dp
     for m in "${ms[@]}"; do
         for c in "${cs[@]}"; do
@@ -32,7 +33,8 @@ for (( i=1; i<=5; i++ )); do
             python E_0A_a_run.py -ts "$ts-$i" -m "$m" -cd "$c" -gpu "$gpu" &
         done
     done
+    wait
 done
 
 # Wait for all background processes to finish
-wait
+# wait

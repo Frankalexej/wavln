@@ -2588,7 +2588,8 @@ class SaShiDatasetManualNorm(Dataset):
     # conduct normalization with the data. 
     def __init__(self, src_dir, guide_,  
                  mapper=None, transform=None, normalizer=None, plosive_suffix="", 
-                 noise_fixlength=False, noise_amplitude_scale=0.01, mv_config=None): 
+                 noise_fixlength=False, noise_amplitude_scale=0.01, mv_config=None, 
+                 check_sr=False): 
         """
             Parameters:
             src_dir (str): Source directory to read sound. 
@@ -2637,17 +2638,19 @@ class SaShiDatasetManualNorm(Dataset):
         self.normalizer = normalizer
         self.mapper = mapper
 
-
-        if mv_config is not None: 
-            self.mean = mv_config["mean"]
-            self.std = mv_config["std"]
-            print(f"MV: {self.mean}, {self.std}")
+        if check_sr: 
+            self.___check_sr()
         else: 
-            print("No mean and variance provided, calculating from the data ...")
-            self.mean, self.std = self.___getmv()
+            if mv_config is not None: 
+                self.mean = mv_config["mean"]
+                self.std = mv_config["std"]
+                print(f"MV: {self.mean}, {self.std}")
+            else: 
+                print("No mean and variance provided, calculating from the data ...")
+                self.mean, self.std = self.___getmv()
     
     def __len__(self):
-        return len(self.dataset)
+        return len(self.S_path)
     
     def __getitem__(self, idx): 
         mel_data, this_phone_seq = self.___loaditem(idx)
@@ -2661,13 +2664,17 @@ class SaShiDatasetManualNorm(Dataset):
         # Load the data and calculate the mean and variance
         mel_data_list = []
 
-        for idx in range(len(self.dataset)): 
-            mel_data, _, _, _ = self.___loaditem(idx)
+        for idx in range(len(self.S_path)): 
+            mel_data, _ = self.___loaditem(idx)
             mel_data_list.append(mel_data)
 
         mel_data = torch.cat(mel_data_list, dim=0)
 
         return mel_data.mean(), mel_data.std()
+    
+    def ___check_sr(self): 
+        for idx in range(len(self.S_path)): 
+            self.___loaditem_resample_different_sr(idx, sample_rate_standard=16000)
     
     def ___loaditem(self, idx):
         if torch.is_tensor(idx):
@@ -2690,7 +2697,9 @@ class SaShiDatasetManualNorm(Dataset):
         V1_data, sample_rate_V1 = torchaudio.load(V1_name, normalize=True)
         S_data, sample_rate_S = torchaudio.load(S_name, normalize=True)
         V2_data, sample_rate_V2 = torchaudio.load(V2_name, normalize=True)
-        assert sample_rate_V1 == sample_rate_S == sample_rate_V2
+        # assert sample_rate_V1 == sample_rate_S == sample_rate_V2
+        if not (sample_rate_V1 == sample_rate_S == sample_rate_V2):
+            print(f"SR Not Equal @ {idx}: {sample_rate_V1}, {sample_rate_S}, {sample_rate_V2}")
 
         data = torch.cat([V1_data, S_data, V2_data], dim=1)
         phoneseq = torch.tensor([self.mapper.encode(segment) for segment in [self.V1_name[idx], self.S_name[idx], self.V2_name[idx]]], 
@@ -2700,6 +2709,38 @@ class SaShiDatasetManualNorm(Dataset):
             data = self.transform(data)
         
         return data, phoneseq
+    
+    def ___loaditem_resample_different_sr(self, idx, sample_rate_standard=16000):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        # read two and concat
+        V1_name = os.path.join(
+            self.src_dir, 
+            self.V1_path[idx]
+        )
+        S_name = os.path.join(
+            self.src_dir, 
+            self.S_path[idx]
+        )
+        V2_name = os.path.join(
+            self.src_dir, 
+            self.V2_path[idx]
+        )
+
+        V1_data, sample_rate_V1 = torchaudio.load(V1_name, normalize=True)
+        S_data, sample_rate_S = torchaudio.load(S_name, normalize=True)
+        V2_data, sample_rate_V2 = torchaudio.load(V2_name, normalize=True)
+
+        for seg_name, seg_data, seg_sr in zip([V1_name, S_name, V2_name], [V1_data, S_data, V2_data], [sample_rate_V1, sample_rate_S, sample_rate_V2]):
+            if seg_sr != sample_rate_standard: 
+                print(f"Resampling {seg_name} from {seg_sr} to {sample_rate_standard}")
+                seg_data = torchaudio.transforms.Resample(orig_freq=seg_sr, new_freq=sample_rate_standard)(seg_data)
+
+                # move old to backup bin
+                os.rename(seg_name, seg_name + ".bak")
+                # save new
+                torchaudio.save(seg_name, seg_data, sample_rate_standard)
 
     @staticmethod
     def collate_fn(data):

@@ -31,20 +31,20 @@ from model_padding import generate_mask_from_lengths_mat
 transform_configs = {
     "sample_rate": 16000,
     "n_fft": 512,
-    "hop_length": 32,
-    "n_mels": 128,  
+    "hop_length": 128,
+    "n_mels": 96,  
 }
 
 model_configs = {
-    "input_dim": 128,   # this must equal to n_mels
-    "output_dim": 128, 
+    "input_dim": 96,   # this must equal to n_mels
+    "output_dim": 96, 
     "inter_dim_0": 512,
     "dropout": 0.5, 
     "num_layers": 5,
 }
 
 train_configs = {
-    "batch_size": 32,
+    "batch_size": 128,
     "num_epochs": 100,
     "num_workers": 32,
     "learning_rate": 5e-4,
@@ -232,7 +232,7 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
 
 
     # Load MV_config
-    with open(os.path.join(src_, "mv_config_sashi.pkl"), "rb") as file: 
+    with open(os.path.join(src_, "mv_config_sashi_512_128_96.pkl"), "rb") as file: 
         mv_config = pickle.load(file)
 
     # Initialize Model
@@ -242,7 +242,7 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
                         "recon48-phi", "recon64-phi", "recon96-phi", "recon128-phi"]: 
         hiddim = int(model_type.split("-")[0].replace("recon", "")) # get hidden dimension from model_type
         # NOTE: such trainings are all on phenomenon dataset and test on that as well, therefore use smaller batch size
-        batch_size = 32
+        batch_size = train_configs["batch_size"]
         masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
         # masked_loss = MaskedCosineLoss()    # NOTE: COSINE LOSS! 
         ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
