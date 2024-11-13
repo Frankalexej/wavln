@@ -11,7 +11,7 @@ import torchaudio
 import os
 from torch.nn.utils.rnn import pad_sequence
 from torch import nn
-from misc_my_utils import time_to_frame
+from misc_my_utils import time_to_frame, time_to_frame_np
 import torch.nn.functional as F
 import pickle
 from misc_tools import AudioCut, OnlineMeanVariance
@@ -2758,9 +2758,6 @@ class SaShiDatasetManualNorm(Dataset):
 class SaShiAllDataManualNorm(Dataset): 
     # this mixes T and ST. 
     # Target means the phenomenon-target, that is, e.g. /th/ or /st/. 
-    # NOTE: for TV condition we add silence as # in the place of S
-    # NOTE: this version does not generate random silence here, because for evaluation 
-    # NOTE: silence can be generated outside. 
     # This dataset will take in mean and variance from the outside and 
     # conduct normalization with the data. 
     def __init__(self, src_dir, guide_, mapper=None, transform=None, normalizer=None, plosive_suffix="", 
@@ -2775,8 +2772,15 @@ class SaShiAllDataManualNorm(Dataset):
         
         self.plosive_suffix = plosive_suffix
         
-        guide_file["first_sep_frame"] = guide_file.apply(lambda x: time_to_frame(x['stop_startTime'] - x['pre_startTime'], hop_length=hop_length), axis=1)
-        guide_file["second_sep_frame"] = guide_file.apply(lambda x: time_to_frame(x['vowel_startTime'] - x['pre_startTime'], hop_length=hop_length), axis=1)
+        # guide_file["first_sep_frame"] = guide_file.apply(lambda x: time_to_frame(x['stop_startTime'] - x['pre_startTime'], hop_length=hop_length), axis=1)
+        # guide_file["second_sep_frame"] = guide_file.apply(lambda x: time_to_frame(x['vowel_startTime'] - x['pre_startTime'], hop_length=hop_length), axis=1)
+
+        # faster way to calculate the frame
+        guide_file["first_sep_time"] = guide_file["stop_startTime"] - guide_file["pre_startTime"]
+        guide_file["second_sep_time"] = guide_file["vowel_startTime"] - guide_file["pre_startTime"]
+
+        guide_file['first_sep_frame'] = time_to_frame_np(guide_file['first_sep_time'], hop_length=hop_length)
+        guide_file['second_sep_frame'] = time_to_frame_np(guide_file['second_sep_time'], hop_length=hop_length)
 
         # load speaker metadata
         if speaker_meta_path is None: 
@@ -2822,7 +2826,7 @@ class SaShiAllDataManualNorm(Dataset):
             raise Exception("No mean and variance provided, please calculate it first ...")
     
     def __len__(self):
-        return len(self.dataset)
+        return len(self.S_path)
     
     def __getitem__(self, idx):
         mel_data, this_phone_seq = self.___loaditem(idx)
@@ -2842,15 +2846,15 @@ class SaShiAllDataManualNorm(Dataset):
         # read two and concat
         V1_name = os.path.join(
             self.src_dir, 
-            self.V1_name[idx]
+            self.V1_path[idx]
         )
         S_name = os.path.join(
             self.src_dir, 
-            self.S_name[idx]
+            self.S_path[idx]
         )
         V2_name = os.path.join(
             self.src_dir, 
-            self.V2_name[idx]
+            self.V2_path[idx]
         )
 
         V1_data, sample_rate_V1 = torchaudio.load(V1_name, normalize=True)

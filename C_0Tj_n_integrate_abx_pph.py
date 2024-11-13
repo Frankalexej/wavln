@@ -1530,6 +1530,10 @@ if __name__ == "__main__":
             look_for_layer_path = "ABXSomething-vowel-vowel-gender"
             resnum = "07"
             resname = "ari"
+        elif zlevel == "SPEAKER": 
+            look_for_layer_path = "ABXSomething-vowel-vowel-speaker"
+            resnum = "07"
+            resname = "ari"
         elif zlevel == "ASPALLSTOP": 
             look_for_layer_path = "ABXSomething-stop-data-aspirationTotal"
             resnum = "07"

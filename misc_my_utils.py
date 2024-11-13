@@ -6,6 +6,7 @@ import os
 import pytz
 from datetime import datetime
 import math
+import numpy as np
 
 def arr2str(arr):
     # Use the join() method of Python's str class to concatenate the strings
@@ -70,6 +71,10 @@ def remove_newline(input_string):
 def time_to_frame(time_point_seconds, sr=16000, hop_length=200): 
     # this is because for frame indices we start from 0. 
     return math.floor( time_point_seconds * sr / hop_length )
+
+def time_to_frame_np(time_points_seconds, sr=16000, hop_length=200): 
+    # this is because for frame indices we start from 0. 
+    return np.floor(time_points_seconds * sr / hop_length).astype(int)
 
 def time_to_rel_frame(row): 
     start_time = row["start_time"]
