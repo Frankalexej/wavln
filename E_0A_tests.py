@@ -370,6 +370,27 @@ def plot_many_plotly_errbar(arrs, labels, save_path, plot_label_dict={"xlabel": 
 
 
 
+def get_representation(data_collection, representation_select, hidden_dim_required): 
+    hidden_dim_use = hidden_dim_required
+    other_hid_outs = data_collection["other-hid-outs"]
+    if representation_select == "hidrep": 
+        all_representations = data_collection["ze"]
+    elif representation_select == "attnout": 
+        all_representations = data_collection["zq"]
+    elif representation_select == "ori": 
+        if hidden_dim_required != model_configs["ori_select_dim"]: 
+            raise Exception("Warning: hidden_dim is not 64, but we are using the original representation! ")
+        all_representations = data_collection["ori"]
+        hidden_dim_use = model_configs["hiddim"]
+    elif representation_select in other_hid_outs.keys(): 
+        all_representations = other_hid_outs[representation_select]
+    else: 
+        raise ValueError("zlevel must be one of 'hidrep' or 'attnout'")
+    return all_representations, hidden_dim_use
+
+
+#########################################################################################################
+
 
 
 
@@ -631,10 +652,16 @@ if __name__ == "__main__":
                     all_datasource = hidrep["phi-type"]
                     include_map = {"ST": "s", "T": "#"}
                     include_tags = ["s", "#"]
-                elif test_name_datasource == "vowel": 
-                    all_datasource = hidrep["vn"]
+                elif test_name_datasource == "AAIY": 
+                    all_datasource = all_v2_names
+                    this_offset = (0.1, 0.3)
                     include_map = {"AA": "AA", "IY": "IY"}
                     include_tags = ["AA", "IY"]
+                elif test_name_datasource == "AAUW": 
+                    all_datasource = all_v2_names
+                    this_offset = (0.1, 0.3)
+                    include_map = {"AA": "AA", "UW": "UW"}
+                    include_tags = ["AA", "UW"]
                 elif test_name_datasource == "stop": 
                     all_datasource = hidrep["sn"]
                     merge_one_vector = True
@@ -656,7 +683,7 @@ if __name__ == "__main__":
                                                 offsets=this_offset, 
                                                 contrast_in=test_name_label, 
                                                 merge=merge_one_vector, 
-                                                hidden_dim=hidden_dim, 
+                                                hidden_dim=hidden_dim_use, 
                                                 lookat=test_name_lookat, 
                                                 include_map=include_map, 
                                                 aux_on=this_auxon)
@@ -733,6 +760,104 @@ if __name__ == "__main__":
         # with open(os.path.join(res_save_dir, test_name, f"06-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.pkl"), "wb") as f: 
         #     pickle.dump(layered_res, f)
         print("Done.")
+
+    elif test_name.split("-")[0] in ["ABXSomethingCrossPhone"]: 
+        # This one is for the cross-phone ABX task.
+        # For example, if I want to test the contrast between first and third position, I will use this one. 
+        hidden_dim_use = hidden_dim
+        for epoch in range(0, 101): 
+            # 先循环epoch，再循环run
+            stop_list_runs = []
+            asp_list_runs = []
+            print(f"Processing {model_type} in epoch {epoch}...")
+            for run_number in learned_runs:
+
+                test_name_lookats = test_name.split("-")[1].split("_")
+                test_name_label = test_name.split("-")[2]
+                test_name_datasource = test_name.split("-")[3]
+
+                this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
+                hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
+                                    file_prefix=f"all-{epoch}")
+                hidrep_handler.read()
+                hidrep = hidrep_handler.res
+
+                # select representation to work on
+                all_representations, hidden_dim_use = get_representation(data_collection=hidrep, 
+                                                         representation_select=zlevel, 
+                                                         hidden_dim_required=hidden_dim)
+                
+                all_sepframes1 = hidrep["sep-frame1"]
+                all_sepframes2 = hidrep["sep-frame2"]
+                all_phi_type = hidrep["phi-type"]
+                all_v1_names = hidrep["v1-name"]
+                all_s_names = hidrep["sn"]
+                all_v2_names = hidrep["vn"]
+
+
+                include_map = None
+                include_tags = None
+                this_offset = (0.4, 0.6)
+                this_auxon = None
+                merge_one_vector = False
+
+                if test_name_datasource in ["AA", "IY", "UW"]: 
+                    all_datasource = all_v2_names
+                    this_offsets = [(0.2, 0.6), (0.2, 0.6)]
+                    include_maps = [{test_name_datasource:f"{test_name_datasource}_{lookat}"} for lookat in test_name_lookats]
+                else: 
+                    raise ValueError("Datasource not included! ")
+                
+                # Select Vowels and Vowel Tags
+                hidr_1, tags_1 = get_toplot(hiddens=all_representations, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_datasource,
+                                                offsets=this_offset, 
+                                                contrast_in=test_name_label, 
+                                                merge=merge_one_vector, 
+                                                hidden_dim=hidden_dim_use, 
+                                                lookat=test_name_lookats[0], 
+                                                include_map=include_maps[0], 
+                                                aux_on=this_auxon)
+                hidr_2, tags_2 = get_toplot(hiddens=all_representations, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_datasource,
+                                                offsets=this_offset, 
+                                                contrast_in=test_name_label, 
+                                                merge=merge_one_vector, 
+                                                hidden_dim=hidden_dim_use, 
+                                                lookat=test_name_lookats[1], 
+                                                include_map=include_maps[1], 
+                                                aux_on=this_auxon)
+                # combine them
+                hidr_cs, tags_cs = np.concatenate((hidr_1, hidr_2), axis=0), np.concatenate((tags_1, tags_2), axis=0)
+                # hidr_cs, tags_cs = hidr_p, tags_p
+                hidr_cs, tags_cs, nannum = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0.5, denan=True)
+                print(f"{model_type}@{epoch} in run {run_number}: {nannum}")
+
+                # Now we put in aspiration the contrast between pp and h
+                for i in range(6): 
+                    hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=15, tags=include_tags)
+                    abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
+                    asp_list_runs.append(abx_err01)
+
+            asp_list_epochs.append(asp_list_runs)
+
+        asp_list_epochs = np.array(asp_list_epochs)
+        asp_list_epochs = asp_list_epochs.transpose(1, 0)
+        # plot_silhouette(asp_list_epochs, stop_list_epochs, os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
+        plot_many([asp_list_epochs], ["ABX"], 
+                  os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
+                  {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+                  y_range=(0, 1.0))
+        # np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
+        np.save(os.path.join(res_save_dir, test_name, f"07-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
+        print("Done.")
+
     elif test_name.split("-")[0] in ["ABXSomethingPro"]: 
         # This is to run with larger ABX item size and more samples of ABX test
         # 1 is euclidean, 2 is cosine distance
