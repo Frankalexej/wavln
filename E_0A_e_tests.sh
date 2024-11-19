@@ -33,7 +33,7 @@ for m in "${ms[@]}"; do
             # Randomly select a GPU between 0 and 8
             gpu=$((RANDOM % 9))
             # Run the Python script with the current combination of arguments in the background
-            python E_0A_tests.py -ts "$ts" -m "$m" -cd "$c" -gpu "$gpu" -zl "$zl" -tn "$tn"&
+            python E_0A_e_tests.py -ts "$ts" -m "$m" -cd "$c" -gpu "$gpu" -zl "$zl" -tn "$tn"&
         done
     done
 done
