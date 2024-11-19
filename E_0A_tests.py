@@ -669,7 +669,10 @@ if __name__ == "__main__":
                     this_auxon = "asp"
                 elif test_name_datasource == "SSH":
                     # test whether the vowels can distinguish the S/SH contrast. 
-                    this_offset = (0.1, 0.3)    # we only want to check the first part of the vowel (if it were a diphthong)
+                    if test_name_lookat == "second":
+                        this_offset = (0.4, 0.6)
+                    elif test_name_lookat == "third": 
+                        this_offset = (0.1, 0.3)    # we only want to check the first part of the vowel (if it were a diphthong)
                     all_datasource = all_s_names
                 else: 
                     raise ValueError("Datasource not included! ")
@@ -712,7 +715,7 @@ if __name__ == "__main__":
         np.save(os.path.join(res_save_dir, test_name, f"07-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
         print("Done.")
 
-    elif test_name.split("-")[0] in ["ABXSomethingAll"]: 
+    elif test_name.split("-")[0] in ["ABXSomethingAll", "ABXSomethingCrossPhoneAll"]: 
         # 1 is euclidean, 2 is cosine distance
         # this one evaluates the copntrast between p, p(h) and (p)h.
         # 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 
