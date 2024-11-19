@@ -10,6 +10,11 @@ from model_dataset import MelSpecTransformDBNoNorm as TheTransform
 from model_dataset import NormalizerMVNManual, TokenMap
 from tqdm import tqdm
 
+"""
+20241120: 
+Today I will try to run the evaluation on the cross dataset. 
+"""
+
 transform_configs = {
     "sample_rate": 16000,
     "n_fft": 512,
