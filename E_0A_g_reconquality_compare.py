@@ -11,6 +11,11 @@ from C_0X_defs import *
 from C_0Y_evaldefs import *
 
 
+model_configs = {
+    "hiddim": 96, 
+    "ori_select_dim": 64,   # this is for choosing the dimension to calculate ori, but because ori the same across all dimensions, we just use 64
+}
+
 def plot_spectrogram(specgram, title=None, ylabel="freq_bin", ax=None):
     if ax is None:
         _, ax = plt.subplots(1, 1)
@@ -326,7 +331,7 @@ if __name__ == "__main__":
                                                     offsets=(0, 1), 
                                                     contrast_in=test_name_label, 
                                                     merge=merge_one_vector, 
-                                                    hidden_dim=64, 
+                                                    hidden_dim=model_configs["hiddim"], 
                                                     lookat=test_name_lookat)
                     
                     hidr_recon, tags_recon = get_toplot(hiddens=all_recon, 
@@ -337,7 +342,7 @@ if __name__ == "__main__":
                                                     offsets=(0, 1), 
                                                     contrast_in=test_name_label, 
                                                     merge=merge_one_vector, 
-                                                    hidden_dim=64, 
+                                                    hidden_dim=model_configs["hiddim"], 
                                                     lookat=test_name_lookat)
                     # combine them
                     # hidr_cs, tags_cs = np.concatenate((hidr_p, hidr_pp, hidr_h), axis=0), np.concatenate((tags_p, tags_pp, tags_h), axis=0)
