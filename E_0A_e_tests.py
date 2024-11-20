@@ -497,7 +497,7 @@ if __name__ == "__main__":
 
                 include_map = None
                 include_tags = None
-                this_offset = (0.4, 0.6)
+                this_offset = (0, 0.3)
                 this_auxon = None
                 merge_one_vector = False
                 if test_name_datasource == "gender": 
