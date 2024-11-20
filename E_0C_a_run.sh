@@ -25,7 +25,7 @@ echo "Timestamp: $ts"
 for (( i=1; i<=5; i++ )); do
     # Loop over each combination of arguments
     echo "$i"
-    python E_0B_a_run.py -ts "$ts-$i" -dp
+    python E_0C_a_run.py -ts "$ts-$i" -dp
     # for m in "${ms[@]}"; do
     #     for c in "${cs[@]}"; do
     #         # Randomly select a GPU between 0 and 8

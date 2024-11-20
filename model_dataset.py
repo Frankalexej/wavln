@@ -3317,6 +3317,15 @@ class NormalizerMVNManual(nn.Module):
         eps = 1e-9
         norm_spec = (mel_spec - mean) / (std + eps)
         return norm_spec
+    
+class DeNormalizerMVNManual(nn.Module):
+    def __init__(self): 
+        super().__init__()
+    
+    def forward(self, mel_spec, mean, std):
+        eps = 1e-9
+        mel_spec = mel_spec * std + mean
+        return mel_spec
 
 
 class Normalizer(nn.Module):

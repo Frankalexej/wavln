@@ -35,7 +35,7 @@ train_configs = {
     "num_epochs": 100,
     "num_workers": 32,
     "learning_rate": 5e-4,
-    "inference_sample_number_ratio": 0.1,
+    "inference_sample_number_ratio": 0.03,
 }
 
 # not using that in B, but we overwrite it here
@@ -329,7 +329,7 @@ if __name__ == "__main__":
     rn = int(rn)
 
     train_name = "E_0A"
-    dataset_train_name = "E_0B"
+    dataset_train_name = "E_0C"
     if not PU.path_exist(os.path.join(model_save_, f"{train_name}-{ts}-{rn}")):
         raise Exception(f"Training {train_name}-{ts}-{rn} does not exist! ")
     if not PU.path_exist(os.path.join(model_save_, f"{dataset_train_name}-{ts}-{rn}")):
@@ -337,10 +337,10 @@ if __name__ == "__main__":
     
     model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}-{rn}", args.model, args.condition)
     guide_dir = os.path.join(model_save_, f"{dataset_train_name}-{ts}-{rn}", "guides")
-    res_save_dir = os.path.join(model_save_, f"eval-cross-{train_name}-{ts}")
+    res_save_dir = os.path.join(model_save_, f"eval-crossC-{train_name}-{ts}")
     this_model_condition_dir = os.path.join(res_save_dir, args.model, args.condition, f"{rn}")
     valid_full_guide_path = os.path.join(src_, "guide_validation.csv")
     mk(this_model_condition_dir)
 
     main(train_name, ts, rn, model_type, model_save_dir, this_model_condition_dir, guide_dir, valid_full_guide_path, 
-         nameset={"larger": "F", "smaller": "Th"}, noise_controls={"fixlength": False, "amplitude_scale": 0.004})
+         nameset={"larger": "R", "smaller": "L"}, noise_controls={"fixlength": False, "amplitude_scale": 0.004})
