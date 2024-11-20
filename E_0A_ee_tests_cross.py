@@ -416,6 +416,7 @@ if __name__ == "__main__":
     parser.add_argument('--condition','-cd',type=str, default="b", help='Condition: b (balanced), u (unbalanced), nt (no-T)')
     parser.add_argument('--zlevel','-zl',type=str, default="hidrep", help='hidrep / attnout')
     parser.add_argument('--testname','-tn',type=str, default="abx-vowelstop", help='')
+    parser.add_argument('--crossmarker','-cmarker',type=str, default="", help='')
     args = parser.parse_args()
 
     # set device number
@@ -424,7 +425,8 @@ if __name__ == "__main__":
 
     ts = args.timestamp # this timestamp does not contain run number
     train_name = "E_0A"
-    res_save_dir = os.path.join(model_save_, f"eval-cross-{train_name}-{ts}")
+    cross_marker = args.crossmarker
+    res_save_dir = os.path.join(model_save_, f"eval-cross{cross_marker}-{train_name}-{ts}")
     model_type = args.model
     model_condition = args.condition
     zlevel = args.zlevel
