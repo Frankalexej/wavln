@@ -654,7 +654,7 @@ if __name__ == "__main__":
                     include_tags = ["s", "#"]
                 elif test_name_datasource == "AAIY": 
                     all_datasource = all_v2_names
-                    this_offset = (0.4, 0.6)
+                    this_offset = (0.1, 0.3)
                     include_map = {"AA": "AA", "IY": "IY"}
                     include_tags = ["AA", "IY"]
                 elif test_name_datasource == "AAUW": 
