@@ -662,6 +662,10 @@ if __name__ == "__main__":
                     this_offset = (0.4, 0.6)
                     include_map = {"AA": "AA", "UW": "UW"}
                     include_tags = ["AA", "UW"]
+                elif test_name_datasource == "AAIY_1":
+                    all_datasource = all_v1_names
+                    this_offset = (0.4, 0.6)
+                    include_map = {"AA": "AA", "IY": "IY"}
                 elif test_name_datasource == "stop": 
                     all_datasource = hidrep["sn"]
                     merge_one_vector = True
