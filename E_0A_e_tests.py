@@ -652,12 +652,12 @@ if __name__ == "__main__":
                     all_datasource = hidrep["phi-type"]
                     include_map = {"ST": "s", "T": "#"}
                     include_tags = ["s", "#"]
-                elif test_name_datasource == "AAIY": 
+                elif test_name_datasource == "AAIY_3": 
                     all_datasource = all_v2_names
-                    this_offset = (0.1, 0.3)
+                    this_offset = (0.4, 0.6)
                     include_map = {"AA": "AA", "IY": "IY"}
                     include_tags = ["AA", "IY"]
-                elif test_name_datasource == "AAUW": 
+                elif test_name_datasource == "AAUW_3": 
                     all_datasource = all_v2_names
                     this_offset = (0.4, 0.6)
                     include_map = {"AA": "AA", "UW": "UW"}
@@ -666,6 +666,10 @@ if __name__ == "__main__":
                     all_datasource = all_v1_names
                     this_offset = (0.4, 0.6)
                     include_map = {"AA": "AA", "IY": "IY"}
+                elif test_name_datasource == "AAUW_1":
+                    all_datasource = all_v1_names
+                    this_offset = (0.4, 0.6)
+                    include_map = {"AA": "AA", "UW": "UW"}
                 elif test_name_datasource == "stop": 
                     all_datasource = hidrep["sn"]
                     merge_one_vector = True
