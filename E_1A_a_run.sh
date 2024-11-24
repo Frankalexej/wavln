@@ -16,6 +16,7 @@ cs=('b')
 
 # Generate a 10-digit random number
 ts=$(date +"%m%d%H%M%S")
+ts='1124190101'
 # ts='0611193546'
 # ts='0902011400'
 echo "Timestamp: $ts"
