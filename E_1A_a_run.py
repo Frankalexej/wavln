@@ -322,7 +322,7 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
             pred_full_target = pred_full_target.long()
 
             (recon_mel_output, pred_output), (attn_w_recon, attn_w_preds), (ze, zq) = model(mel_input, mel_input_lens, mel_mask, 
-                                                                                            targets=pred_full_target, 
+                                                                                            pred_full_target, pred_full_target_lens, 
                                                                                             teacher_forcing_ratio=teacher_force_rate)
             pred_output = pred_output.permute(1, 0, 2)  # As required by the CTCLoss
 
@@ -372,7 +372,7 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
             pred_full_target = pred_full_target.long()
 
             (recon_mel_output, pred_output), (attn_w_recon, attn_w_preds), (ze, zq) = model(mel_input, mel_input_lens, mel_mask, 
-                                                                                            targets=None, # use this way to turn off teacher
+                                                                                            None, None, # turn off teacher forcing
                                                                                             teacher_forcing_ratio=teacher_force_rate)
             pred_output = pred_output.permute(1, 0, 2)  # As required by the CTCLoss
 

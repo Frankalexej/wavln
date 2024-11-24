@@ -1512,7 +1512,7 @@ class CTCAEV1(Module):
         # phoneme prediction decoder, autoregressive, just like seq2seq translation. 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    def forward(self, inputs, input_lens, in_mask, target, target_lens, teacher_forcing_ratio=0.5):
+    def forward(self, inputs, input_lens, in_mask, targets, target_lens, teacher_forcing_ratio=0.5):
         # inputs : batch_size * time_steps * in_size
         batch_size = inputs.size(0)
         dec_hid, init_in = self.prediction_decoder.inits(batch_size=batch_size, device=self.device)
@@ -1521,7 +1521,7 @@ class CTCAEV1(Module):
         # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
         zq = ze
         dec_in = ze
-        prediction_dec_out, prediction_attn_w = self.prediction_decoder(dec_in, in_mask, init_in, dec_hid, target, teacher_forcing_ratio)
+        prediction_dec_out, prediction_attn_w = self.prediction_decoder(dec_in, in_mask, init_in, dec_hid, targets, teacher_forcing_ratio)
         # pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
         ae_dec_out, ae_attn_w = prediction_dec_out, prediction_attn_w
         # return follows: dec_out, attn_w, z
