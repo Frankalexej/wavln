@@ -1,3 +1,4 @@
+from logging import logProcesses
 import torch.nn as nn
 from torch.nn import Module
 import torch
@@ -564,7 +565,127 @@ class VQDecoderV3(Module):
         rnn_layer_outs = torch.unbind(rnn_layer_outs, 0)
         other_outs = [first_lin_outs] + list(rnn_layer_outs)
         return outputs, attn_outs, attention_weights, other_outs
+
+class PredictionDecoderV1(Module): 
+    """
+    注意：decoder是自回归的，因而无需bidirectional
+    同时也输出attention_out
+    Additionally, we output all intermediate outputs. 
+    -- 20241124: 
+        --- This is an autoregressive prediction decoder, 
+        --- It takes in token from last timestep (either predicted or ground truth) to predict the next timestep. 
+    """
+    def __init__(self, size_list, num_layers=1, dropout=0.5, sos_token=1):
+        # size_list = [13, 64, 16, 3]: similar to encoder, just layer 0 different
+        super(PredictionDecoderV1, self).__init__()
+        self.embedding = nn.Embedding(size_list["vocab_size"], size_list["emb_dim"])
+        self.rnn = nn.LSTM(input_size=size_list["emb_dim"], hidden_size=size_list["hid_dim"], # here we do not distinguish encoder and decoder hidden dimension, we use the same. 
+                            num_layers=num_layers, batch_first=True, 
+                            dropout=dropout, bidirectional=False)
+        self.attention = ScaledDotProductAttention(q_in=size_list["hid_dim"], kv_in=size_list["hid_dim"], 
+                                                   qk_out=size_list["hid_dim"], v_out=size_list["hid_dim"])
+        self.fc_out = nn.Linear(size_list["hid_dim"], size_list["vocab_size"])
+
+        self.log_softmax = nn.LogSoftmax(dim=-1)
+
+        # vars
+        self.num_layers = num_layers
+        self.size_list = size_list
+        self.sos_token = sos_token
+
+    def inits(self, batch_size, device): 
+        # (Layer, B, H)
+        h0 = torch.zeros((self.num_layers, batch_size, self.size_list["hid_dim"]), dtype=torch.float, device=device, requires_grad=False)
+        c0 = torch.zeros((self.num_layers, batch_size, self.size_list["hid_dim"]), dtype=torch.float, device=device, requires_grad=False)
+        hidden = (h0, c0)
+        # (B, 1)
+        dec_in_token = torch.full((batch_size, 1), self.sos_token, dtype=torch.long, device=device, requires_grad=False)
+        return hidden, dec_in_token
+
+    def forward(self, hid_r, in_mask, init_in, hidden, targets=None, teacher_forcing_ratio=0.5):
+        # Attention decoder
+        length = hid_r.size(1) # get length
+
+        dec_in_token = init_in
+
+        outputs = []
+        attention_weights = []
+        for t in range(length):
+            # Embed the input token
+            embedded = self.embedding(dec_in_token)  # Shape: (batch_size, 1, embed_dim)
+            # Pass through LSTM
+            dec_x, hidden = self.rnn(embedded, hidden)
+            # Cross-attention over encoder outputs
+            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+            # Generate logits for the next token
+            logits = self.fc_out(dec_x)  # Shape: (batch_size, 1, vocab_size)
+            log_probs = self.log_softmax(logits)
+            outputs.append(log_probs)
+            attention_weights.append(attention_weight)
+
+            # Decide the next input token
+            if targets is not None and torch.rand(1).item() < teacher_forcing_ratio:
+                # Use ground truth
+                dec_in_token = targets[:, t].unsqueeze(1)  # Shape: (batch_size, 1)
+            else:
+                # Use model's prediction
+                dec_in_token = log_probs.argmax(dim=-1)  # Shape: (batch_size, 1)
+
+        outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        attention_weights = torch.stack(attention_weights, dim=1)
+        outputs = outputs.squeeze(2)
+        attention_weights = attention_weights.squeeze(2)
+        return outputs, attention_weights
     
+    def inference_forward(self, hid_r, in_mask, init_in, hidden, targets=None, teacher_forcing_ratio=0.5): 
+        # this is only for inference, so we don't need to worry about teacher forcing
+        # targets and teacher_forcing_ratio are not used, just for compatibility. 
+        b, length, _ = hid_r.size()
+
+        dec_in_token = init_in
+
+        outputs = []
+        attn_outs = []
+        attention_weights = []
+        embedding_outs = []
+        rnn_layer_outs = []
+        for t in range(length): 
+            # Embed the input token
+            embedded = self.embedding(dec_in_token)  # Shape: (batch_size, 1, embed_dim)
+            embedding_outs.append(embedded)
+            # Pass through LSTM
+            dec_x, hidden = self.rnn(embedded, hidden)
+            # Collect post-rnn outputs
+            rnn_layer_outs.append(hidden[0])
+            # Cross-attention over encoder outputs
+            dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
+            attn_outs.append(dec_x)
+            # Generate logits for the next token
+            logits = self.fc_out(dec_x)  # Shape: (batch_size, 1, vocab_size)
+            log_probs = self.log_softmax(logits)
+            outputs.append(log_probs)
+            attention_weights.append(attention_weight)
+            dec_in_token = logits.argmax(dim=-1)  # Shape: (batch_size, 1)
+
+
+        outputs = torch.stack(outputs, dim=1)   # stack along length dim
+        attn_outs = torch.stack(attn_outs, dim=1)
+        attention_weights = torch.stack(attention_weights, dim=1)
+        embedding_outs = torch.stack(embedding_outs, dim=1)
+        rnn_layer_outs = torch.stack(rnn_layer_outs, dim=1)
+
+        outputs = outputs.squeeze(2)
+        attn_outs = attn_outs.squeeze(2)
+        attention_weights = attention_weights.squeeze(2)
+        embedding_outs = embedding_outs.squeeze(2)
+        first_lin_outs = first_lin_outs.squeeze(2)
+
+        rnn_layer_outs = rnn_layer_outs.permute(0, 2, 1, 3)
+        rnn_layer_outs = torch.unbind(rnn_layer_outs, 0)
+        other_outs = [embedding_outs] + list(rnn_layer_outs)   # here we don't have first_lin_outs, but embedding_outs
+        return outputs, attn_outs, attention_weights, other_outs
+
+
 class EncoderV1(Module): 
     """
     Linear * 1 + Unidirectional LSTM
@@ -1381,6 +1502,69 @@ class AEPPV9(Module):
         pp_dec_out, pp_attn_w = ae_dec_out, ae_attn_w
         # return follows: dec_out, attn_w, z
         return (ae_dec_out, attn_out), (ae_attn_w, pp_attn_w), (ze, zq), (enc_hid_out_list, dec_hid_out_list)
+    
+#####################################################################################################################################
+class CTCAEV1(Module):
+    def __init__(self, enc_size_list, dec_size_list, num_layers=1, dropout=0.5, sos_token=1):
+        super(CTCAEV1, self).__init__()
+        self.encoder = VQEncoderV3(size_list=enc_size_list, num_layers=num_layers, dropout=dropout)
+        self.prediction_decoder = PredictionDecoderV1(size_list=dec_size_list, num_layers=num_layers, dropout=dropout, sos_token=sos_token)
+        # phoneme prediction decoder, autoregressive, just like seq2seq translation. 
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    def forward(self, inputs, input_lens, in_mask, target, target_lens, teacher_forcing_ratio=0.5):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.prediction_decoder.inits(batch_size=batch_size, device=self.device)
+
+        ze = self.encoder(inputs, input_lens)
+        # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
+        zq = ze
+        dec_in = ze
+        prediction_dec_out, prediction_attn_w = self.prediction_decoder(dec_in, in_mask, init_in, dec_hid, target, teacher_forcing_ratio)
+        # pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
+        ae_dec_out, ae_attn_w = prediction_dec_out, prediction_attn_w
+        # return follows: dec_out, attn_w, z
+        return (ae_dec_out, prediction_dec_out), (ae_attn_w, prediction_attn_w), (ze, zq)
+    
+    def encode(self, inputs, input_lens, in_mask): 
+        ze = self.encoder(inputs, input_lens)
+        zq = ze
+        return ze, zq
+    
+    def inference_forward(self, inputs, input_lens, in_mask):
+        # inputs : batch_size * time_steps * in_size
+        batch_size = inputs.size(0)
+        dec_hid, init_in = self.prediction_decoder.inits(batch_size=batch_size, device=self.device)
+
+        ze, enc_hid_out_list = self.encoder.encode_and_out(inputs, input_lens)
+        # always, hid_out_list = [flo, rlo1, rlo2, ..., rloN]
+        # concatenate hidden representation and word embedding. Then go through a linear layer (= combine)
+        zq = ze
+        dec_in = ze
+        prediction_dec_out, prediction_attn_out, prediction_attn_w, prediction_dec_hid_out_list = self.prediction_decoder.inference_forward(dec_in, in_mask, init_in, dec_hid)
+        # pp_dec_out, pp_attn_w = self.pp_decoder(dec_in, in_mask)
+        ae_dec_out, ae_attn_out, ae_attn_w, ae_dec_hid_out_list = prediction_dec_out, prediction_attn_out, prediction_attn_w, prediction_dec_hid_out_list
+        # return follows: dec_out, attn_w, z
+        return (ae_dec_out, ae_attn_out, 
+                ae_attn_w, ae_dec_hid_out_list), (prediction_dec_out, prediction_attn_out, 
+                                                  prediction_attn_w, prediction_dec_hid_out_list), (ze, zq, enc_hid_out_list)
+
+
+#####################################################################################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
     
 class AEPPV11(Module):
     # 在4的基础上增加了attn_forward

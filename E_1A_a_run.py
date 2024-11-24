@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import argparse
 # import summary
-from model_model import AEPPV9
+from model_model import CTCAEV1
 from model_dataset import SaShiDatasetManualNorm as TestDataset
 from model_dataset import NormalizerMVNManual, TokenMap
 from model_dataset import MelSpecTransformDBNoNorm as TheTransform
@@ -46,6 +46,11 @@ train_configs = {
     "num_epochs": 100,
     "num_workers": 32,
     "learning_rate": 5e-4,
+    "teacher_force": True, 
+    "mapper_path": os.path.join(src_, "no-stress-seg.dict"), 
+    "teacher_force_bottomline": 0.1, 
+    "teacher_force_decay": 0.1,
+    "teacher_force_top": 1.0,
 }
 
 
@@ -83,6 +88,17 @@ def generate_separation(larger_path, smaller_path, target_path, nameset={"larger
     valid_sampled_larger.to_csv(os.path.join(target_path, f"{nameset['larger']}-valid-sampled.csv"), index=False)
     return 
 
+def create_mapper(): 
+    with open(train_configs["mapper_path"], "rb") as file:
+        # Load the object from the file
+        mylist = pickle.load(file)
+        mylist = ["BLANK"] + ["SOS"] + mylist
+        mylist = mylist + ["SIL"]
+
+    # Now you can use the loaded object
+    mymap = TokenMap(mylist)
+    return mylist, mymap
+
 def load_data_general(dataset, rec_dir, target_path, load="train", select=0.3, sampled=True, batch_size=1):
     raise NotImplementedError("This function should not be used in this thread. ")
 
@@ -114,14 +130,7 @@ def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="bo
     mynorm = NormalizerMVNManual()
     
     # Load TokenMap to map the phoneme to the index
-    with open(os.path.join(src_, "no-stress-seg.dict"), "rb") as file:
-        # Load the object from the file
-        mylist = pickle.load(file)
-        mylist = ["BLANK"] + mylist
-        mylist = mylist + ["SIL"]
-
-    # Now you can use the loaded object
-    mymap = TokenMap(mylist)
+    mylist, mymap = create_mapper()
 
     ds = dataset(rec_dir, 
                         integrated, 
@@ -130,7 +139,9 @@ def load_data_phenomenon(dataset, rec_dir, target_path, load="train", select="bo
                         normalizer=mynorm, 
                         noise_fixlength=noise_controls["fixlength"], 
                         noise_amplitude_scale=noise_controls["amplitude_scale"], 
-                        mv_config=mv_config)
+                        mv_config=mv_config, 
+                        teacher_force=train_configs["teacher_force"], 
+                        hop_length=transform_configs["hop_length"])
 
     use_shuffle = True if load == "train" else False
     loader = DataLoader(ds, batch_size=batch_size, shuffle=use_shuffle, num_workers=train_configs["num_workers"], collate_fn=dataset.collate_fn)
@@ -190,6 +201,10 @@ def initialize_model(model):
                 nn.init.orthogonal_(param.data)
 
 
+def teacher_force_decayer(topline, bottomline, decay_rate, epoch): 
+    return bottomline + (topline - bottomline) * np.exp(-epoch * decay_rate)
+
+
 def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", "smaller": "ST"}, noise_controls={"fixlength": False, "amplitude_scale": 0.01}): 
     model_save_dir = os.path.join(hyper_dir, model_type, condition)
     mk(model_save_dir)
@@ -216,18 +231,9 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
     # Recording Directory
     phone_rec_dir = train_cut_phone_
 
-    # Load TokenMap to map the phoneme to the index
-    with open(os.path.join(src_, "no-stress-seg.dict"), "rb") as file:
-        # Load the object from the file
-        mylist = pickle.load(file)
-        mylist = ["BLANK"] + mylist
-        mylist = mylist + ["SIL"]   # this is to fit STV vs #TV
+    mylist, mymap = create_mapper()
 
     # Now you can use the loaded object
-    mymap = TokenMap(mylist)
-    class_dim = mymap.token_num()
-    ctc_size_list = {'hid': model_configs["inter_dim_0"], 'class': class_dim}
-
 
     # Load MV_config
     with open(os.path.join(src_, "mv_config_sashi_512_128_96.pkl"), "rb") as file: 
@@ -244,19 +250,22 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
         masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
         # masked_loss = MaskedCosineLoss()    # NOTE: COSINE LOSS! 
         ctc_loss = nn.CTCLoss(blank=mymap.encode("BLANK"))
-        model_loss = PseudoAlphaCombineLoss_Recon(masked_loss, ctc_loss, alpha=0.2)
+        model_loss = PseudoAlphaCombineLoss_Pred(masked_loss, ctc_loss, alpha=0.2)  # we do pure prediction and no reconstruction
         enc_list = [model_configs["input_dim"], 
                     model_configs["inter_dim_0"], 
                     model_configs["inter_dim_0"], 
                     hiddim]
-        dec_list = [model_configs["output_dim"], 
-                    model_configs["inter_dim_0"], 
-                    model_configs["inter_dim_0"], 
-                    hiddim]
-        model = AEPPV9(enc_size_list=enc_list, 
-                   dec_size_list=dec_list, 
-                   ctc_decoder_size_list=ctc_size_list,
-                   num_layers=model_configs["num_layers"], dropout=model_configs["dropout"])
+        # dec_list = [model_configs["output_dim"], 
+        #             model_configs["inter_dim_0"], 
+        #             model_configs["inter_dim_0"], 
+        #             hiddim]
+        class_dim = mymap.token_num()
+        ctc_size_list = {'emb_dim': hiddim,'hid_dim': hiddim, 'vocab_size': class_dim}
+        model = CTCAEV1(enc_size_list=enc_list, 
+                   dec_size_list=ctc_size_list, 
+                   num_layers=model_configs["num_layers"], 
+                   dropout=model_configs["dropout"], 
+                   sos_token=mymap.encode("SOS"))
     else: 
         raise Exception("Model type not supported! ")
     
@@ -285,7 +294,12 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
     torch.save(model.state_dict(), os.path.join(model_save_dir, last_model_name))
     num_epochs = train_configs["num_epochs"]
 
-    for epoch in range(1, num_epochs + 1):
+    for epoch in range(1, num_epochs + 1): 
+        # Calculate teacher forcing rate
+        teacher_force_rate = teacher_force_decayer(train_configs["teacher_force_top"], 
+                                                    train_configs["teacher_force_bottomline"], 
+                                                    train_configs["teacher_force_decay"], 
+                                                    epoch)
         text_hist.print("Epoch {}".format(epoch))
         model.train()
         train_loss = 0.
@@ -293,31 +307,36 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
         train_cumulative_l_embedding = 0.
         train_cumulative_l_commitment = 0.
         train_num = len(train_loader.dataset)    # train_loader
-        for idx, ((x, y_preds), (x_lens, y_preds_lens)) in enumerate(train_loader):
-            current_batch_size = x.shape[0]
+        for idx, ((mel_input, pred_target, pred_full_target), (mel_input_lens, pred_target_lens, pred_full_target_lens)) in enumerate(train_loader):
+            current_batch_size = mel_input.shape[0]
             # y_lens should be the same as x_lens
             optimizer.zero_grad()
-            x_mask = generate_mask_from_lengths_mat(x_lens, device=device)
-            y_recon = x
-            x = x.to(device)
-            y_recon = y_recon.to(device)
-            y_preds = y_preds.to(device)
-            y_preds = y_preds.long()
+            mel_mask = generate_mask_from_lengths_mat(mel_input_lens, device=device)
+            mel_target = mel_input
+            mel_input = mel_input.to(device)
+            mel_target = mel_target.to(device)
+            pred_target = pred_target.to(device)
+            pred_full_target = pred_full_target.to(device)
+            # change phoneme codes to long
+            pred_target = pred_target.long()
+            pred_full_target = pred_full_target.long()
 
-            (x_hat_recon, y_hat_preds), (attn_w_recon, attn_w_preds), (ze, zq) = model(x, x_lens, x_mask)
-            y_hat_preds = y_hat_preds.permute(1, 0, 2)
+            (recon_mel_output, pred_output), (attn_w_recon, attn_w_preds), (ze, zq) = model(mel_input, mel_input_lens, mel_mask, 
+                                                                                            targets=pred_full_target, 
+                                                                                            teacher_forcing_ratio=teacher_force_rate)
+            pred_output = pred_output.permute(1, 0, 2)  # As required by the CTCLoss
 
-            l_alpha, (l_reconstruct, l_prediction) = model_loss.get_loss(x_hat_recon, y_recon, 
-                                                                         y_hat_preds, y_preds, 
-                                                                         x_lens, y_preds_lens, 
-                                                                         x_mask)
+            l_alpha, (l_reconstruct, l_prediction) = model_loss.get_loss(recon_mel_output, mel_target, 
+                                                                         pred_output, pred_target, 
+                                                                         mel_input_lens, pred_target_lens, 
+                                                                         mel_mask)
             
             loss, l_reconstruct, l_embedding, l_commitment = l_alpha, l_reconstruct, l_prediction, l_prediction
 
             loss.backward()
             optimizer.step()
 
-            train_loss += loss.item() * current_batch_size
+            train_loss += loss.item() * current_batch_size  # we have meaned loss, now multiplied by batch size, will then be divided by total num
             train_cumulative_l_reconstruct += l_reconstruct.item() * current_batch_size
             train_cumulative_l_embedding += l_embedding.item() * current_batch_size
             train_cumulative_l_commitment += l_commitment.item() * current_batch_size
@@ -340,23 +359,27 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
         valid_cumulative_l_embedding = 0.
         valid_cumulative_l_commitment = 0.
         valid_num = len(valid_loader.dataset)
-        for idx, ((x, y_preds), (x_lens, y_preds_lens)) in enumerate(valid_loader):
-            current_batch_size = x.shape[0]
-            x_mask = generate_mask_from_lengths_mat(x_lens, device=device)
+        for idx, ((mel_input, pred_target, pred_full_target), (mel_input_lens, pred_target_lens, pred_full_target_lens)) in enumerate(valid_loader):
+            current_batch_size = mel_input.shape[0]
+            mel_mask = generate_mask_from_lengths_mat(mel_input_lens, device=device)
+            mel_target = mel_input
+            mel_input = mel_input.to(device)
+            mel_target = mel_target.to(device)
+            pred_target = pred_target.to(device)
+            pred_full_target = pred_full_target.to(device)
+            # change phoneme codes to long
+            pred_target = pred_target.long()
+            pred_full_target = pred_full_target.long()
 
-            y_recon = x
-            x = x.to(device)
-            y_recon = y_recon.to(device)
-            y_preds = y_preds.to(device)
-            y_preds = y_preds.long()
+            (recon_mel_output, pred_output), (attn_w_recon, attn_w_preds), (ze, zq) = model(mel_input, mel_input_lens, mel_mask, 
+                                                                                            targets=None, # use this way to turn off teacher
+                                                                                            teacher_forcing_ratio=teacher_force_rate)
+            pred_output = pred_output.permute(1, 0, 2)  # As required by the CTCLoss
 
-            (x_hat_recon, y_hat_preds), (attn_w_recon, attn_w_preds), (ze, zq) = model(x, x_lens, x_mask)
-            y_hat_preds = y_hat_preds.permute(1, 0, 2)
-
-            l_alpha, (l_reconstruct, l_prediction) = model_loss.get_loss(x_hat_recon, y_recon, 
-                                                                         y_hat_preds, y_preds, 
-                                                                         x_lens, y_preds_lens, 
-                                                                         x_mask)
+            l_alpha, (l_reconstruct, l_prediction) = model_loss.get_loss(recon_mel_output, mel_target, 
+                                                                         pred_output, pred_target, 
+                                                                         mel_input_lens, pred_target_lens, 
+                                                                         mel_mask)
             loss, l_reconstruct, l_embedding, l_commitment = l_alpha, l_reconstruct, l_prediction, l_prediction
 
             valid_loss += loss.item() * current_batch_size
@@ -412,7 +435,7 @@ if __name__ == "__main__":
 
     ## Hyper-preparations
     ts = args.timestamp
-    train_name = "E_0A"
+    train_name = "E_1A"
     model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}")
     mk(model_save_dir) 
 
@@ -428,7 +451,7 @@ if __name__ == "__main__":
         
         with open(os.path.join(model_save_dir, "README.note"), "w") as f: 
             f.write("----------------RUN NOTES----------------\n")
-            f.write("E_0A (20241113): We use SASHI dataset; and we shall use higher input dimension and higher time resolution. \n")
+            f.write("E_1A (20241124): We use SASHI dataset; this time using phoneme prediction task. \n")
 
     else: 
         print(f"{train_name}-{ts}")

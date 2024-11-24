@@ -2589,7 +2589,7 @@ class SaShiDatasetManualNorm(Dataset):
     def __init__(self, src_dir, guide_,  
                  mapper=None, transform=None, normalizer=None, plosive_suffix="", 
                  noise_fixlength=False, noise_amplitude_scale=0.01, mv_config=None, 
-                 check_sr=False): 
+                 check_sr=False, teacher_force=False, hop_length=400): 
         """
             Parameters:
             src_dir (str): Source directory to read sound. 
@@ -2602,7 +2602,19 @@ class SaShiDatasetManualNorm(Dataset):
             noise_fixlength (bool): Flag to determine if noise should have a fixed length. Default is False.
             noise_amplitude_scale (float): Amplitude scale for noise generation. Default is 0.01.
             mv_config (dict, optional): Dictionary containing mean and variance configuration. Default is None.
-            hop_length (int): Hop length for calculating between frame and time. Default is 400.
+            check_sr (bool): Flag to check if the sample rates are the same. Default is False.
+            teacher_force (bool): Flag to determine if teacher forcing is used. Default is False.
+            hop_length (int): Hop length for calculating between frame and time. Default is 400. Only to be used when teacher_force is True.
+        """
+
+        """
+        CHANGELOG: 
+        ----
+        20241124
+        - Added teacher forcing option.
+        - Added hop_length for teacher forcing.
+        - Thus NOTE: to continue using this dataset, the previous running files should allow one more return value (full_phoneseq). 
+        ----
         """
         # Read the guide file
         if isinstance(guide_, str):
@@ -2614,6 +2626,7 @@ class SaShiDatasetManualNorm(Dataset):
         
         # ""即不區分ST和T，"H"則是區分 -> ?
         self.plosive_suffix = plosive_suffix
+
 
         # Load in the data cols 
         pre_path_col = guide_file["pre_path"]
@@ -2633,10 +2646,25 @@ class SaShiDatasetManualNorm(Dataset):
         self.S_name = stop_name_col.tolist()
         self.V2_name = vowel_name_col.tolist()
 
+        if teacher_force: 
+            guide_file["first_sep_time"] = guide_file["stop_startTime"] - guide_file["pre_startTime"]
+            guide_file["second_sep_time"] = guide_file["vowel_startTime"] - guide_file["pre_startTime"]
+
+            guide_file['first_sep_frame'] = time_to_frame_np(guide_file['first_sep_time'], hop_length=hop_length)
+            guide_file['second_sep_frame'] = time_to_frame_np(guide_file['second_sep_time'], hop_length=hop_length)
+
+            first_sep_frame_col = guide_file["first_sep_frame"]
+            second_sep_frame_col = guide_file["second_sep_frame"]
+
+            self.first_sep_frame = first_sep_frame_col.tolist()
+            self.second_sep_frame = second_sep_frame_col.tolist()
+
+
         self.src_dir = src_dir
         self.transform = transform
         self.normalizer = normalizer
         self.mapper = mapper
+        self.teacher_force = teacher_force
 
         if check_sr: 
             self.___check_sr()
@@ -2653,12 +2681,12 @@ class SaShiDatasetManualNorm(Dataset):
         return len(self.S_path)
     
     def __getitem__(self, idx): 
-        mel_data, this_phone_seq = self.___loaditem(idx)
+        mel_data, this_phone_seq, this_full_phone_seq = self.___loaditem(idx)
 
         if self.normalizer: 
             mel_data = self.normalizer(mel_data, self.mean, self.std)
         
-        return mel_data, this_phone_seq
+        return mel_data, this_phone_seq, this_full_phone_seq
     
     def ___getmv(self): 
         # Load the data and calculate the mean and variance
@@ -2707,8 +2735,19 @@ class SaShiDatasetManualNorm(Dataset):
 
         if self.transform:
             data = self.transform(data)
+
+        if self.teacher_force: 
+            full_phoneseq = []
+            for segment, frame in zip([self.V1_name[idx], self.S_name[idx], self.V2_name[idx]], [self.first_sep_frame[idx] - 0, 
+                                                                                                 self.second_sep_frame[idx] - self.first_sep_frame[idx],
+                                                                                                 len(data) - self.second_sep_frame[idx]]): 
+                full_phoneseq.extend([self.mapper.encode(segment)] * frame)
+            full_phoneseq = torch.tensor(full_phoneseq, dtype=torch.long)
+        else: 
+            full_phoneseq = phoneseq
+            # this should not be used if teacher forcing is not used. 
         
-        return data, phoneseq
+        return data, phoneseq, full_phoneseq
     
     def ___loaditem_resample_different_sr(self, idx, sample_rate_standard=16000):
         if torch.is_tensor(idx):
@@ -2746,12 +2785,14 @@ class SaShiDatasetManualNorm(Dataset):
     def collate_fn(data):
         # only working for one data at the moment
         batch_first = True
-        xx, phoneseq = zip(*data)
+        xx, phoneseq, full_phoneseq = zip(*data)
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
         phoneseq_lens = [len(x) for x in phoneseq]
         phoneseq_pad = pad_sequence(phoneseq, batch_first=batch_first, padding_value=0)
-        return (xx_pad, phoneseq_pad), (x_lens, phoneseq_lens)
+        full_phoneseq_lens = [len(x) for x in full_phoneseq]
+        full_phoneseq_pad = pad_sequence(full_phoneseq, batch_first=batch_first, padding_value=0)
+        return (xx_pad, phoneseq_pad, full_phoneseq_pad), (x_lens, phoneseq_lens, full_phoneseq_lens)
 
 
     
