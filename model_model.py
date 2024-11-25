@@ -678,7 +678,7 @@ class PredictionDecoderV1(Module):
         attn_outs = attn_outs.squeeze(2)
         attention_weights = attention_weights.squeeze(2)
         embedding_outs = embedding_outs.squeeze(2)
-        first_lin_outs = first_lin_outs.squeeze(2)
+        # first_lin_outs = first_lin_outs.squeeze(2)
 
         rnn_layer_outs = rnn_layer_outs.permute(0, 2, 1, 3)
         rnn_layer_outs = torch.unbind(rnn_layer_outs, 0)

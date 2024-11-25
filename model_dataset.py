@@ -4,6 +4,8 @@ Collate functions should be explicitly included in the definition of dataset as 
 instead independently defined outside so as to avoid overriding. 
 
 """
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
 import pandas as pd
 from torch.utils.data import Dataset
 import torch

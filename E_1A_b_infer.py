@@ -37,7 +37,7 @@ model_configs = {
 train_configs = {
     "batch_size": 1,
     "num_epochs": 100,
-    "num_workers": 32,
+    "num_workers": 8,
     "learning_rate": 5e-4,
     "inference_sample_number_ratio": 0.1,
 }
@@ -141,7 +141,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     all_gender = []
 
     for (mel_input, mel_input_lens, pt, s_name, v1_name, v2_name, sf1, sf2, phoneseq, full_phoneseq, sid, gender) in both_loader: 
-        mel_mask = generate_mask_from_lengths_mat(mel_input, device=device)
+        mel_mask = generate_mask_from_lengths_mat(mel_input_lens, device=device)
         mel_input = mel_input.to(device)
 
         _, (p_dec_out, p_attn_out, p_attn_w, dec_hid_outs), (ze, zq, enc_hid_outs) = model.inference_forward(mel_input, mel_input_lens, mel_mask)
@@ -159,12 +159,12 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
         # decode phoneme sequence
         # full phone seq just do argmax
         full_phoneseq_pred = torch.argmax(p_dec_out, dim=-1).cpu().detach().numpy().squeeze()
-        full_phoneseq_target = full_phoneseq.cpu().detach().numpy().squeeze()
+        full_phoneseq_target = full_phoneseq[0].cpu().detach().numpy().squeeze()
         # phone seq need CTC decoding
         # ctc_out = p_dec_out.permute(1, 0, 2)  # (B, L, C) -> (L, B, C)
         # phoneseq_pred = torch.argmax(p_dec_out, dim=-1).cpu().detach().numpy().squeeze()
         # NOTE: currently to save time, we do not use CTC decoding to produce phoneseq pred. 
-        phoneseq_target = phoneseq.cpu().detach().numpy().squeeze()
+        phoneseq_target = phoneseq[0].cpu().detach().numpy().squeeze()
 
 
         if np.any(np.isnan(p_attn_w)): 
