@@ -2870,14 +2870,14 @@ class SaShiAllDataManualNorm(Dataset):
         return len(self.S_path)
     
     def __getitem__(self, idx):
-        mel_data, this_phone_seq = self.___loaditem(idx)
+        mel_data, this_phone_seq, this_full_phone_seq = self.___loaditem(idx)
 
         if self.normalizer: 
             mel_data = self.normalizer(mel_data, self.mean, self.std)
         
         return (mel_data, self.phi_type[idx], self.S_name[idx], self.V1_name[idx], self.V2_name[idx],
                 self.first_sep_frame[idx], self.second_sep_frame[idx], 
-                this_phone_seq, self.speaker[idx], self.gender[idx])
+                this_phone_seq, this_full_phone_seq, self.speaker[idx], self.gender[idx])
     
     
     def ___loaditem(self, idx):
@@ -2909,17 +2909,25 @@ class SaShiAllDataManualNorm(Dataset):
 
         if self.transform:
             data = self.transform(data)
+
+        full_phoneseq = []
+        for segment, frame in zip([self.V1_name[idx], self.S_name[idx], self.V2_name[idx]], [self.first_sep_frame[idx] - 0, 
+                                                                                                self.second_sep_frame[idx] - self.first_sep_frame[idx],
+                                                                                                len(data) - self.second_sep_frame[idx]]): 
+            full_phoneseq.extend([self.mapper.encode(segment)] * frame)
+        full_phoneseq = torch.tensor(full_phoneseq, dtype=torch.long)
         
-        return data, phoneseq
+        return data, phoneseq, full_phoneseq
 
     @staticmethod
     def collate_fn(data):
         # only working for one data at the moment
         batch_first = True
-        xx, phi_type, s_name, v1_name, v2_name, sf1, sf2, phoneseq, sid, gender = zip(*data)
+        xx, phi_type, s_name, v1_name, v2_name, sf1, sf2, phoneseq, full_phoneseq, sid, gender = zip(*data)
         x_lens = [len(x) for x in xx]
         xx_pad = pad_sequence(xx, batch_first=batch_first, padding_value=0)
-        return xx_pad, x_lens, phi_type, s_name, v1_name, v2_name, sf1, sf2, phoneseq, sid, gender
+        # we don't have to pad phoneseq and full_phoneseq, not even xx, because batch always=1
+        return xx_pad, x_lens, phi_type, s_name, v1_name, v2_name, sf1, sf2, phoneseq, full_phoneseq, sid, gender
 
 
 

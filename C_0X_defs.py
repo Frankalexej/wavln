@@ -714,3 +714,34 @@ def initialize_model(model):
             layer_type = name.split('.')[0]
             if isinstance(getattr(model, layer_type), nn.Linear):  # Check if the layer is linear
                 nn.init.orthogonal_(param.data)
+
+
+def plot_pred_heatmap(probs, full_phoneseq_target, phone_classes, title="Phoneme Prediction Probabilities", save_path=None):
+    """
+    Plot a heatmap for CTC probabilities with the target phoneme sequence on the x-axis.
+    
+    Args:
+        probs (ndarray): Probabilities of shape (L, C), where L is the sequence length and C is the number of classes.
+        full_phoneseq_target (ndarray): Target phoneme sequence of shape (L).
+        phone_classes (list): List of phone class names corresponding to columns in `probs`.
+    """
+    L, C = probs.shape
+
+    # Create the heatmap
+    plt.figure(figsize=(12, 6))
+    plt.imshow(probs.T, aspect='auto', interpolation='nearest', cmap='viridis', vmin=0, vmax=1)
+
+    # Label the axes
+    plt.yticks(ticks=np.arange(C), labels=phone_classes, fontsize=10)
+    plt.xticks(ticks=np.arange(L), labels=full_phoneseq_target, fontsize=10)
+    plt.xlabel("Time Step (Target Phoneme Sequence)", fontsize=12)
+    plt.ylabel("Phone Classes", fontsize=12)
+    plt.title(title, fontsize=14)
+
+    # Add a colorbar
+    cbar = plt.colorbar()
+    cbar.set_label("Probability", fontsize=12)
+
+    # Show the plot
+    plt.tight_layout()
+    plt.savefig(save_path)
