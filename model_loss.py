@@ -20,7 +20,39 @@ class MaskedLoss:
         loss = torch.sum(self.loss_fn(y_hat_masked, y_masked)) / torch.sum(mask)
         # loss = loss_fn(y_hat_masked, y_masked)
         return loss
+
+class MaskedMSELoss:
+    def __init__(self):
+        self.loss_fn = nn.MSELoss(reduction='none')
     
+    def get_loss(self, input, target, mask): 
+        """
+        input: (batch, len, hiddim)
+        target: (batch, len, hiddim)
+        mask: (batch, len)
+        """
+        batch_size, seq_len, hiddim = target.size()
+        mask = mask.unsqueeze(-1).expand((batch_size, seq_len, hiddim)).bool()
+
+        loss = self.loss_fn(input, target)  # this will give (batch, len, hiddim)
+        masked_mean_loss = torch.sum(loss * mask) / torch.sum(mask)
+        return masked_mean_loss
+    
+class MaskedCrossEntropyLoss: 
+    def __init__(self):
+        self.loss_fn = nn.CrossEntropyLoss(reduction='none')
+    
+    def get_loss(self, input, target, mask): 
+        """
+        input: (batch, len, num_classes)
+        target: (batch, len)
+        mask: (batch, len)
+        """
+        input_transposed = input.permute(0, 2, 1)   # this is needed for CrossEntropyLoss
+        loss = self.loss_fn(input_transposed, target)   # this will give (batch, len)
+        masked_mean_loss = torch.sum(loss * mask) / torch.sum(mask)
+        return masked_mean_loss
+
 class MaskedCosineLoss: 
     def __init__(self, loss_fn=None):
         # loss_fn is not used
