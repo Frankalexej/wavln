@@ -373,6 +373,7 @@ def get_representation(data_collection, representation_select, hidden_dim_requir
         if hidden_dim_required != model_configs["ori_select_dim"]: 
             # raise Exception("Warning: hidden_dim is not 64, but we are using the original representation! ")
             print(Fore.RED + "Warning: hidden_dim is not 64, but using the original representation! ")
+            print(Style.RESET_ALL)
             raise SystemExit()
         all_representations = data_collection["ori"]
         hidden_dim_use = model_configs["hiddim"]

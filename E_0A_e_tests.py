@@ -4,10 +4,7 @@ This is because stops are short and listeners usually use acoustic cues from the
 to identify the stop consonant. We will check whether the model also did the same. 
 """
 
-from cgi import test
-from tkinter import E
 import warnings
-from xml.etree.ElementInclude import include
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from C_0X_defs import *

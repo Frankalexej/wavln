@@ -24,8 +24,8 @@ zls=('hidrep' 'attnout' 'ori' 'enc-lin1' 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'd
 ts='1124190101'
 # tn="ABXSomethingAll-first-data-AAIY_1" # FinalEpochsDimneutral FinalEpochs ABXSomething-vowel-vowel-speaker
 tns=(
-    "ABXSomething-first-data-AAUW_1"
-    "ABXposition-third-data-vowel_3"
+    # "ABXSomething-first-data-AAUW_1"
+    # "ABXposition-third-data-vowel_3"
     "ABXSomethingCrossPhone-first_third-data-AA"
     "ABXSomething-third-data-speaker"
     "ABXSomething-second-data-SSH"
