@@ -274,15 +274,6 @@ def plot_many_plotly(arrs, labels, save_path, plot_label_dict={"xlabel": "Epoch"
     # Create Plotly traces
     fig = go.Figure()
     for idx, (mean_traj, lower_bound, upper_bound, label) in enumerate(zip(mean_trajs, lower_bounds, upper_bounds, labels)):
-        # Add mean line
-        fig.add_trace(go.Scatter(
-            x=list(range(n_steps)),
-            y=mean_traj,
-            mode='lines',
-            name=label,
-            line=dict(color=colors[idx]),
-            legendgroup=label,
-        ))
         # Add confidence interval shading if cloud is True
         if cloud:
             fig.add_trace(go.Scatter(
@@ -295,6 +286,15 @@ def plot_many_plotly(arrs, labels, save_path, plot_label_dict={"xlabel": "Epoch"
                 opacity=0.2,
                 legendgroup=label,
             ))
+        # Add mean line
+        fig.add_trace(go.Scatter(
+            x=list(range(n_steps)),
+            y=mean_traj,
+            mode='lines',
+            name=label,
+            line=dict(color=colors[idx]),
+            legendgroup=label,
+        ))
 
     # Update layout
     fig.update_layout(
@@ -450,6 +450,8 @@ if __name__ == "__main__":
     # This will be changed according to the environment
     st_condition_name = "Sh"
     t_condition_name = "S"
+
+    abx_num_samples = 20
 
     if test_name.split("-")[0] in ["clusterSomething"]: 
         hidden_dim_use = hidden_dim

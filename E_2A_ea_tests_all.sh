@@ -11,30 +11,31 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-# ms=('recon32-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi'
+# ms=('recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi'
 ms=('recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi')
 cs=('b') # 
-zls=('hidrep' 'attnout' 'ori' 'enc-lin1' 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 'enc-rnn3-f' 'enc-rnn3-b' 'dec-rnn3-f' 'enc-rnn4-f' 'enc-rnn4-b' 'dec-rnn4-f' 'enc-rnn5-f' 'enc-rnn5-b' 'dec-rnn5-f')
-# zls=('dec-lin1')
+# zls=('hidrep' 'attnout' 'ori' 'enc-lin1' 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 'enc-rnn3-f' 'enc-rnn3-b' 'dec-rnn3-f' 'enc-rnn4-f' 'enc-rnn4-b' 'dec-rnn4-f' 'enc-rnn5-f' 'enc-rnn5-b' 'dec-rnn5-f')
+# zls=('ori')
 # zls=('POS' 'VC' 'STOPPOA' 'PARC-0-2' 'PARC-2-4' 'PARC-4-6' 'PPP' 'PPH' 'GENDER' 'ARC-0-2' 'ARC-2-4' 'ARC-4-6' 'ARC-6-8' 'ARC-8-99')    # 'POS' 'VC' 'STOPPOA' 'PARC-0-2' 'PARC-2-4' 'PARC-4-6' 'PPP' 'PPH' 'GENDER'
 # zls=('AAIY_1')
-# zls=('AACrossPos')
+zls=('RESULT')
 # zls=('ARC-0-2' 'ARC-2-4' 'ARC-4-6' 'ARC-6-8' 'ARC-8-99') 
 # 'hidrep' 'attnout' 'ori' 'enc-lin1' 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 'enc-rnn3-f' 'enc-rnn3-b' 'dec-rnn3-f' 'enc-rnn4-f' 'enc-rnn4-b' 'dec-rnn4-f' 'enc-rnn5-f' 'enc-rnn5-b' 'dec-rnn5-f'
 ts='1124190101'
 # tn="ABXSomethingAll-first-data-AAIY_1" # FinalEpochsDimneutral FinalEpochs ABXSomething-vowel-vowel-speaker
 tns=(
-    # "ABXSomething-first-data-AAUW_1"
-    # "ABXSomething-first-data-IYUW_1"
-    # "ABXSomething-third-data-AAIY_3"
-    # "ABXSomething-third-data-AAUW_3"
+    # "ABXSomethingCrossPhoneAll-first_third-data-AA"
+    "ABXSomethingAll-second-data-SSH"
+    "ABXSomethingAll-third-data-speaker"
+    "ABXSomethingAll-first-data-AAIY_1"
+    # "ABXSomethingAll-first-data-AAUW_1"
+    # "ABXSomethingAll-first-data-IYUW_1"
+    # "ABXSomethingAll-third-data-AAIY_3"
+    # "ABXSomethingAll-third-data-AAUW_3"
     # "ABXSomething-third-data-IYUW_3"
-    # "ABXposition-third-data-vowel_3"
-    # "ABXSomethingCrossPhone-first_third-data-AA"
-    # "ABXSomething-third-data-speaker"
-    # "ABXSomething-first-data-AAIY_1"
-    "ABXSomething-third-data-AAIY_3"
-    "ABXSomething-second-data-SSH"
+    "ABXpositionAll-third-data-vowel_3"
+    "ABXSomethingCrossPhoneAll-first_third-data-AA"
+    # "ABXSomethingAll-second-data-SSH"
 )
 echo "Timestamp: $ts; Test: $tn"
 
