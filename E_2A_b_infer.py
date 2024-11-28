@@ -152,7 +152,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
         zq = zq.cpu().detach().numpy().squeeze()
         p_attn_w = p_attn_w.cpu().detach().numpy().squeeze()
         
-        probs = torch.exp(p_dec_out).cpu().detach().numpy().squeeze() # turn log prob to prob, because we do not need log prob here. 
+        probs = p_dec_out.cpu().detach().numpy().squeeze() # turn log prob to prob, because we do not need log prob here. 
         attn_out = p_attn_out.cpu().detach().numpy().squeeze()
         ori_mel = mel_input.cpu().detach().numpy().squeeze()
 

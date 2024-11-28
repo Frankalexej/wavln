@@ -586,7 +586,8 @@ class PredictionDecoderV1(Module):
                                                    qk_out=size_list["hid_dim"], v_out=size_list["hid_dim"])
         self.fc_out = nn.Linear(size_list["hid_dim"], size_list["vocab_size"])
 
-        self.log_softmax = nn.LogSoftmax(dim=-1)
+        # self.log_softmax = nn.LogSoftmax(dim=-1)
+        self.softmax = nn.Softmax(dim=-1)
 
         # vars
         self.num_layers = num_layers
@@ -619,8 +620,8 @@ class PredictionDecoderV1(Module):
             dec_x, attention_weight = self.attention(dec_x, hid_r, hid_r, in_mask.unsqueeze(1))    # unsqueeze mask here for broadcast
             # Generate logits for the next token
             logits = self.fc_out(dec_x)  # Shape: (batch_size, 1, vocab_size)
-            log_probs = self.log_softmax(logits)
-            outputs.append(log_probs)
+            probs = self.softmax(logits)
+            outputs.append(probs)
             attention_weights.append(attention_weight)
 
             # Decide the next input token
@@ -629,7 +630,7 @@ class PredictionDecoderV1(Module):
                 dec_in_token = targets[:, t].unsqueeze(1)  # Shape: (batch_size, 1)
             else:
                 # Use model's prediction
-                dec_in_token = log_probs.argmax(dim=-1)  # Shape: (batch_size, 1)
+                dec_in_token = probs.argmax(dim=-1)  # Shape: (batch_size, 1)
 
         outputs = torch.stack(outputs, dim=1)   # stack along length dim
         attention_weights = torch.stack(attention_weights, dim=1)
@@ -662,8 +663,8 @@ class PredictionDecoderV1(Module):
             attn_outs.append(dec_x)
             # Generate logits for the next token
             logits = self.fc_out(dec_x)  # Shape: (batch_size, 1, vocab_size)
-            log_probs = self.log_softmax(logits)
-            outputs.append(log_probs)
+            probs = self.softmax(logits)
+            outputs.append(probs)
             attention_weights.append(attention_weight)
             dec_in_token = logits.argmax(dim=-1)  # Shape: (batch_size, 1)
 

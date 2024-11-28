@@ -52,6 +52,23 @@ class MaskedCrossEntropyLoss:
         loss = self.loss_fn(input_transposed, target)   # this will give (batch, len)
         masked_mean_loss = torch.sum(loss * mask) / torch.sum(mask)
         return masked_mean_loss
+    
+
+class MaskedCrossEntropyLossWithoutSoftmax: 
+    def __init__(self):
+        self.loss_fn = nn.NLLLoss(reduction='none')
+        self.eps = 1e-9
+    
+    def get_loss(self, input, target, mask): 
+        """
+        input: (batch, len, num_classes)
+        target: (batch, len)
+        mask: (batch, len)
+        """
+        input_transposed = input.permute(0, 2, 1)   # this is needed for CrossEntropyLoss
+        loss = self.loss_fn(torch.log(input_transposed + self.eps), target)   # this will give (batch, len), remember to go through log to make it log-softmax
+        masked_mean_loss = torch.sum(loss * mask) / torch.sum(mask)
+        return masked_mean_loss
 
 class MaskedCosineLoss: 
     def __init__(self, loss_fn=None):

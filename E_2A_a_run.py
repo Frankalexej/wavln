@@ -54,7 +54,8 @@ train_configs = {
     "mapper_path": os.path.join(src_, "no-stress-seg.dict"), 
     "teacher_force_bottomline": 0.1, 
     "teacher_force_decay": 0.1,
-    "teacher_force_top": 1.0,
+    "teacher_force_top": 1.0, 
+    "eps": 1e-9
 }
 
 
@@ -253,7 +254,7 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
         batch_size = train_configs["batch_size"]
         # masked_loss = MaskedLoss(loss_fn=nn.MSELoss(reduction="none"))
         recon_loss = MaskedMSELoss()
-        pred_loss = MaskedCrossEntropyLoss()
+        pred_loss = MaskedCrossEntropyLossWithoutSoftmax()
         # model_loss = PseudoAlphaCombineLoss_Pred(recon_loss, pred_loss, alpha=0.2)  # we do pure prediction and no reconstruction
         enc_list = [model_configs["input_dim"], 
                     model_configs["inter_dim_0"], 
@@ -458,6 +459,7 @@ if __name__ == "__main__":
         with open(os.path.join(model_save_dir, "README.note"), "w") as f: 
             f.write("----------------RUN NOTES----------------\n")
             f.write("E_2A (20241125): We use SASHI dataset; this time using phoneme prediction task (full prediction, not CTC). \n")
+            f.write("E_2A (20241128): Corrected the doubled log-softmax problem. \n")
 
     else: 
         print(f"{train_name}-{ts}")
