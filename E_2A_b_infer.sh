@@ -17,6 +17,7 @@ is=(4) #
 # Generate a 10-digit random number
 # ts='0910145009'     # cosine loss trained, default init, AEPPV9, lr=1e-4, noise=0.004
 ts='1124190101'     # cosine loss trained, default init, AEPPV9, lr=5e-4, noise=0.004
+ts='1128145729'
 echo "Timestamp: $ts"
 
 # # Loop from 1 to 10, incrementing by 1
@@ -42,7 +43,7 @@ tasks=(
     # "4 1 b"
     # "4 2 b"
     # "4 3 b"
-    # "4 4 b"
+    "4 4 b"
     # "4 5 b"
     # "8 1 b"
     # "8 2 b"
@@ -50,23 +51,23 @@ tasks=(
     # "8 4 b"
     # "8 5 b"
     # "16 1 b"
-    # "16 2 b"
-    # "16 3 b"
+    "16 2 b"
+    "16 3 b"
     # "16 4 b"
     # "16 5 b"
     # "32 1 b"
     # "32 2 b"
     # "32 3 b"
-    # "32 4 b"
+    "32 4 b"
     # "32 5 b"
     # "48 1 b"
     # "48 2 b"
     # "48 3 b"
     # "48 4 b"
-    # "48 5 b"
+    "48 5 b"
     # "64 1 b"
     "64 2 b"
-    # "64 3 b"
+    "64 3 b"
     # "64 4 b"
     # "64 5 b"
 )
