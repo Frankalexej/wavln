@@ -195,12 +195,12 @@ class VQEncoderV3(Module):
         self.lin_1 = nn.Linear(size_list[0], size_list[3])
         self.rnnlist = nn.ModuleList(
             [nn.LSTM(input_size=size_list[3], hidden_size=size_list[3],
-                        batch_first=True, bidirectional=True)]
+                        batch_first=True, bidirectional=True, dropout=0.0)]
         )
         for _ in range(1, num_layers): 
             self.rnnlist.append(
                 nn.LSTM(input_size=size_list[3] * 2, hidden_size=size_list[3],
-                        batch_first=True, bidirectional=True)
+                        batch_first=True, bidirectional=True, dropout=0.0)
             )
         # self.rnn = nn.LSTM(input_size=size_list[3], hidden_size=size_list[3], 
         #                    num_layers=num_layers, batch_first=True, 
@@ -477,6 +477,8 @@ class VQDecoderV3(Module):
     def __init__(self, size_list, num_layers=1, dropout=0.5):
         # size_list = [13, 64, 16, 3]: similar to encoder, just layer 0 different
         super(VQDecoderV3, self).__init__()
+        if num_layers == 1: 
+            dropout = 0.0
         self.lin_1 = nn.Linear(size_list[0], size_list[3])
         self.rnn = nn.LSTM(input_size=size_list[3], hidden_size=size_list[3], 
                             num_layers=num_layers, batch_first=True, 

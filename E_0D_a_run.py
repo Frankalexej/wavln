@@ -297,7 +297,7 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
         train_cumulative_l_embedding = 0.
         train_cumulative_l_commitment = 0.
         train_num = len(train_loader.dataset)    # train_loader
-        for idx, ((x, y_preds), (x_lens, y_preds_lens)) in enumerate(train_loader):
+        for idx, ((x, y_preds, pred_full_target), (x_lens, y_preds_lens, pred_full_target_lens)) in enumerate(train_loader):
             current_batch_size = x.shape[0]
             # y_lens should be the same as x_lens
             optimizer.zero_grad()
