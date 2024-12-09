@@ -344,7 +344,7 @@ def run_once(hyper_dir, model_type="ae", condition="b", nameset={"larger": "T", 
         valid_cumulative_l_embedding = 0.
         valid_cumulative_l_commitment = 0.
         valid_num = len(valid_loader.dataset)
-        for idx, ((x, y_preds), (x_lens, y_preds_lens)) in enumerate(valid_loader):
+        for idx, ((x, y_preds, pred_full_target), (x_lens, y_preds_lens, pred_full_target_lens)) in enumerate(valid_loader):
             current_batch_size = x.shape[0]
             x_mask = generate_mask_from_lengths_mat(x_lens, device=device)
 
