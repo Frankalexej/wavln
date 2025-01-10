@@ -260,6 +260,8 @@ if __name__ == "__main__":
 
     ts = args.timestamp # this timestamp does not contain run number
     train_name = "C_0Tf"
+    root_ = "/mnt/storage/compling/wavln/"
+    model_save_ = root_ + "model_save/"
     res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
     model_type = args.model
     model_condition = args.condition
@@ -296,7 +298,7 @@ if __name__ == "__main__":
             assert PU.path_exist(model_condition_dir)
             stop_list_epochs = [] # list for each epoch of lists of sse for each run
             asp_list_epochs = []
-            for epoch in range(0, 20): 
+            for epoch in range(0, 101): 
                 # 先循环epoch，再循环run
                 stop_list_runs = []
                 asp_list_runs = []
@@ -357,6 +359,7 @@ if __name__ == "__main__":
             asp_list_epochs = np.array(asp_list_epochs)
             asp_list_epochs = asp_list_epochs.transpose(1, 0)
             resresdict[test_type] = asp_list_epochs
+            np.save(os.path.join(os.path.join(model_save_, f"eval-{train_name}-{ts}"), test_name, f"07-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}-{test_type}.npy"), asp_list_epochs)
 
 
         res_save_dir = os.path.join(model_save_, f"eval-{train_name}-{ts}")
@@ -365,5 +368,5 @@ if __name__ == "__main__":
                   {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
                   y_range=(0, 1.0))
         # np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
-        np.save(os.path.join(res_save_dir, test_name, f"07-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
+
         print("Done.")
