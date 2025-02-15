@@ -622,7 +622,7 @@ if __name__ == "__main__":
                 all_s_names = hidrep["sn"]
                 all_v2_names = hidrep["vn"]
 
-                include_vowel_list = ["AA", "UW", "IY"]
+                include_vowel_list = ["AA"] # "UW", "IY" # For the moment, only consider one pair for accuracy. 
                 include_portion_list = ["START", "END"]
                 include_maps = [{vowel:portion for vowel in include_vowel_list} for portion in include_portion_list]
                 offsets = {"START": (0.15, 0.2), "END": (0.85, 0.9)} 
