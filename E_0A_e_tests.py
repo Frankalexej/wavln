@@ -413,6 +413,16 @@ if __name__ == "__main__":
                 all_s_names = hidrep["sn"]
                 all_v2_names = hidrep["vn"]
 
+                """
+                20250216: why did I not find out that we indeed selected hidreps based on the same tag set, v2? 
+                            This will make all third_items correctly selected, but all first_items selected randomly 
+                            (because there is no guarantee that it must be ASA, but there can be ASE, ASU, etc.). 
+
+                            If our observations that temporal encoding is there, then we can still ancitipate that there is result. 
+                """
+                # define a tag_select dictionary
+                lookat_names_select = {"first": all_v1_names, "second": all_s_names, "third": all_v2_names}
+
 
                 include_map = None
                 include_tags = None
@@ -421,7 +431,7 @@ if __name__ == "__main__":
                 merge_one_vector = False
 
                 if test_name_datasource in ["AA", "IY", "UW"]: 
-                    all_datasource = all_v2_names
+                    all_datasources = [lookat_names_select[lookat] for lookat in test_name_lookats]
                     this_offsets = [(0.2, 0.6), (0.2, 0.6)]
                     include_maps = [{test_name_datasource:f"{test_name_datasource}_{lookat}"} for lookat in test_name_lookats]
                 else: 
@@ -432,7 +442,7 @@ if __name__ == "__main__":
                                                 sepframes1=all_sepframes1,
                                                 sepframes2=all_sepframes2,
                                                 phi_types=all_phi_type,
-                                                stop_names=all_datasource,
+                                                stop_names=all_datasources[0],
                                                 offsets=this_offset, 
                                                 contrast_in=test_name_label, 
                                                 merge=merge_one_vector, 
@@ -444,7 +454,114 @@ if __name__ == "__main__":
                                                 sepframes1=all_sepframes1,
                                                 sepframes2=all_sepframes2,
                                                 phi_types=all_phi_type,
-                                                stop_names=all_datasource,
+                                                stop_names=all_datasources[1],
+                                                offsets=this_offset, 
+                                                contrast_in=test_name_label, 
+                                                merge=merge_one_vector, 
+                                                hidden_dim=hidden_dim_use, 
+                                                lookat=test_name_lookats[1], 
+                                                include_map=include_maps[1], 
+                                                aux_on=this_auxon)
+                # combine them
+                hidr_cs, tags_cs = np.concatenate((hidr_1, hidr_2), axis=0), np.concatenate((tags_1, tags_2), axis=0)
+                # hidr_cs, tags_cs = hidr_p, tags_p
+                hidr_cs, tags_cs, nannum = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0, denan=True)
+                print(f"{model_type}@{epoch} in run {run_number}: {nannum}")
+
+                # Now we put in aspiration the contrast between pp and h
+                for i in range(6): 
+                    hidrs, tagss = separate_and_sample_data(data_array=hidr_cs, tag_array=tags_cs, sample_size=abx_num_samples, tags=include_tags)
+                    abx_err01 = sym_abx_error(hidrs[0], hidrs[1], distance=euclidean_distance)
+                    asp_list_runs.append(abx_err01)
+
+            asp_list_epochs.append(asp_list_runs)
+
+        asp_list_epochs = np.array(asp_list_epochs)
+        asp_list_epochs = asp_list_epochs.transpose(1, 0)
+        # plot_silhouette(asp_list_epochs, stop_list_epochs, os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"))
+        plot_many([asp_list_epochs], ["ABX"], 
+                  os.path.join(res_save_dir, test_name, f"03-stat-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.png"), 
+                  {"xlabel": "Epochs", "ylabel": "ABX Error Rate", "title": f"ABX Error Rate for {model_type} in {model_condition} at {zlevel}"}, 
+                  y_range=(0, 1.0))
+        # np.save(os.path.join(res_save_dir, test_name, f"04-save-ptk-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), stop_list_epochs)
+        np.save(os.path.join(res_save_dir, test_name, f"07-save-ari-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}.npy"), asp_list_epochs)
+        print("Done.")
+
+    elif test_name.split("-")[0] in ["ABXSomethingCrossSection"]: 
+        """
+        20250216: 
+        This is newly added, and will make sure that we can test the contrast between different sections in the same phoneme.
+        """
+        # This is like the cross-phone ABX task, but we are testing the contrast between different sections in the same phoneme. 
+        # This one is for the cross-phone ABX task.
+        # For example, if I want to test the contrast between first and third position, I will use this one. 
+        hidden_dim_use = hidden_dim
+        for epoch in range(0, 101): 
+            # 先循环epoch，再循环run
+            stop_list_runs = []
+            asp_list_runs = []
+            print(f"Processing {model_type} in epoch {epoch}...")
+            for run_number in learned_runs:
+
+                test_name_lookats = test_name.split("-")[1].split("_")
+                test_name_label = test_name.split("-")[2]
+                test_name_datasource = test_name.split("-")[3]
+                test_name_offset_starts = test_name.split("-")[4].split("_")
+                test_name_offset_ends = test_name.split("-")[5].split("_")
+
+                this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
+                hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
+                                    file_prefix=f"all-{epoch}")
+                hidrep_handler.read()
+                hidrep = hidrep_handler.res
+
+                # select representation to work on
+                all_representations, hidden_dim_use = get_representation(data_collection=hidrep, 
+                                                         representation_select=zlevel, 
+                                                         hidden_dim_required=hidden_dim)
+                
+                all_sepframes1 = hidrep["sep-frame1"]
+                all_sepframes2 = hidrep["sep-frame2"]
+                all_phi_type = hidrep["phi-type"]
+                all_v1_names = hidrep["v1-name"]
+                all_s_names = hidrep["sn"]
+                all_v2_names = hidrep["vn"]
+
+                # define a tag_select dictionary
+                lookat_names_select = {"first": all_v1_names, "second": all_s_names, "third": all_v2_names}
+
+
+                include_map = None
+                include_tags = None
+                this_offset = (0.4, 0.6)
+                this_auxon = None
+                merge_one_vector = False
+
+                if test_name_datasource in ["AA", "IY", "UW"]: 
+                    all_datasources = [lookat_names_select[lookat] for lookat in test_name_lookats]
+                    this_offsets = [(float(f"0.{offset_start}"), float(f"0.{offset_end}")) for offset_start, offset_end in zip(test_name_offset_starts, test_name_offset_ends)]
+                    include_maps = [{test_name_datasource:f"{test_name_datasource}_{lookat}_{offset_start}_{offset_end}"} for offset_start, offset_end, lookat in zip(test_name_offset_starts, test_name_offset_ends, test_name_lookats)]
+                else: 
+                    raise ValueError("Datasource not included! ")
+                
+                # Select Vowels and Vowel Tags
+                hidr_1, tags_1 = get_toplot(hiddens=all_representations, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_datasources[0],
+                                                offsets=this_offset, 
+                                                contrast_in=test_name_label, 
+                                                merge=merge_one_vector, 
+                                                hidden_dim=hidden_dim_use, 
+                                                lookat=test_name_lookats[0], 
+                                                include_map=include_maps[0], 
+                                                aux_on=this_auxon)
+                hidr_2, tags_2 = get_toplot(hiddens=all_representations, 
+                                                sepframes1=all_sepframes1,
+                                                sepframes2=all_sepframes2,
+                                                phi_types=all_phi_type,
+                                                stop_names=all_datasources[1],
                                                 offsets=this_offset, 
                                                 contrast_in=test_name_label, 
                                                 merge=merge_one_vector, 
