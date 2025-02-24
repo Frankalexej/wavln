@@ -12,13 +12,14 @@ generate_random_number() {
 
 # Arrays of options for each argument
 # ms=('recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi') # 'recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi' 'recon96-phi'
-ms=('recon4-phi' 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi')
+ms=('recon8-phi')   # 'recon8-phi' 'recon16-phi' 'recon32-phi' 'recon48-phi' 'recon64-phi'
 cs=('b') # 
 # zls=('hidrep' 'attnout' 'ori' 'enc-lin1' 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 'enc-rnn3-f' 'enc-rnn3-b' 'dec-rnn3-f' 'enc-rnn4-f' 'enc-rnn4-b' 'dec-rnn4-f' 'enc-rnn5-f' 'enc-rnn5-b' 'dec-rnn5-f')
 # zls=('ori')
+zls=('enc-rnn5-f')
 # zls=('POS' 'VC' 'STOPPOA' 'PARC-0-2' 'PARC-2-4' 'PARC-4-6' 'PPP' 'PPH' 'GENDER' 'ARC-0-2' 'ARC-2-4' 'ARC-4-6' 'ARC-6-8' 'ARC-8-99')    # 'POS' 'VC' 'STOPPOA' 'PARC-0-2' 'PARC-2-4' 'PARC-4-6' 'PPP' 'PPH' 'GENDER'
 # zls=('AAIY_1')
-zls=('RESULT')
+# zls=('RESULT')
 # zls=('ARC-0-2' 'ARC-2-4' 'ARC-4-6' 'ARC-6-8' 'ARC-8-99') 
 # 'hidrep' 'attnout' 'ori' 'enc-lin1' 'dec-lin1' 'enc-rnn1-f' 'enc-rnn1-b' 'dec-rnn1-f' 'enc-rnn2-f' 'enc-rnn2-b' 'dec-rnn2-f' 'enc-rnn3-f' 'enc-rnn3-b' 'dec-rnn3-f' 'enc-rnn4-f' 'enc-rnn4-b' 'dec-rnn4-f' 'enc-rnn5-f' 'enc-rnn5-b' 'dec-rnn5-f'
 ts='1113024340'
@@ -35,10 +36,14 @@ tns=(
     # "ABXSomethingCrossPhone-first_third-data-UW"
     # "ABXSomethingCrossSection-first_first-data-AA-1_7-3_9"
     # "ABXSomethingCrossSection-third_third-data-AA-1_7-3_9"
-    "ABXpositionAll-third-data-vowel_3"
-    "ABXpositionAll-first-data-vowel_1"
+    # "ABXpositionAll-third-data-vowel_3"
+    # "ABXpositionAll-first-data-vowel_1"
     # "ABXSomethingAll-third-data-speaker"
     # "ABXSomethingCrossPhoneAll-first_third-data-AA"
+    # "ABXSomethingCrossPhoneAll-first_third-data-IY"
+    # "ABXSomethingCrossPhoneAll-first_third-data-UW"
+    # "ScatterplotSomething-first-data-AAIY_3"
+    "ScatterplotSomethingCrossPhone-first_third-data-AA"
 )
 echo "Timestamp: $ts; Test: $tn"
 
