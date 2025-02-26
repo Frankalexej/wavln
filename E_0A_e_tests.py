@@ -613,6 +613,124 @@ if __name__ == "__main__":
             plt.close()
 
 
+    elif test_name.split("-")[0] in ["ScatterplotSomethingCrossMany"]: 
+        # This one is for the cross-phone ABX task.
+        # For example, if I want to test the contrast between first and third position, I will use this one. 
+        hidden_dim_use = hidden_dim
+        for epoch in range(0, 101): 
+            # 先循环epoch，再循环run
+            hidrep_list_runs = []
+            tags_list_runs = []
+            print(f"Processing {model_type} in epoch {epoch}...")
+            for run_number in learned_runs:
+
+                test_name_lookats = test_name.split("-")[1].split("_")
+                test_name_label = test_name.split("-")[2]
+                test_name_datasource = test_name.split("-")[3]
+
+                this_model_condition_dir = os.path.join(model_condition_dir, f"{run_number}")
+                hidrep_handler = DictResHandler(whole_res_dir=this_model_condition_dir, 
+                                    file_prefix=f"all-{epoch}")
+                hidrep_handler.read()
+                hidrep = hidrep_handler.res
+
+                # select representation to work on
+                all_representations, hidden_dim_use = get_representation(data_collection=hidrep, 
+                                                         representation_select=zlevel, 
+                                                         hidden_dim_required=hidden_dim)
+                
+                all_sepframes1 = hidrep["sep-frame1"]
+                all_sepframes2 = hidrep["sep-frame2"]
+                all_phi_type = hidrep["phi-type"]
+                all_v1_names = hidrep["v1-name"]
+                all_s_names = hidrep["sn"]
+                all_v2_names = hidrep["vn"]
+
+                """
+                20250216: why did I not find out that we indeed selected hidreps based on the same tag set, v2? 
+                            This will make all third_items correctly selected, but all first_items selected randomly 
+                            (because there is no guarantee that it must be ASA, but there can be ASE, ASU, etc.). 
+
+                            If our observations that temporal encoding is there, then we can still ancitipate that there is result. 
+                """
+                # define a tag_select dictionary
+                lookat_names_select = {"first": all_v1_names, "second": all_s_names, "third": all_v2_names}
+
+
+                include_map = None
+                include_tags = None
+                this_offset = (0.4, 0.6)
+                this_auxon = None
+                merge_one_vector = False
+
+                test_name_lookats = ["first", "first", "first", "third", "third", "third"]
+                sample_range_names = ["early", "mid", "late", "early", "mid", "late"]
+
+                if test_name_datasource in ["AA", "IY", "UW"]: 
+                    # all_datasources = [lookat_names_select[lookat] for lookat in test_name_lookats]
+                    all_datasources = [all_v1_names, all_v1_names, all_v1_names, all_v2_names, all_v2_names, all_v2_names]
+                    this_offsets = [(0.1, 0.2), (0.45, 0.55), (0.8, 0.9), (0.1, 0.2), (0.45, 0.55), (0.8, 0.9)] # cater for both V1 and V2
+                    include_maps = [{test_name_datasource:f"{test_name_datasource}_{test_name_lookats[i]}_{sample_range_names[i]}"} for i in range(len(test_name_lookats))]
+                else: 
+                    raise ValueError("Datasource not included! ")
+                
+                # Select Vowels and Vowel Tags
+                hidrep_select_list = []
+                tags_select_list = []
+                for i in range(len(test_name_lookats)): 
+                    hidr_i, tags_i = get_toplot(hiddens=all_representations, 
+                                                    sepframes1=all_sepframes1,
+                                                    sepframes2=all_sepframes2,
+                                                    phi_types=all_phi_type,
+                                                    stop_names=all_datasources[i],
+                                                    offsets=this_offsets[i], 
+                                                    contrast_in=test_name_label, 
+                                                    merge=merge_one_vector, 
+                                                    hidden_dim=hidden_dim_use, 
+                                                    lookat=test_name_lookats[i], 
+                                                    include_map=include_maps[i], 
+                                                    aux_on=this_auxon)
+                    hidrep_select_list.append(hidr_i)
+                    tags_select_list.append(tags_i)
+
+                # combine them
+                hidr_cs, tags_cs = np.concatenate(hidrep_select_list, axis=0), np.concatenate(tags_select_list, axis=0)
+                # hidr_cs, tags_cs = hidr_p, tags_p
+                # hidr_cs, tags_cs, nannum = postproc_standardize(hidr_cs, tags_cs, outlier_ratio=0, denan=True)
+                # print(f"{model_type}@{epoch} in run {run_number}: {nannum}")
+
+                hidrep_list_runs.append(hidr_cs)
+                tags_list_runs.append(tags_cs)
+
+            hrlr = np.concatenate(hidrep_list_runs, axis=0)
+            tlr = np.concatenate(tags_list_runs, axis=0)
+
+            # PCA
+            pca = PCA(n_components=2)
+            reduced_data = pca.fit_transform(hrlr)  # Shape: (num_tokens, 2)
+            # reduced_data = hrlr[:, :2]
+
+            # Create a scatter plot
+            plt.figure(figsize=(10, 8))
+            # Color the dots based on the tags
+            unique_tags = np.unique(tlr)
+            colors = plt.cm.tab10(np.linspace(0, 1, len(unique_tags)))  # Generate distinct colors
+
+            for tag, color in zip(unique_tags, colors):
+                # Filter data points for the current tag
+                mask = tlr == tag
+                plt.scatter(reduced_data[mask, 0], reduced_data[mask, 1], color=color, label=tag, alpha=0.7)
+
+            # Add labels and legend
+            plt.xlabel('PCA Component 1')
+            plt.ylabel('PCA Component 2')
+            plt.title(f"PCA Scatter Plot {model_type} in {model_condition} at {zlevel} in Epoch {epoch}")
+            plt.legend(title='Token Type')
+            plt.grid(True)
+            # plt.show()
+            plt.savefig(os.path.join(res_save_dir, test_name, f"03-pca-{model_type}-{model_condition}-{strseq_learned_runs}-{zlevel}-{epoch}.png"))
+            plt.close()
+
     elif test_name.split("-")[0] in ["ABXSomethingAll", "ABXSomethingCrossPhoneAll", "ABXpositionAll"]: 
         # 1 is euclidean, 2 is cosine distance
         # this one evaluates the copntrast between p, p(h) and (p)h.

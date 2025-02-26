@@ -43,7 +43,8 @@ tns=(
     # "ABXSomethingCrossPhoneAll-first_third-data-IY"
     # "ABXSomethingCrossPhoneAll-first_third-data-UW"
     # "ScatterplotSomething-first-data-AAIY_3"
-    "ScatterplotSomethingCrossPhone-first_third-data-AA"
+    # "ScatterplotSomethingCrossPhone-first_third-data-AA"
+    "ScatterplotSomethingCrossMany-desig-data-AA"
 )
 echo "Timestamp: $ts; Test: $tn"
 
