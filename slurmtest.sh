@@ -1,0 +1,11 @@
+#!/bin/bash
+#SBATCH --job-name=sandbox_test
+#SBATCH --output=/mnt/storage/franklhtan/wavln/test_job.out
+#SBATCH --error=/mnt/storage/franklhtan/wavln/test_job.err
+#SBATCH --time=00:10:00
+#SBATCH --partition=compute
+#SBATCH --ntasks=1
+#SBATCH --gres=gpu:1
+#SBATCH --chdir="/mnt/franklhtan/projects/wavln/scripts/"
+
+singularity exec --nv --fakeroot /home/franklhtan/ubuntu nvidia-smi
