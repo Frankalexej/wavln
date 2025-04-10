@@ -8,5 +8,5 @@
 #SBATCH --gres=gpu:1
 #SBATCH --chdir="mnt/franklhtan/projects/wavln/scripts/"
 
-singularity exec --nv --fakeroot --writable home/franklhtan/ubuntu \
+singularity exec --nv --fakeroot --writable /home/franklhtan/ubuntu \
 bash -c "source /opt/anaconda3/etc/profile.d/conda.sh && conda activate wavln && python test.py"
