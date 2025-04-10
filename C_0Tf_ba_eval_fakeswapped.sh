@@ -27,7 +27,8 @@ for i in "${is[@]}"; do
     for m in "${ms[@]}"; do
         for c in "${cs[@]}"; do
             # Randomly select a GPU between 0 and 8
-            gpu=$((RANDOM % 9))
+            # gpu=$((RANDOM % 9))
+            gpu=0
             # Run the Python script with the current combination of arguments in the background
             python C_0Tf_ba_eval_fakeswapped.py -ts "$ts" -rn "$i" -m "$m" -cd "$c" -gpu "$gpu" &
         done

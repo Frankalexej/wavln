@@ -138,8 +138,9 @@ def get_data_both(rec_dir, t_guide_path, st_guide_path, word_guide_,
     st_valid = pd.read_csv(st_guide_path)
     t_valid = pd.read_csv(t_guide_path)
     # now st also has noise, so we need to sample silence for both
-    st_valid["pre_startTime"] = st_valid["stop_startTime"] - SilenceSampler_for_TV(fixlength=noise_controls["fixlength"]).sample(len(st_valid))
-    # t_valid["pre_startTime"] = t_valid["stop_startTime"] - SilenceSampler_for_TV(fixlength=noise_controls["fixlength"]).sample(len(t_valid))
+    # NOTE: do not forget to change this based on setting
+    # st_valid["pre_startTime"] = st_valid["stop_startTime"] - SilenceSampler_for_TV(fixlength=noise_controls["fixlength"]).sample(len(st_valid))
+    t_valid["pre_startTime"] = t_valid["stop_startTime"] - SilenceSampler_for_TV(fixlength=noise_controls["fixlength"]).sample(len(t_valid))
     all_valid = pd.concat([t_valid, st_valid], ignore_index=True, sort=False)
     # all_valid.to_csv("all_valid.csv", index=False)
     # raise Exception("Stop here")
@@ -182,7 +183,7 @@ def run_one_epoch(model, single_loader, both_loader, model_save_dir, stop_epoch,
     # Load model
     model_name = "{}.pt".format(stop_epoch)
     model_path = os.path.join(model_save_dir, model_name)
-    state = torch.load(model_path)
+    state = torch.load(model_path, map_location=device)
     model.load_state_dict(state)
     model.to(device)
 
@@ -382,7 +383,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # set device number
-    torch.cuda.set_device(args.gpu)
+    # torch.cuda.set_device(args.gpu)
+    torch.cuda.set_device(0)    # when running on local computer
 
     ts = args.timestamp # this timestamp does not contain run number
     rn = args.runnumber
