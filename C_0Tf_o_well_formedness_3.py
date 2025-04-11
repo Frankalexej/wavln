@@ -272,7 +272,7 @@ if __name__ == "__main__":
     zlevel = args.zlevel
     model_condition_dir = os.path.join(res_save_dir, model_type, model_condition)
     print(model_condition_dir)
-    assert PU.path_exist(model_condition_dir)
+    # assert PU.path_exist(model_condition_dir)
     this_save_dir = os.path.join(model_condition_dir, "integrated_results")
     mk(this_save_dir)
 
