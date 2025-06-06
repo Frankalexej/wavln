@@ -231,7 +231,7 @@ def plot_many(arrs, labels, save_path, plot_label_dict={"xlabel": "Epoch", "ylab
     plt.legend()
     plt.grid(True)
     if save_path is not None:
-        plt.savefig(save_path)
+        plt.savefig(save_path, dpi=300)
     plt.close()
 
 if __name__ == "__main__":
